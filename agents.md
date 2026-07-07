@@ -49,6 +49,10 @@ intentional project decisions rather than assumptions.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.
 - If no automated tests exist yet, document the manual verification performed.
+- When Daniel asks to boot Azurite for Tailscale or phone access, bind only to
+  the Tailscale interface needed for that session, keep the backend local-only
+  when the frontend can proxy API requests, and give Daniel the MagicDNS
+  hostname URL instead of a static Tailscale IP address.
 
 ## Judgment Calibration
 
