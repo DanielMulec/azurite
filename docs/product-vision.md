@@ -43,18 +43,23 @@ name for this concept can still change. Possible alternatives include
 
 ## Repository And Workspace Boundaries
 
-This Git repository is the project repository for Azurite's application source
-code, documentation, tests, and development tooling.
+Keep these locations conceptually separate:
+
+- Source repository: this Git repository is for Azurite's application source
+  code, documentation, tests, and development tooling.
+- Installed or running product: the built Azurite app, server, runtime, and
+  supporting files should be installable or runnable from any appropriate folder
+  on the user's system. The product must not depend on this Git checkout being
+  its runtime location.
+- Knowledge workspace: the user's markdown knowledge collection must be usable
+  from anywhere on the system, such as an existing notes folder, a synced
+  directory, an external drive, or another local path selected by the user.
 
 User knowledge workspaces must not be coupled to this repository or stored
-inside it by default. A workspace should be usable from anywhere on the user's
-system, such as an existing notes folder, a synced directory, an external drive,
-or another local path selected by the user.
-
-The application should treat workspace locations as user-selected filesystem
-roots. Any generated indexes, caches, or app metadata must respect that boundary:
-source markdown remains in the chosen workspace, and derived state should be
-clearly separated, rebuildable, and safe to delete.
+inside it by default. The application should treat workspace locations as
+user-selected filesystem roots. Any generated indexes, caches, or app metadata
+must respect that boundary: source markdown remains in the chosen workspace, and
+derived state should be clearly separated, rebuildable, and safe to delete.
 
 ## Frontend
 
