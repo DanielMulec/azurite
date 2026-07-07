@@ -3,8 +3,9 @@
 ## Project Status
 
 This repository is currently a clean starting point. Product direction is
-documented in `docs/product-vision.md`, and reusable research sources are tracked
-in `docs/research-sources.md`. Treat new structure, tooling, and conventions as
+documented in `docs/product-vision.md`, the working style is documented in
+`docs/working-agreement.md`, and reusable research sources are tracked in
+`docs/research-sources.md`. Treat new structure, tooling, and conventions as
 intentional project decisions rather than assumptions.
 
 ## Working Guidelines
@@ -21,6 +22,8 @@ intentional project decisions rather than assumptions.
 
 ## Development Workflow
 
+- Follow the high-fidelity tiny-increment workflow in
+  `docs/working-agreement.md`.
 - Inspect the repository state before editing: `git status --short --branch`.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.
