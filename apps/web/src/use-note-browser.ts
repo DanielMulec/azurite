@@ -4,6 +4,7 @@ import type {
   NoteSummary,
   ReadNoteResponse,
 } from "@azurite/shared";
+import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 
 import { listNotes, readNote, WebApiError } from "./api-client.js";
@@ -24,6 +25,7 @@ type LoadNotesActions = {
     selectNote: (current: string | undefined) => string | undefined,
   ) => void;
 };
+type NoteStateSetter = Dispatch<SetStateAction<Loadable<NoteContent>>>;
 
 const defaultNoteBrowserApi: NoteBrowserApi = {
   listNotes,
@@ -94,7 +96,7 @@ function loadNotes(
 function loadSelectedNote(
   api: NoteBrowserApi,
   selectedNoteId: string | undefined,
-  setNoteState: (state: Loadable<NoteContent>) => void,
+  setNoteState: NoteStateSetter,
 ): () => void {
   if (selectedNoteId === undefined) {
     setNoteState({ status: "idle" });
@@ -107,10 +109,10 @@ function loadSelectedNote(
 function requestSelectedNote(
   api: NoteBrowserApi,
   selectedNoteId: string,
-  setNoteState: (state: Loadable<NoteContent>) => void,
+  setNoteState: NoteStateSetter,
 ): () => void {
   let isActive = true;
-  setNoteState({ status: "loading" });
+  keepRenderedNoteWhileLoading(setNoteState);
 
   void api.readNote(selectedNoteId).then(
     (response) => {
@@ -144,13 +146,23 @@ function handleLoadedNotes(
 function handleLoadedNote(
   response: ReadNoteResponse,
   isActive: boolean,
-  setNoteState: (state: Loadable<NoteContent>) => void,
+  setNoteState: NoteStateSetter,
 ): void {
   if (!isActive) {
     return;
   }
 
   setNoteState({ data: response.note, status: "ready" });
+}
+
+function keepRenderedNoteWhileLoading(setNoteState: NoteStateSetter): void {
+  setNoteState((currentNoteState) => {
+    if (currentNoteState.status === "ready") {
+      return currentNoteState;
+    }
+
+    return { status: "loading" };
+  });
 }
 
 function handleLoadError<T>(

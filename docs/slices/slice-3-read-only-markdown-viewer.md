@@ -137,6 +137,14 @@ Rules:
   supported by the approved sanitized pipeline.
 - Keep any future sanitizer schema expansions covered by tests.
 
+Renderer guardrail:
+
+- Treat the Slice 3 renderer as a small, replaceable read-only adapter.
+- Do not expand this renderer into a parallel editor or document architecture.
+- Before implementing editing, evaluate whether the chosen editor stack
+  replaces, wraps, or reuses this renderer.
+- Keep future rendering/editor decisions in a focused editor-stack slice.
+
 ## UI Behavior
 
 Build a read-only note browsing layout.
@@ -159,6 +167,7 @@ Build a read-only note browsing layout.
 
 - Load selected note content from `GET /api/notes/content?noteId=...`.
 - Show a loading state while the selected note request is pending.
+- Keep an already rendered note visible while a newly selected note is loading.
 - Show a safe error state if the selected note request fails.
 - Render the selected note title, safe metadata, and sanitized markdown content.
 - Do not display absolute filesystem paths.

@@ -217,6 +217,12 @@ Important constraints:
 Do not adopt an editor model that stores the canonical document as proprietary
 JSON or non-markdown blocks.
 
+The Slice 3 read-only renderer is intentionally a thin, replaceable adapter. It
+exists to prove safe note browsing and sanitized display before Azurite commits
+to an editor stack. Do not grow it into a parallel rendering or editing
+architecture. Before implementing editing, decide whether the chosen editor stack
+replaces, wraps, or reuses this renderer.
+
 ## TypeScript And Code Quality Rules
 
 Use strict, beginner-readable TypeScript.
