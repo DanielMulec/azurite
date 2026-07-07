@@ -61,6 +61,32 @@ intentional project decisions rather than assumptions.
 - Prefer primary and official sources where possible, and record context,
   caveats, and access dates.
 
+## Tool And Skill Availability
+
+- When a task names or depends on a Codex tool, plugin, or skill, check that
+  Codex-level capability before claiming the tool is unavailable. Do not
+  conclude that a capability is unavailable from a repository-local command such
+  as `pnpm exec <tool>` alone.
+- For browser and UI verification, recognize these Codex capabilities when they
+  are available in the session:
+  - Browser plugin identifier: `[@Browser](plugin://browser@openai-bundled)`
+  - Chrome plugin identifier: `[@Chrome](plugin://chrome@openai-bundled)`
+  - Playwright CLI skill: `$playwright`
+  - Playwright CLI skill file:
+    `/Users/danielmulec/.codex/skills/playwright/SKILL.md`
+  - Playwright interactive skill: `$playwright-interactive`
+  - Playwright interactive skill file:
+    `/Users/danielmulec/.codex/skills/playwright-interactive/SKILL.md`
+- Distinguish clearly between a tool not being installed as a project
+  dependency, not being installed globally, being available through a Codex
+  plugin, being available through a Codex skill or bundled wrapper, and being
+  truly unavailable after the relevant plugin or skill path has been checked.
+- For example, if `pnpm exec playwright` fails but `$playwright` is available,
+  say: "`pnpm exec playwright` is not available as a repo dependency, but the
+  Codex Playwright skill is available, so I will use its wrapper."
+- When a user gives a fallback order, follow that order exactly. Do not skip a
+  listed Codex skill or plugin just because a repo-local command is missing.
+
 ## Git Conventions
 
 - Write clear, concise commit messages in English.
