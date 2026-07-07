@@ -139,6 +139,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ["apps/web/src/components/SanitizedMarkdown.tsx"],
+    rules: {
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
     files: ["apps/server/**/*.{ts,tsx}"],
     rules: {
       "no-console": "off",

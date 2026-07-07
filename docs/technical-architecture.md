@@ -9,6 +9,7 @@ Use this stack for the first high-fidelity slice:
 - Language: TypeScript 6.x across backend, frontend, and shared packages.
 - Backend: Fastify 5.x.
 - Frontend: React 19.x plus Vite 8.x.
+- Frontend styling: Tailwind CSS 4.x through the official Vite plugin.
 - PWA support: Vite-based PWA setup when the first installable shell is needed.
 - Markdown dialect: CommonMark plus GitHub Flavored Markdown.
 - Markdown processing: unified, remark, rehype, and rehype-sanitize.
@@ -42,10 +43,18 @@ packages for Slice 1 are:
 
 Future slices may add:
 
-- `remark-gfm`, `remark-rehype`, and `rehype-sanitize` for rendering.
 - `remark-frontmatter` or equivalent frontmatter parsing support for metadata.
 - wiki-link packages such as `remark-wiki-link` or `mdast-util-wiki-link`, but
   only in a focused wiki-link slice.
+
+The first concrete packages for Slice 3 are:
+
+- `remark-gfm`: enables selected GitHub Flavored Markdown structures.
+- `remark-rehype`: converts markdown syntax trees into HTML syntax trees.
+- `rehype-sanitize`: removes unsafe HTML before browser rendering.
+- `rehype-stringify`: serializes sanitized HTML for the approved read-only
+  renderer.
+- `@tailwindcss/typography`: styles rendered markdown content.
 
 Keep slice-specific implementation details in
 `docs/slices/slice-1-workspace-discovery.md`.
@@ -117,6 +126,41 @@ Initial behavior:
   extraction behavior from Slice 1.
 - Return raw markdown as data, not rendered HTML.
 - Avoid new packages during this slice.
+
+## Third Product Slice
+
+The third implementation slice turns the first two backend slices into visible
+read-only product behavior in the web app.
+
+Detailed plan: `docs/slices/slice-3-read-only-markdown-viewer.md`.
+
+Initial behavior:
+
+- List workspace notes in the React app through `GET /api/notes`.
+- Select the first note automatically when notes load.
+- Read selected note content through `GET /api/notes/content?noteId=...`.
+- Render markdown through the approved sanitized pipeline.
+- Style the first real product surface with Tailwind CSS and local semantic
+  design tokens.
+- Keep editing, workspace picking, backlinks, graph behavior, search, and file
+  watching out of this slice.
+
+## Frontend Styling
+
+Use Tailwind CSS for application UI styling, with local semantic CSS tokens for
+Azurite-specific color and surface decisions.
+
+Initial rules:
+
+- Configure Tailwind through `@tailwindcss/vite`.
+- Keep global styling in one web stylesheet imported by the React entrypoint.
+- Use `@tailwindcss/typography` for rendered markdown content.
+- Prefer local React components over a component library until a slice needs
+  heavier primitives such as dialogs, menus, tabs, or tooltips.
+- Do not add `shadcn/ui` or Radix UI by default; evaluate them only when a
+  focused slice needs their interaction primitives.
+- Keep product surfaces quiet, readable, and optimized for repeated knowledge
+  work rather than landing-page composition.
 
 ## Local Server Lifecycle
 
