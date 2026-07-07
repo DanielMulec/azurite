@@ -86,6 +86,21 @@ Initial behavior:
 - Return a note list through an API.
 - Avoid writing to the workspace during this slice.
 
+## Local Server Lifecycle
+
+The local Fastify server should shut down gracefully when the process receives
+`SIGINT` or `SIGTERM`.
+
+- Register shutdown handlers in the server entrypoint, not inside route modules.
+- Close Fastify with `server.close()` before process exit.
+- Treat intentional `Ctrl+C` shutdown as a clean local shutdown and avoid noisy
+  forced-kill output from development tooling.
+- Keep a short fallback exit for local development so a process that is already
+  shutting down does not hang.
+- Prefer the plain server `tsx` dev command over watch mode until a watcher path
+  can preserve the same clean shutdown behavior.
+- Keep shutdown behavior small and testable through server lifecycle helpers.
+
 ## Frontend And Commercial Optionality
 
 React plus Vite is the initial app-shell choice because it keeps the local PWA
