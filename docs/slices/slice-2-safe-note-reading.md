@@ -87,6 +87,8 @@ Rules:
 - Must not be an absolute path.
 - Must not contain `..` segments.
 - Must not contain empty path segments such as `foo//bar.md`.
+- Must not enter generated or configuration-heavy directories ignored by note
+  discovery: `.azurite`, `.git`, `.obsidian`, or `node_modules`.
 - Must not expose or accept private absolute filesystem paths.
 
 Valid examples:
@@ -102,6 +104,8 @@ Invalid examples:
 - `../secret.md`
 - `Projects/../secret.md`
 - `Projects//azurite.md`
+- `.obsidian/private.md`
+- `node_modules/readme.md`
 - `ignored.txt`
 
 ### Note Content
@@ -145,6 +149,18 @@ Rules:
 - Return stable error codes for invalid input, missing workspace configuration,
   missing notes, and unsafe note IDs.
 
+Error codes and statuses:
+
+- Missing workspace configuration returns `500` with `workspace_not_configured`.
+- Invalid configured workspace roots return `500` with `invalid_workspace`.
+- Missing, malformed, absolute, traversal, non-markdown, or ignored-directory
+  note IDs return `400` with `invalid_note_id`.
+- Note IDs whose real filesystem target escapes the workspace return `400` with
+  `invalid_note_id`.
+- Valid note IDs that do not point to an existing markdown file return `404`
+  with `note_not_found`.
+- Unexpected read failures return `500` with `note_read_failed`.
+
 ## Route Shape
 
 Add:
@@ -184,6 +200,8 @@ In `packages/shared`:
 - Reject path traversal segments.
 - Reject empty path segments.
 - Reject non-markdown file names.
+- Reject note IDs inside generated or configuration-heavy directories ignored
+  by note discovery.
 - Keep the validation behavior independent of the local operating system path
   separator.
 
@@ -196,6 +214,8 @@ Tests:
 - Rejects `../secret.md`.
 - Rejects `Projects/../secret.md`.
 - Rejects `Projects//azurite.md`.
+- Rejects `.obsidian/private.md`.
+- Rejects `node_modules/readme.md`.
 - Rejects `ignored.txt`.
 
 ### 3. Add Core Note ID Resolution
@@ -210,6 +230,8 @@ In `packages/core`:
 - Verify the resolved path is a regular file.
 - Verify the resolved path still represents a markdown file.
 - Reject symlinks that escape the workspace.
+- Reject note IDs inside the same ignored directories used by markdown
+  discovery.
 - Return a small verified value that contains the safe relative ID and the
   private absolute file path needed by core internals.
 
@@ -218,6 +240,8 @@ Rules:
 - Route code must not construct trusted filesystem paths.
 - Absolute filesystem paths must remain private to `packages/core`.
 - Existing path-boundary helpers must be reused or extended deliberately.
+- The ignored-directory list must live in one core helper used by both discovery
+  and note-ID resolution.
 
 Tests:
 
@@ -228,6 +252,7 @@ Tests:
 - Rejects non-markdown files.
 - Rejects missing files.
 - Rejects directories.
+- Rejects ignored-directory note IDs.
 - Rejects symlinked files that point outside the workspace.
 - Keeps returned public IDs slash-separated and relative.
 
@@ -270,6 +295,7 @@ In `apps/server`:
 - Validate the success response with the shared schema before returning it.
 - Return safe API errors for missing workspace configuration, invalid note IDs,
   missing notes, and unsafe filesystem resolution.
+- Use the exact error codes and statuses from this plan.
 
 Rules:
 
@@ -285,6 +311,7 @@ Tests:
 - Valid note IDs return markdown plus metadata.
 - Missing notes return a safe not-found error.
 - Traversal attempts return a safe error.
+- Ignored-directory note IDs return a safe validation error.
 
 ### 6. Validate The Slice
 
@@ -307,6 +334,8 @@ printf '# Home\n\nWelcome.\n' > /tmp/azurite-test-workspace/index.md
 printf '# Azurite Plan\n\nSlice notes.\n' > /tmp/azurite-test-workspace/Projects/azurite.md
 printf '## No H1 here\n\nFallback title test.\n' > /tmp/azurite-test-workspace/untitled.md
 printf 'Ignore me.\n' > /tmp/azurite-test-workspace/ignored.txt
+mkdir -p /tmp/azurite-test-workspace/.obsidian
+printf '# Private\n' > /tmp/azurite-test-workspace/.obsidian/private.md
 AZURITE_WORKSPACE_PATH=/tmp/azurite-test-workspace /opt/homebrew/bin/npx --yes pnpm@11.7.0 --filter @azurite/server dev
 ```
 
@@ -324,6 +353,13 @@ cd /Users/danielmulec/Projekte/azurite
 curl 'http://127.0.0.1:3000/api/notes/content?noteId=../secret.md'
 ```
 
+Ignored-directory request from another terminal:
+
+```bash
+cd /Users/danielmulec/Projekte/azurite
+curl 'http://127.0.0.1:3000/api/notes/content?noteId=.obsidian/private.md'
+```
+
 Manual review expectations:
 
 - The valid response contains one `note` object.
@@ -331,6 +367,7 @@ Manual review expectations:
 - The valid response contains only relative note identifiers and safe metadata.
 - The valid response does not contain an absolute filesystem path.
 - The invalid traversal response is a safe error.
+- The ignored-directory response is a safe validation error.
 - Missing note IDs and missing notes fail safely.
 
 ## Acceptance Criteria
@@ -342,12 +379,14 @@ The slice is complete when:
 - `packages/core` can resolve a validated note ID inside a verified workspace
   root.
 - `packages/core` rejects traversal, absolute paths, non-markdown targets,
-  missing files, directories, and symlink escapes.
+  ignored-directory note IDs, missing files, directories, and symlink escapes.
 - `packages/core` can read one markdown file and return raw markdown plus
   metadata.
 - `apps/server` exposes `GET /api/notes/content?noteId=...`.
 - `apps/server` returns safe errors for invalid input, missing notes, unsafe
   paths, and missing workspace configuration.
+- `apps/server` uses the exact safe error codes and statuses defined in this
+  plan.
 - API responses do not expose absolute filesystem paths.
 - Tests cover schema validation, core path safety, core note reading, and server
   route behavior.
