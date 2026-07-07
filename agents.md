@@ -34,6 +34,9 @@ intentional project decisions rather than assumptions.
 - Reuse existing schemas, types, helpers, and domain functions before adding new
   ones. Do not duplicate logic or create parallel data shapes for the same
   concept.
+- When reused functionality needs to support a new context, extend it
+  deliberately and add tests for all supported contexts instead of creating a
+  near-copy.
 - Write implementation plans with decisive language. Avoid "probably" or vague
   optionality in committed plan steps; keep open questions separate.
 - Add beginner-readable JSDoc/TSDoc comments for exported APIs and plain

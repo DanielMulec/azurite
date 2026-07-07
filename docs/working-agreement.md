@@ -51,6 +51,9 @@ Implementation plans should be decisive, not speculative.
 - Keep open questions explicit and separate from committed implementation steps.
 - Prefer reusing existing schemas, types, helpers, and domain functions before
   adding new ones.
+- When a reused helper or schema needs to support an additional context, extend
+  it intentionally and test every supported context rather than creating a
+  parallel near-copy.
 
 ## Quality And Perfectionism
 

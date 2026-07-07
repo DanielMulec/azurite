@@ -154,6 +154,9 @@ Use strict, beginner-readable TypeScript.
 - Reuse existing schemas, types, helpers, and domain functions when they express
   the same concept. Do not create parallel data shapes or duplicate logic for
   behavior the codebase already owns.
+- When reused functionality needs one more capability for a new context, extend
+  the existing helper or schema deliberately instead of creating a near-copy.
+  Cover every supported context with tests.
 - Extract shared functionality into clearly named helpers when multiple modules
   need the same behavior.
 - Use TypeScript for repository utility scripts. Do not add `.mjs` files unless
@@ -239,6 +242,9 @@ read.
 - Prefer existing core helpers for workspace roots, note IDs, path boundaries,
   title extraction, and note metadata whenever a new slice touches the same
   behavior.
+- Extend an existing helper when the new behavior is part of the same domain
+  concept. Keep the helper readable, keep its responsibility narrow, and add
+  tests for the old and new contexts.
 - Add a new helper only when it has a clear responsibility and removes real
   duplication or clarifies a repeated domain operation.
 - Do not copy and adjust logic across modules. Move shared behavior to the
