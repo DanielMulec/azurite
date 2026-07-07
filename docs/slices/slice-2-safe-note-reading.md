@@ -2,10 +2,13 @@
 
 ## Status
 
-Planned.
+Complete.
 
-This is the implementation plan for the next product slice after
-`docs/slices/slice-1-workspace-discovery.md`.
+Implemented in commit `940c056` after the planning correction in commit
+`600a474`.
+
+This slice now serves as both the implementation plan and the completion record
+for safe markdown note reading.
 
 ## Goal
 
