@@ -41,6 +41,21 @@ markdown knowledge, configuration, indexes, and graph state. The final product
 name for this concept can still change. Possible alternatives include
 "chamber", "library", or "collection".
 
+## Repository And Workspace Boundaries
+
+This Git repository is the project repository for Azurite's application source
+code, documentation, tests, and development tooling.
+
+User knowledge workspaces must not be coupled to this repository or stored
+inside it by default. A workspace should be usable from anywhere on the user's
+system, such as an existing notes folder, a synced directory, an external drive,
+or another local path selected by the user.
+
+The application should treat workspace locations as user-selected filesystem
+roots. Any generated indexes, caches, or app metadata must respect that boundary:
+source markdown remains in the chosen workspace, and derived state should be
+clearly separated, rebuildable, and safe to delete.
+
 ## Frontend
 
 The frontend should be web-based and usable as a progressive web app on both
