@@ -44,6 +44,7 @@ packages/
 
 docs/
   product-vision.md
+  slices/
   technical-architecture.md
   working-agreement.md
   research-sources.md
@@ -52,16 +53,16 @@ docs/
 ## First Product Slice
 
 The first implementation slice should prove that Azurite can open a markdown
-workspace from anywhere on the filesystem and display notes correctly in a local
-PWA.
+workspace from anywhere on the filesystem and safely list the markdown notes
+inside it.
+
+Detailed plan: `docs/slices/slice-1-workspace-discovery.md`.
 
 Initial behavior:
 
 - Start a local server with an explicit workspace path.
 - Recursively discover `.md` files inside that workspace.
 - Return a note list through an API.
-- Return one note's raw markdown through an API.
-- Render one selected note in the web UI using the approved markdown pipeline.
 - Avoid writing to the workspace during this slice.
 
 ## Frontend And Commercial Optionality
