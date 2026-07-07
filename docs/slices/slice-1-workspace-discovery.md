@@ -1,5 +1,15 @@
 # Slice 1: Workspace Markdown Discovery
 
+## Status
+
+Complete.
+
+Implemented in commit `80a875b` and followed by local server shutdown polish in
+commits `79d504f` and `3c53919`.
+
+This slice now serves as both the original implementation plan and the
+completion record for the first workspace-discovery behavior.
+
 ## Goal
 
 Teach Azurite one small, real product behavior:
@@ -315,9 +325,49 @@ The slice is complete when:
   protection.
 - Validation and build commands pass.
 
+## Completion Notes
+
+Implemented:
+
+- Shared Zod schemas for workspace path input, note summaries, note-list
+  responses, and safe API errors.
+- Safe workspace root resolution with `realpath`.
+- Recursive `.md` discovery inside the configured workspace.
+- Ignoring `.azurite`, `.git`, `.obsidian`, `node_modules`, and non-markdown
+  files.
+- Path boundary helpers that prevent workspace escapes.
+- Symlink handling that ignores links escaping the workspace.
+- Markdown AST title extraction with `unified`, `remark-parse`, and
+  `mdast-util-to-string`.
+- Note summaries containing relative IDs, relative paths, file names, titles,
+  modification timestamps, and file sizes.
+- `GET /api/notes` in the local Fastify server.
+- Safe route errors for missing or invalid workspace configuration.
+- Tiny fixtures and focused tests for schemas, discovery, title extraction,
+  path boundaries, note summaries, and the route.
+
+Validated with:
+
+```bash
+/opt/homebrew/bin/npx --yes pnpm@11.7.0 validate
+/opt/homebrew/bin/npx --yes pnpm@11.7.0 build
+```
+
+Manually verified:
+
+- A temporary workspace returned relative note summaries through
+  `GET /api/notes`.
+- Nested notes appeared in the response.
+- Non-markdown files stayed out of the response.
+- First level-1 markdown headings became note titles.
+- Notes without a level-1 heading fell back to the file name.
+- API responses did not expose absolute filesystem paths.
+- Missing workspace configuration returned a safe error.
+
 ## Next Slice After This
 
 After this slice, the next natural slice is:
 
-Read one note by ID, safely return its raw markdown, and render it in the web UI
-with the approved sanitized markdown pipeline.
+Read one note by ID and safely return its raw markdown plus metadata. Rendering
+the selected note in the web UI should follow as a separate slice with the
+approved sanitized markdown pipeline.
