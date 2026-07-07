@@ -372,4 +372,6 @@ Resolve the temporary renderer before adding broader note-browsing polish.
 The next slice should evaluate the WYSIWYG/editor candidates that can also serve
 read-only rendered note views, then decide whether the chosen stack replaces,
 wraps, or reuses the Slice 3 markdown adapter. Do not grow the current
-unified-based renderer into a parallel long-term rendering architecture.
+unified-based renderer into a parallel long-term rendering architecture. Record
+any implications the chosen editor has for derived workspace indexes, local UI
+state, search metadata, and future note-browsing primitives.

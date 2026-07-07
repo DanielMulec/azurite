@@ -112,6 +112,30 @@ should never be treated as the only sources to consult.
   cases.
 - Caveats: Azurite also intends to support selected GFM extensions.
 
+### File Over App
+
+- URL: https://stephango.com/file-over-app
+- Accessed: 2026-07-07
+- Area: Product data philosophy
+- Use when: Reconfirming why Azurite keeps markdown files as the canonical
+  knowledge source instead of letting app state own user knowledge.
+- Notes: Articulates the principle that durable digital artifacts should be
+  files users control, in readable formats.
+- Caveats: A philosophy source, not an implementation guide; pair with concrete
+  filesystem, indexing, and editor decisions.
+
+### Obsidian Data Storage
+
+- URL: https://obsidian.md/help/data-storage
+- Accessed: 2026-07-07
+- Area: Reference knowledge app data model
+- Use when: Comparing Azurite's markdown-first workspace model with Obsidian's
+  vault storage behavior.
+- Notes: Obsidian stores notes as markdown-formatted plain text files in a local
+  folder and allows other tools to edit those files.
+- Caveats: Reference behavior only; Azurite should not copy Obsidian product
+  concepts wholesale.
+
 ### remark-gfm
 
 - URL: https://github.com/remarkjs/remark-gfm
@@ -178,6 +202,17 @@ should never be treated as the only sources to consult.
   generated from markdown or CMS-like content.
 - Caveats: Typography defaults should be adapted with Azurite's local design
   tokens so rendered notes do not feel generic.
+
+### shadcn/ui Vite Installation
+
+- URL: https://ui.shadcn.com/docs/installation/vite
+- Accessed: 2026-07-07
+- Area: React/Vite UI component composition
+- Use when: Evaluating whether a focused UI slice needs copy-owned component
+  patterns for dialogs, menus, tabs, forms, tooltips, or other app primitives.
+- Notes: shadcn/ui documents installation for Vite projects.
+- Caveats: It is a component/design-system source, not a note-browsing,
+  indexing, search, or knowledge-model solution.
 
 ### Zod
 
@@ -272,14 +307,64 @@ should never be treated as the only sources to consult.
   routing, server features, and framework-level optimizations.
 - Caveats: It is not required for the first local-first PWA slice.
 
+### React Arborist
+
+- URL: https://github.com/jameskerr/react-arborist
+- Accessed: 2026-07-07
+- Area: Tree/file explorer UI
+- Use when: Evaluating a complete React tree view for folder-aware note
+  browsing.
+- Notes: Provides a React tree component aimed at VS Code, Finder, Explorer, and
+  similar sidebar patterns.
+- Caveats: UI primitive only; Azurite must still own note identity, folder
+  semantics, and workspace indexing.
+
+### Headless Tree
+
+- URL: https://headless-tree.lukasbach.com/
+- Accessed: 2026-07-07
+- Area: Headless tree interaction primitives
+- Use when: Evaluating customizable folder-tree behavior with keyboard support,
+  search, renaming, drag-and-drop, and accessibility.
+- Notes: Headless Tree positions itself as customizable and accessible, with
+  React bindings available.
+- Caveats: Powerful interaction primitives can outpace product scope; adopt only
+  through a focused note-browser slice.
+
+### React Aria Tree
+
+- URL: https://react-aria.adobe.com/Tree
+- Accessed: 2026-07-07
+- Area: Accessible tree UI primitives
+- Use when: Evaluating lower-level accessible tree behavior for folder-aware
+  note browsing.
+- Notes: React Aria's tree follows its collection component model and supports
+  dynamic collections.
+- Caveats: Less visually opinionated; Azurite would need to provide layout,
+  styling, and product behavior.
+
+### TanStack Virtual
+
+- URL: https://tanstack.com/virtual/latest
+- Accessed: 2026-07-07
+- Area: Large list and tree rendering performance
+- Use when: Evaluating virtualization for large note lists, search results, or
+  folder trees.
+- Notes: Headless virtualization utility for rendering only the visible window
+  of long lists, grids, and scroll containers.
+- Caveats: Performance/rendering primitive only; it does not provide folder
+  semantics, search, or persistence.
+
 ### CodeMirror Markdown Language Support
 
 - URL: https://github.com/codemirror/lang-markdown
 - Accessed: 2026-07-07
 - Area: Markdown editing
-- Use when: Building the first raw markdown editor slice.
+- Use when: Evaluating a raw markdown editor fallback or complementary source
+  editing mode.
 - Notes: Provides Markdown language support for CodeMirror.
-- Caveats: A Notion-like comfort layer still needs product-specific UI work.
+- Caveats: Less suited to read-only rendered Notion-like viewing than richer
+  editor candidates; a comfort layer still needs product-specific UI work.
 
 ### ProseMirror Markdown Example
 
@@ -563,7 +648,19 @@ should never be treated as the only sources to consult.
   workspaces.
 - Notes: In-memory JavaScript full-text search engine that can run in Node or
   the browser.
-- Caveats: May not be enough for very large workspaces or persistent indexing.
+- Caveats: Search helper only; do not let it own the workspace index or source
+  content. May not be enough for very large workspaces or persistent indexing.
+
+### Fuse.js
+
+- URL: https://www.fusejs.io/
+- Accessed: 2026-07-07
+- Area: Fuzzy search
+- Use when: Evaluating quick fuzzy title/path search for note switching or
+  lightweight filtering.
+- Notes: Lightweight JavaScript fuzzy-search library with no dependencies.
+- Caveats: Better suited to small-to-medium client-side datasets than durable
+  full-workspace indexing.
 
 ### FlexSearch
 
@@ -573,7 +670,32 @@ should never be treated as the only sources to consult.
 - Use when: Evaluating faster or more configurable JavaScript search indexing.
 - Notes: Offers document search, partial matching, suggestions, and worker-based
   scaling options.
-- Caveats: Compare API complexity and persistence needs before choosing it.
+- Caveats: Search/index helper only; compare API complexity and persistence
+  needs before choosing it.
+
+### SQLite Appropriate Uses
+
+- URL: https://sqlite.org/whentouse.html
+- Accessed: 2026-07-07
+- Area: Persistent local indexes
+- Use when: Evaluating SQLite as a local derived index/cache for workspace
+  metadata, search fields, links, backlinks, and recents.
+- Notes: SQLite is commonly used as an on-disk application file format for local
+  applications.
+- Caveats: In Azurite, SQLite should be a rebuildable derived index, not the
+  canonical note store.
+
+### Node.js SQLite
+
+- URL: https://nodejs.org/api/sqlite.html
+- Accessed: 2026-07-07
+- Area: Built-in SQLite runtime support
+- Use when: Comparing built-in Node SQLite support with third-party SQLite
+  packages for local indexes.
+- Notes: Node.js documents `node:sqlite` with `DatabaseSync` for opening
+  in-memory or file-backed databases.
+- Caveats: Check current stability, sync API constraints, and packaging needs
+  before adopting.
 
 ### better-sqlite3
 
@@ -584,7 +706,7 @@ should never be treated as the only sources to consult.
 - Notes: Node SQLite library focused on performance, transactions, and a simple
   synchronous API.
 - Caveats: Native dependency and packaging behavior must be tested for the final
-  install model.
+  install model. Compare against Node's built-in SQLite support before adding.
 
 ### Kuzu
 

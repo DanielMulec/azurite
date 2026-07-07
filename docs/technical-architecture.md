@@ -159,8 +159,48 @@ Initial rules:
   heavier primitives such as dialogs, menus, tabs, or tooltips.
 - Do not add `shadcn/ui` or Radix UI by default; evaluate them only when a
   focused slice needs their interaction primitives.
+- Treat design-system packages, tree components, virtualizers, and search UI as
+  separate decisions. A component kit such as `shadcn/ui` may help with general
+  React/Vite UI composition, but it does not solve Azurite's note identity,
+  workspace indexing, search semantics, or filesystem model.
 - Keep product surfaces quiet, readable, and optimized for repeated knowledge
   work rather than landing-page composition.
+
+## Browsing, Indexing, And State
+
+Azurite follows the "file over app" principle: markdown files on disk are the
+canonical knowledge source. The application may build derived state, but that
+state must be rebuildable from the workspace files and safe to delete.
+
+Browsing packages are candidates for UI and interaction primitives only. Azurite
+owns note identity, folder structure, workspace rules, search semantics, and
+product behavior. A package may help render a tree, virtualize rows, or run a
+client-side search, but no package should own the knowledge model.
+
+Keep state separated by responsibility:
+
+- UI state: selected note, expanded folders, sidebar sizing, last-opened note,
+  and other interface preferences. This can begin in React state or browser
+  storage when persistence is useful.
+- Derived workspace index: note IDs, paths, titles, modified times, sizes,
+  folder tree, headings, tags, links, backlinks, and search fields. This is the
+  likely place for SQLite or a similar local index/cache once repeated
+  filesystem scanning is no longer acceptable.
+- Canonical document content: the `.md` files in the user's workspace. Do not
+  move canonical note content into SQLite unless the markdown-first product
+  promise is explicitly reconsidered.
+
+The Slice 3 human smoke test against 555 copied markdown files showed that
+direct filesystem discovery is acceptable for the first read-only viewer, but
+`GET /api/notes` took roughly 2.8-3.2 seconds during that run. That is useful
+evidence for a future index slice: efficient browsing across hundreds or
+thousands of notes should use a derived workspace index instead of repeatedly
+scanning the full tree.
+
+Do not install SQLite or search/index packages opportunistically. Evaluate them
+in a focused indexing/search slice after the renderer/editor-stack decision,
+because the editor may affect which metadata, document structure, and read-only
+rendering hooks need to be indexed.
 
 ## Local Server Lifecycle
 
@@ -205,14 +245,14 @@ Important constraints:
 - Early editing must only support structures that round-trip cleanly to markdown.
 - The read-only renderer comes first to prove safe workspace access and markdown
   rendering.
-- A raw markdown editor is the likely next editing slice because it best
-  preserves exact markdown content.
-- A richer comfort layer can then add shortcuts, toolbar actions, slash commands,
-  task toggles, heading changes, and block-level interactions for
-  markdown-supported structures.
-- Richer WYSIWYG markdown editors may be evaluated later, but only through a
-  focused research slice that tests round-trip fidelity, malformed markdown, and
-  large-note behavior.
+- The next foundational rendering/editing slice should evaluate WYSIWYG editor
+  candidates that can also provide read-only rendered note views.
+- A raw markdown editor remains a fallback or complementary mode, but it is no
+  longer the default next step while the temporary read-only renderer is still
+  unresolved.
+- Evaluate editor candidates through a focused slice that tests markdown
+  round-trip fidelity, malformed markdown, large-note behavior, read-only
+  rendering, and implications for indexing/search state.
 
 Do not adopt an editor model that stores the canonical document as proprietary
 JSON or non-markdown blocks.
