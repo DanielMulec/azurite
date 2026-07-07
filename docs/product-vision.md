@@ -74,6 +74,8 @@ desktop and smartphone.
 - The visual and interaction quality should aim for a Notion-level sense of
   polish, clarity, and approachability without adopting Notion-only content
   blocks that cannot be represented in markdown.
+- The editor should eventually feel fluent and approachable like Notion while
+  keeping markdown files as the source of truth.
 
 ## Markdown Rendering Scope
 
@@ -89,6 +91,12 @@ Do not add Notion-style proprietary blocks that cannot be represented in
 markdown. A parser/renderer system for non-standard blocks may be considered
 later, but it should be treated as a deliberate extension rather than part of
 the initial product scope.
+
+Editing must follow the same rule as rendering. Early editing should support
+only markdown-backed structures that can round-trip cleanly to markdown. Richer
+editing affordances, such as shortcuts, toolbar actions, slash commands, and
+block-level interactions, should operate on markdown-supported structures rather
+than introducing a proprietary document model.
 
 ## Local Access And Security
 
