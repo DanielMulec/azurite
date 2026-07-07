@@ -2,7 +2,12 @@
 
 ## Status
 
-Planned.
+Complete.
+
+Implemented in commit `3fa92f0`.
+
+This slice now serves as both the implementation plan and the completion record
+for the first read-only markdown viewer.
 
 ## Goal
 
