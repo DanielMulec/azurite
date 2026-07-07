@@ -24,7 +24,7 @@ export async function closeWebDevServerAfterSignal(
   try {
     await server.close();
     server.config.logger.info(
-      "Azurite vein sealed. Web dev server shut down cleanly.",
+      "Azurite vein sealed. Frontend shut down cleanly.",
     );
     return 0;
   } catch (error) {

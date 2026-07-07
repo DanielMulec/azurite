@@ -6,7 +6,7 @@ import {
 } from "../src/web-dev-lifecycle.js";
 
 describe("closeWebDevServerAfterSignal", () => {
-  it("closes the local web dev server and reports a clean shutdown", async () => {
+  it("closes the frontend and reports a clean shutdown", async () => {
     const closeCalls: string[] = [];
     const messages: string[] = [];
     const server = createClosableWebDevServer(closeCalls, messages);
@@ -16,7 +16,7 @@ describe("closeWebDevServerAfterSignal", () => {
     expect(exitCode).toBe(0);
     expect(closeCalls).toEqual(["close"]);
     expect(messages).toContain(
-      "Azurite vein sealed. Web dev server shut down cleanly.",
+      "Azurite vein sealed. Frontend shut down cleanly.",
     );
   });
 });

@@ -8,18 +8,18 @@ feel and make local debugging easier.
 
 ## Current API Server Lifecycle Messages
 
-| Message                                          | When it appears                                       | Notes                                                   |
-| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
-| `Shutting down local server.`                    | The process receives `SIGINT` or `SIGTERM`.           | Includes the signal in structured log metadata.         |
-| `Azurite vein sealed. Server shut down cleanly.` | Fastify closes successfully during graceful shutdown. | This is intentional product tone, not placeholder text. |
-| `Failed to shut down local server.`              | Fastify fails during graceful shutdown.               | Includes error and signal metadata in server logs.      |
+| Message                                           | When it appears                                       | Notes                                                   |
+| ------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| `Shutting down local server.`                     | The process receives `SIGINT` or `SIGTERM`.           | Includes the signal in structured log metadata.         |
+| `Azurite vein sealed. Backend shut down cleanly.` | Fastify closes successfully during graceful shutdown. | This is intentional product tone, not placeholder text. |
+| `Failed to shut down local server.`               | Fastify fails during graceful shutdown.               | Includes error and signal metadata in server logs.      |
 
 ## Current Web Dev Server Lifecycle Messages
 
 | Message                                                  | When it appears                           | Notes                                                   |
 | -------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------- |
 | `Shutting down local web dev server after SIGINT.`       | The Vite dev process receives `SIGINT`.   | The signal name changes for other shutdown signals.     |
-| `Azurite vein sealed. Web dev server shut down cleanly.` | Vite closes successfully during shutdown. | This is intentional product tone, not placeholder text. |
+| `Azurite vein sealed. Frontend shut down cleanly.`       | Vite closes successfully during shutdown. | This is intentional product tone, not placeholder text. |
 | `Failed to shut down local web dev server after SIGINT.` | Vite fails during shutdown.               | Includes the error object in Vite logger metadata.      |
 
 ## Maintenance Rules

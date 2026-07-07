@@ -318,6 +318,32 @@ pnpm validate
 pnpm build
 ```
 
+## Human Smoke Follow-Up
+
+On 2026-07-07, Slice 3 was smoke-tested against a copied real-knowledgebase
+workspace at `/tmp/azurite-human-smoke-notes`.
+
+The smoke workspace contained 555 markdown files copied from representative
+knowledgebase subsets:
+
+- `freelancing`
+- `agentic_coding_meetup`
+- `linkedin`
+- top-level knowledgebase markdown documents
+
+The copy preserved markdown folder structure and excluded non-markdown media,
+temporary files, and more sensitive obvious source buckets. The original
+knowledgebase was not used as the runtime workspace.
+
+Observed result:
+
+- `/health` returned successfully.
+- `GET /api/notes` returned 555 notes.
+- The web app served successfully at `http://127.0.0.1:5173`.
+- The first human pass found no obvious blocker and looked good so far.
+- Remaining product concern: resolve the temporary renderer/editor-stack
+  decision before investing further in large-workspace browsing polish.
+
 ## Acceptance Criteria
 
 - `apps/web` has the first real read-only note browsing UI.
@@ -341,7 +367,9 @@ None.
 
 ## Next Slice After This
 
-Add the next narrow interaction layer after read-only viewing works. Good
-candidates are a raw markdown editor for the selected note, a workspace picker,
-or a focused wiki-link rendering slice. Choose based on which behavior best
-improves daily note reading and editing after Slice 3 is verified.
+Resolve the temporary renderer before adding broader note-browsing polish.
+
+The next slice should evaluate the WYSIWYG/editor candidates that can also serve
+read-only rendered note views, then decide whether the chosen stack replaces,
+wraps, or reuses the Slice 3 markdown adapter. Do not grow the current
+unified-based renderer into a parallel long-term rendering architecture.

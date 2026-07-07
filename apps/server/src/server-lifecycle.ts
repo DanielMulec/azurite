@@ -13,7 +13,7 @@ export async function closeServerAfterSignal(
 
   try {
     await server.close();
-    server.log.info("Azurite vein sealed. Server shut down cleanly.");
+    server.log.info("Azurite vein sealed. Backend shut down cleanly.");
     return 0;
   } catch (error) {
     server.log.error({ error, signal }, "Failed to shut down local server.");

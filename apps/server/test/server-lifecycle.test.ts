@@ -4,7 +4,7 @@ import { createServer } from "../src/app.js";
 import { closeServerAfterSignal } from "../src/server-lifecycle.js";
 
 describe("closeServerAfterSignal", () => {
-  it("closes the local server and reports a clean shutdown", async () => {
+  it("closes the backend and reports a clean shutdown", async () => {
     const server = createServer({});
     await server.listen({ host: "127.0.0.1", port: 0 });
 
