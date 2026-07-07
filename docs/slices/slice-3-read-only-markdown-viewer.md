@@ -168,6 +168,8 @@ Build a read-only note browsing layout.
 - Load selected note content from `GET /api/notes/content?noteId=...`.
 - Show a loading state while the selected note request is pending.
 - Keep an already rendered note visible while a newly selected note is loading.
+- Keep already rendered markdown visible while changed markdown is being
+  sanitized and rendered.
 - Show a safe error state if the selected note request fails.
 - Render the selected note title, safe metadata, and sanitized markdown content.
 - Do not display absolute filesystem paths.

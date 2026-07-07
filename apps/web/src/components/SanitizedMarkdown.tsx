@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 
 import { renderMarkdownToSafeHtml } from "../markdown-renderer.js";
@@ -11,6 +11,7 @@ type RenderState =
 type SanitizedMarkdownProps = {
   readonly markdown: string;
 };
+type RenderStateSetter = Dispatch<SetStateAction<RenderState>>;
 
 /** Renders markdown that has passed through Azurite's approved sanitizer. */
 export function SanitizedMarkdown({
@@ -44,10 +45,10 @@ export function SanitizedMarkdown({
 
 function renderMarkdown(
   markdown: string,
-  setRenderState: (state: RenderState) => void,
+  setRenderState: RenderStateSetter,
 ): () => void {
   let isActive = true;
-  setRenderState({ status: "loading" });
+  keepRenderedHtmlWhileLoading(setRenderState);
 
   void renderMarkdownToSafeHtml(markdown).then(
     (html) => {
@@ -63,10 +64,20 @@ function renderMarkdown(
   };
 }
 
+function keepRenderedHtmlWhileLoading(setRenderState: RenderStateSetter): void {
+  setRenderState((currentRenderState) => {
+    if (currentRenderState.status === "ready") {
+      return currentRenderState;
+    }
+
+    return { status: "loading" };
+  });
+}
+
 function setRenderedHtml(
   html: string,
   isActive: boolean,
-  setRenderState: (state: RenderState) => void,
+  setRenderState: RenderStateSetter,
 ): void {
   if (!isActive) {
     return;
@@ -77,7 +88,7 @@ function setRenderedHtml(
 
 function setRenderError(
   isActive: boolean,
-  setRenderState: (state: RenderState) => void,
+  setRenderState: RenderStateSetter,
 ): void {
   if (!isActive) {
     return;
