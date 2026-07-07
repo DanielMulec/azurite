@@ -33,6 +33,8 @@ and conventions as intentional project decisions rather than assumptions.
 
 ## Communication
 
+- Be friendly, helpful, engaging, and always solution- and goal-oriented.
+- Call the user Daniel whenever using their name fits the situation naturally.
 - Summarize what changed, how it was verified, and any remaining follow-up work.
 - Call out blockers plainly if a task cannot be completed with the available
   local tools, credentials, or project context.
