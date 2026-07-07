@@ -15,6 +15,7 @@ Use this stack for the first high-fidelity slice:
 - Validation: Zod for runtime validation and shared API contracts.
 - Testing: Vitest for unit and integration tests, Playwright plus available
   browser tooling for end-to-end and rendered UI checks.
+- Formatting: Prettier.
 - Private access: bind locally by default and use Tailscale-oriented access for
   trusted device access.
 
@@ -118,6 +119,109 @@ Use strict, beginner-readable TypeScript.
 These rules are part of the product's maintainability goal. The code should be
 understandable by future contributors and by Daniel while learning from it.
 
+## ESLint Rule Baseline
+
+Use ESLint with typed TypeScript linting, React rules, accessibility rules, and
+project-specific architecture restrictions.
+
+Start from the recommended strict type-checked TypeScript ESLint configuration,
+then add these project rules:
+
+### Type Safety
+
+- `@typescript-eslint/no-explicit-any`
+- `@typescript-eslint/no-unsafe-assignment`
+- `@typescript-eslint/no-unsafe-call`
+- `@typescript-eslint/no-unsafe-member-access`
+- `@typescript-eslint/no-unsafe-return`
+- `@typescript-eslint/no-unsafe-argument`
+
+These rules keep `any` from entering through dependencies, JSON, mocks, or
+shortcuts.
+
+### Async Safety
+
+- `@typescript-eslint/no-floating-promises`
+- `@typescript-eslint/no-misused-promises`
+
+Promises must be awaited, returned, handled, or intentionally marked as ignored.
+This matters for file I/O, server routes, and UI event flows.
+
+### Null And Logic Safety
+
+- `@typescript-eslint/no-non-null-assertion`
+- `@typescript-eslint/strict-boolean-expressions`
+- `@typescript-eslint/no-unnecessary-condition`
+- `@typescript-eslint/switch-exhaustiveness-check`
+
+Code should handle missing values and union cases explicitly instead of relying
+on unchecked assumptions.
+
+### Beginner-Readable Code Shape
+
+- `complexity` with max `3`
+- `max-depth` with max `2`
+- `max-params` with max `3`
+- `max-lines-per-function` with an initial max of `60`
+- `curly`
+- `eqeqeq`
+- `prefer-const`
+- `no-var`
+
+These rules keep functions small, control flow shallow, and intent easier to
+read.
+
+### Architecture Boundaries
+
+- `no-restricted-imports`
+
+Use this to enforce monorepo boundaries. For example, the web app must not
+import server internals, the server must not import React code, and shared
+behavior should flow through `packages/core` and `packages/shared`.
+
+### Security
+
+- `no-eval`
+- `no-implied-eval`
+- restrict `dangerouslySetInnerHTML` so only the approved sanitized markdown
+  renderer can use it
+- restrict `console` in frontend production code, while allowing proper server
+  logging
+
+ESLint is only one security layer. Markdown sanitization, path traversal tests,
+origin checks, and API validation are still required.
+
+### React And Accessibility
+
+- `react-hooks/rules-of-hooks`
+- `react-hooks/exhaustive-deps`
+- `jsx-a11y` recommended rules
+
+React hook rules prevent stale state and invalid hook usage. Accessibility rules
+catch common UI issues early, but they do not replace rendered accessibility
+testing.
+
+### Rules To Avoid Initially
+
+- Do not enable `no-magic-numbers` at the start; it is likely to be noisy during
+  early product shaping.
+- Do not require explicit return types for every local function; require them at
+  public package boundaries and exported APIs first.
+- Do not add stylistic rules that conflict with Prettier.
+
+Any disabled lint rule must include a short explanation near the disable comment.
+
+## Formatting
+
+Use Prettier for automatic formatting.
+
+- Let Prettier own whitespace, indentation, line wrapping, semicolons, quotes,
+  trailing commas, JSON, YAML, Markdown, CSS, and TypeScript formatting.
+- Do not add ESLint style rules that fight Prettier.
+- Use ESLint for correctness, safety, maintainability, accessibility, and
+  architecture rules.
+- Run formatting as part of the normal validation flow once the skeleton exists.
+
 ## Security And Validation Baseline
 
 Security must be designed into the first slice rather than added as a cleanup
@@ -149,8 +253,9 @@ express, validate boundaries, and test the important failure modes.
 Before or during the skeleton slice, decide the exact tools for:
 
 - TypeScript version and shared `tsconfig` layout.
-- ESLint rules, including no explicit `any`, no implicit `any`, and complexity.
-- Formatter choice and formatting command.
+- Exact ESLint package versions, flat-config layout, and per-folder overrides.
+- Prettier config and formatting command.
+- Lint disable policy and review expectations.
 - Dependency update policy and lockfile expectations.
 - Environment variable naming and `.env` handling.
 - Workspace path configuration and local settings storage.
