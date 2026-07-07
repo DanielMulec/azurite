@@ -29,6 +29,27 @@ unless there is a concrete compatibility reason not to. For package
 dependencies, use the newest compatible version line rather than forcing a major
 version that breaks required peer dependencies or rules.
 
+## Initial Markdown Package Set
+
+The top-level markdown processing stack names the ecosystem. The first concrete
+packages for Slice 1 are:
+
+- `unified`: pipeline foundation for parsing and transforming markdown-related
+  syntax trees.
+- `remark-parse`: parses markdown into an mdast syntax tree.
+- `mdast-util-to-string`: extracts readable text from heading nodes for note
+  titles.
+
+Future slices may add:
+
+- `remark-gfm`, `remark-rehype`, and `rehype-sanitize` for rendering.
+- `remark-frontmatter` or equivalent frontmatter parsing support for metadata.
+- wiki-link packages such as `remark-wiki-link` or `mdast-util-wiki-link`, but
+  only in a focused wiki-link slice.
+
+Keep slice-specific implementation details in
+`docs/slices/slice-1-workspace-discovery.md`.
+
 ## Repo Shape
 
 Start with this structure when creating the application skeleton:
