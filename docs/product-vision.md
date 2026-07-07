@@ -13,6 +13,8 @@ keeping the user's knowledge base transparent, portable, and markdown-first.
 
 - Build a hybrid of Obsidian and Notion, not a clone of either product.
 - Treat markdown files as the source of truth for all knowledge content.
+- Keep the early content model limited to structures that are supported by
+  markdown and can round-trip cleanly back to markdown files.
 - Keep knowledge behavior local-first, inspectable, and resilient.
 - Prefer durable architecture over quick prototypes when making foundation-level
   decisions.
@@ -50,7 +52,23 @@ desktop and smartphone.
 - The desktop experience should feel efficient for deep writing, navigation,
   linking, and knowledge work.
 - The visual and interaction quality should aim for a Notion-level sense of
-  polish, clarity, and approachability.
+  polish, clarity, and approachability without adopting Notion-only content
+  blocks that cannot be represented in markdown.
+
+## Markdown Rendering Scope
+
+The Notion-inspired part of the product is about frontend polish, interaction
+quality, and approachable editing, not about adopting a proprietary block model.
+
+In the early stages, the frontend should only render and edit content structures
+that are officially supported by markdown or by the project's explicitly chosen
+markdown dialect. Every visible content block should have a faithful markdown
+representation because all knowledge files are markdown files.
+
+Do not add Notion-style proprietary blocks that cannot be represented in
+markdown. A parser/renderer system for non-standard blocks may be considered
+later, but it should be treated as a deliberate extension rather than part of
+the initial product scope.
 
 ## Local Access And Security
 
@@ -83,4 +101,6 @@ Production quality means:
 - Whether editing should be pure markdown, block-oriented, or a careful hybrid.
 - How much Notion-like structured data should exist while keeping markdown as
   the source of truth.
+- Whether a later parser/renderer layer should support deliberate non-standard
+  markdown extensions or custom blocks.
 - Authentication and network-binding strategy for local plus Tailscale access.
