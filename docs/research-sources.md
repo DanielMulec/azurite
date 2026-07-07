@@ -123,6 +123,18 @@ should never be treated as the only sources to consult.
 - Caveats: It does not turn markdown into HTML by itself; pair with the rest of
   the unified pipeline.
 
+### remark-rehype
+
+- URL: https://unifiedjs.com/explore/package/remark-rehype/
+- Accessed: 2026-07-07
+- Area: Markdown rendering pipeline
+- Use when: Converting parsed markdown syntax trees into HTML syntax trees for
+  browser rendering.
+- Notes: Bridges the remark markdown ecosystem to the rehype HTML ecosystem so
+  HTML-oriented plugins can run after markdown parsing.
+- Caveats: Sanitization still needs an explicit rehype sanitizer before output
+  reaches the DOM.
+
 ### rehype-sanitize
 
 - URL: https://github.com/rehypejs/rehype-sanitize
@@ -132,6 +144,40 @@ should never be treated as the only sources to consult.
 - Notes: Sanitizes HTML syntax trees by dropping anything not explicitly allowed.
 - Caveats: Sanitization schemas need tests, especially if raw HTML or syntax
   highlighting is enabled later.
+
+### rehype-stringify
+
+- URL: https://unifiedjs.com/explore/package/rehype-stringify/
+- Accessed: 2026-07-07
+- Area: Markdown rendering pipeline
+- Use when: Serializing a sanitized HTML syntax tree into an HTML string for the
+  approved read-only markdown renderer.
+- Notes: Works inside the unified pipeline after rehype plugins have transformed
+  or sanitized the HTML tree.
+- Caveats: Only stringify sanitized trees that have passed through the approved
+  sanitizer.
+
+### Tailwind CSS Vite Plugin
+
+- URL: https://tailwindcss.com/docs
+- Accessed: 2026-07-07
+- Area: Frontend styling
+- Use when: Adding Tailwind CSS to the Vite React app.
+- Notes: Tailwind documents the Vite plugin as the most seamless integration
+  path for Vite-based projects.
+- Caveats: Tailwind v4 targets modern browsers; revisit if Azurite later needs
+  older browser support.
+
+### Tailwind CSS Typography
+
+- URL: https://v3.tailwindcss.com/docs/typography-plugin
+- Accessed: 2026-07-07
+- Area: Markdown content styling
+- Use when: Styling rendered markdown or other generated HTML content.
+- Notes: The first-party typography plugin provides `prose` classes for HTML
+  generated from markdown or CMS-like content.
+- Caveats: Typography defaults should be adapted with Azurite's local design
+  tokens so rendered notes do not feel generic.
 
 ### Zod
 
@@ -151,6 +197,18 @@ should never be treated as the only sources to consult.
 - Use when: Setting up TypeScript tests for frontend, backend, and shared code.
 - Notes: Vitest is Vite-native and supports TypeScript and JSX out of the box.
 - Caveats: Browser-level behavior still needs Playwright or browser tooling.
+
+### React Testing Library
+
+- URL: https://testing-library.com/docs/react-testing-library/intro/
+- Accessed: 2026-07-07
+- Area: React component testing
+- Use when: Testing web UI components through user-observable behavior instead
+  of implementation details.
+- Notes: React Testing Library is a lightweight layer on top of React DOM test
+  utilities and encourages tests that resemble how users interact with the UI.
+- Caveats: It does not replace browser smoke checks for responsive layout,
+  rendered CSS, and real navigation behavior.
 
 ### Playwright
 
