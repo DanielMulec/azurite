@@ -1,3 +1,4 @@
+import { isIgnoredWorkspaceDirectoryName } from "@azurite/shared";
 import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -7,13 +8,6 @@ import {
   toWorkspaceRelativePath,
 } from "./path-boundary.js";
 import type { ResolvedWorkspaceRoot } from "./workspace-root.js";
-
-const ignoredDirectoryNames = new Set<string>([
-  ".azurite",
-  ".git",
-  ".obsidian",
-  "node_modules",
-]);
 
 /** Markdown file found inside a workspace, keeping absolute paths private to core. */
 export type DiscoveredMarkdownFile = {
@@ -71,7 +65,7 @@ async function discoverRegularDirectoryEntry(
   directoryPath: string,
   directoryName: string,
 ): Promise<DiscoveredMarkdownFile[]> {
-  if (ignoredDirectoryNames.has(directoryName)) {
+  if (isIgnoredWorkspaceDirectoryName(directoryName)) {
     return [];
   }
 

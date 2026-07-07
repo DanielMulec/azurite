@@ -10,13 +10,10 @@ type TemporaryWorkspace = {
   readonly workspacePath: string;
 };
 
-describe("notes route", () => {
+describe("GET /api/notes", () => {
   it("returns a safe error when no workspace path is configured", async () => {
     const server = createServer({});
-    const response = await server.inject({
-      method: "GET",
-      url: "/api/notes",
-    });
+    const response = await server.inject({ method: "GET", url: "/api/notes" });
 
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({
@@ -72,6 +69,99 @@ describe("notes route", () => {
   });
 });
 
+describe("GET /api/notes/content success", () => {
+  it("returns a safe error when no workspace path is configured", async () => {
+    const server = createServer({});
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/notes/content?noteId=index.md",
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: {
+        code: "workspace_not_configured",
+        message: "Workspace path is not configured.",
+      },
+    });
+  });
+
+  it("returns raw markdown content and metadata for a valid note ID", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const projectPath = path.join(workspacePath, "Projects");
+      await mkdir(projectPath);
+      await writeFile(
+        path.join(projectPath, "azurite.md"),
+        "# Azurite Plan\n\nSlice notes.\n",
+        "utf8",
+      );
+
+      const server = createServer({ workspacePath });
+      const response = await server.inject({
+        method: "GET",
+        url: "/api/notes/content?noteId=Projects/azurite.md",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        note: {
+          fileName: "azurite.md",
+          id: "Projects/azurite.md",
+          markdown: "# Azurite Plan\n\nSlice notes.\n",
+          relativePath: "Projects/azurite.md",
+          title: "Azurite Plan",
+        },
+      });
+    });
+  });
+});
+
+describe("GET /api/notes/content safe errors", () => {
+  it("returns safe validation errors for missing and invalid note IDs", async () => {
+    await withTemporaryWorkspace(async ({ rootPath, workspacePath }) => {
+      const server = createServer({ workspacePath });
+
+      await expectInvalidNoteResponse(
+        server.inject({ method: "GET", url: "/api/notes/content" }),
+        rootPath,
+      );
+      await expectInvalidNoteResponse(
+        server.inject({
+          method: "GET",
+          url: "/api/notes/content?noteId=../secret.md",
+        }),
+        rootPath,
+      );
+      await expectInvalidNoteResponse(
+        server.inject({
+          method: "GET",
+          url: "/api/notes/content?noteId=.obsidian/private.md",
+        }),
+        rootPath,
+      );
+    });
+  });
+
+  it("returns a safe not-found error for missing notes", async () => {
+    await withTemporaryWorkspace(async ({ rootPath, workspacePath }) => {
+      const server = createServer({ workspacePath });
+      const response = await server.inject({
+        method: "GET",
+        url: "/api/notes/content?noteId=missing.md",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({
+        error: {
+          code: "note_not_found",
+          message: "Requested note was not found.",
+        },
+      });
+      expect(response.body).not.toContain(rootPath);
+    });
+  });
+});
+
 async function withTemporaryWorkspace(
   runTest: (workspace: TemporaryWorkspace) => Promise<void>,
 ): Promise<void> {
@@ -84,4 +174,24 @@ async function withTemporaryWorkspace(
   } finally {
     await rm(rootPath, { force: true, recursive: true });
   }
+}
+
+async function expectInvalidNoteResponse(
+  responsePromise: Promise<{
+    readonly body: string;
+    json(): unknown;
+    statusCode: number;
+  }>,
+  rootPath: string,
+): Promise<void> {
+  const response = await responsePromise;
+
+  expect(response.statusCode).toBe(400);
+  expect(response.json()).toEqual({
+    error: {
+      code: "invalid_note_id",
+      message: "Note ID must be a relative markdown path.",
+    },
+  });
+  expect(response.body).not.toContain(rootPath);
 }

@@ -86,6 +86,7 @@ Rules:
 - Must use `/` separators.
 - Must not be an absolute path.
 - Must not contain `..` segments.
+- Must not contain `.` segments.
 - Must not contain empty path segments such as `foo//bar.md`.
 - Must not enter generated or configuration-heavy directories ignored by note
   discovery: `.azurite`, `.git`, `.obsidian`, or `node_modules`.
@@ -101,7 +102,9 @@ Invalid examples:
 
 - `""`
 - `/Users/daniel/Notes/index.md`
+- `./index.md`
 - `../secret.md`
+- `Projects/./azurite.md`
 - `Projects/../secret.md`
 - `Projects//azurite.md`
 - `.obsidian/private.md`
@@ -198,6 +201,7 @@ In `packages/shared`:
 - Validate that `noteId` is a relative markdown note identifier.
 - Reject absolute paths.
 - Reject path traversal segments.
+- Reject current-directory segments.
 - Reject empty path segments.
 - Reject non-markdown file names.
 - Reject note IDs inside generated or configuration-heavy directories ignored
@@ -211,7 +215,9 @@ Tests:
 - Accepts `Projects/azurite.md`.
 - Rejects an empty string.
 - Rejects `/absolute/path.md`.
+- Rejects `./index.md`.
 - Rejects `../secret.md`.
+- Rejects `Projects/./azurite.md`.
 - Rejects `Projects/../secret.md`.
 - Rejects `Projects//azurite.md`.
 - Rejects `.obsidian/private.md`.
@@ -240,8 +246,8 @@ Rules:
 - Route code must not construct trusted filesystem paths.
 - Absolute filesystem paths must remain private to `packages/core`.
 - Existing path-boundary helpers must be reused or extended deliberately.
-- The ignored-directory list must live in one core helper used by both discovery
-  and note-ID resolution.
+- The ignored-directory list must live in one shared helper used by note-ID
+  validation, discovery, and note-ID resolution.
 
 Tests:
 

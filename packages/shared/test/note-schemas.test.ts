@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   apiErrorResponseSchema,
   listNotesResponseSchema,
+  noteContentSchema,
+  noteIdInputSchema,
   noteSummarySchema,
+  readNoteResponseSchema,
   workspacePathInputSchema,
 } from "../src/index.js";
 
@@ -14,6 +17,10 @@ const validNoteSummary = {
   relativePath: "notes/index.md",
   sizeBytes: 42,
   title: "Index",
+};
+const validNoteContent = {
+  ...validNoteSummary,
+  markdown: "# Index\n",
 };
 
 describe("workspacePathInputSchema", () => {
@@ -48,12 +55,54 @@ describe("noteSummarySchema", () => {
   });
 });
 
+describe("noteIdInputSchema", () => {
+  it("accepts relative markdown note IDs", () => {
+    expect(noteIdInputSchema.parse({ noteId: "index.md" })).toEqual({
+      noteId: "index.md",
+    });
+    expect(noteIdInputSchema.parse({ noteId: "Projects/azurite.md" })).toEqual({
+      noteId: "Projects/azurite.md",
+    });
+  });
+
+  it.each([
+    "",
+    "/absolute/path.md",
+    "./index.md",
+    "../secret.md",
+    "Projects/./azurite.md",
+    "Projects/../secret.md",
+    "Projects//azurite.md",
+    ".azurite/cache.md",
+    ".git/hooks/readme.md",
+    ".obsidian/private.md",
+    "node_modules/readme.md",
+    "ignored.txt",
+  ])("rejects unsafe note ID %s", (noteId) => {
+    expect(() => noteIdInputSchema.parse({ noteId })).toThrow();
+  });
+});
+
+describe("noteContentSchema", () => {
+  it("accepts raw markdown plus safe note metadata", () => {
+    expect(noteContentSchema.parse(validNoteContent)).toEqual(validNoteContent);
+  });
+});
+
 describe("listNotesResponseSchema", () => {
   it("accepts a list of note summaries", () => {
     expect(
       listNotesResponseSchema.parse({ notes: [validNoteSummary] }),
     ).toEqual({
       notes: [validNoteSummary],
+    });
+  });
+});
+
+describe("readNoteResponseSchema", () => {
+  it("accepts one note content object", () => {
+    expect(readNoteResponseSchema.parse({ note: validNoteContent })).toEqual({
+      note: validNoteContent,
     });
   });
 });
