@@ -151,6 +151,11 @@ Use strict, beginner-readable TypeScript.
 - Keep code modular and separated by concern. A file should have one clear job,
   and package boundaries should keep frontend, server, shared contracts, and
   core knowledge behavior independent.
+- Reuse existing schemas, types, helpers, and domain functions when they express
+  the same concept. Do not create parallel data shapes or duplicate logic for
+  behavior the codebase already owns.
+- Extract shared functionality into clearly named helpers when multiple modules
+  need the same behavior.
 - Use TypeScript for repository utility scripts. Do not add `.mjs` files unless
   an external dependency or tool requirement makes TypeScript impractical; if
   that exception is needed, document why.
@@ -226,6 +231,18 @@ on unchecked assumptions.
 
 These rules keep functions small, control flow shallow, and intent easier to
 read.
+
+### Reuse And Duplication
+
+- Prefer existing shared schemas and inferred types over creating new shapes for
+  the same API or domain concept.
+- Prefer existing core helpers for workspace roots, note IDs, path boundaries,
+  title extraction, and note metadata whenever a new slice touches the same
+  behavior.
+- Add a new helper only when it has a clear responsibility and removes real
+  duplication or clarifies a repeated domain operation.
+- Do not copy and adjust logic across modules. Move shared behavior to the
+  narrowest appropriate package instead.
 
 ### Architecture Boundaries
 

@@ -39,6 +39,19 @@ Good slices are narrow and concrete, for example:
 Avoid slices that quietly turn into broad platform research before a working
 behavior exists.
 
+## Implementation Plans
+
+Implementation plans should be decisive, not speculative.
+
+- Use definite language for chosen slice behavior, data shapes, route shapes,
+  validation rules, and acceptance criteria.
+- Do not write plan steps around "probably", "maybe", or vague optionality.
+- If implementation reveals that a planned decision is wrong, correct the plan
+  or record the decision change instead of quietly drifting.
+- Keep open questions explicit and separate from committed implementation steps.
+- Prefer reusing existing schemas, types, helpers, and domain functions before
+  adding new ones.
+
 ## Quality And Perfectionism
 
 High standards are welcome. Use them to make the current slice excellent rather

@@ -31,6 +31,11 @@ intentional project decisions rather than assumptions.
   split files by responsibility before they reach 401 lines.
 - Keep code modular and separated by concern, with frontend, server, shared
   contracts, and core behavior living behind clear boundaries.
+- Reuse existing schemas, types, helpers, and domain functions before adding new
+  ones. Do not duplicate logic or create parallel data shapes for the same
+  concept.
+- Write implementation plans with decisive language. Avoid "probably" or vague
+  optionality in committed plan steps; keep open questions separate.
 - Add beginner-readable JSDoc/TSDoc comments for exported APIs and plain
   comments for non-obvious internal logic.
 - Use TypeScript for repository utility scripts. Do not add `.mjs` files unless
