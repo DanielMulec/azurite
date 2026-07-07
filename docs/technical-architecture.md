@@ -147,7 +147,7 @@ Initial behavior:
 
 ## Frontend Styling
 
-Use Tailwind CSS for application UI styling, with local semantic CSS tokens for
+Use Tailwind CSS as the styling foundation, with local semantic CSS tokens for
 Azurite-specific color and surface decisions.
 
 Initial rules:
@@ -155,14 +155,14 @@ Initial rules:
 - Configure Tailwind through `@tailwindcss/vite`.
 - Keep global styling in one web stylesheet imported by the React entrypoint.
 - Use `@tailwindcss/typography` for rendered markdown content.
-- Prefer local React components over a component library until a slice needs
-  heavier primitives such as dialogs, menus, tabs, or tooltips.
-- Do not add `shadcn/ui` or Radix UI by default; evaluate them only when a
-  focused slice needs their interaction primitives.
-- Treat design-system packages, tree components, virtualizers, and search UI as
-  separate decisions. A component kit such as `shadcn/ui` may help with general
-  React/Vite UI composition, but it does not solve Azurite's note identity,
-  workspace indexing, search semantics, or filesystem model.
+- Use simple local React components for trivial, slice-local UI.
+- Do not hand-roll complex accessible primitives. When a focused slice needs
+  dialogs, menus, tabs, command palettes, forms, tooltips, trees, virtualized
+  lists, or search UI, evaluate focused packages such as `shadcn/ui`, Radix UI,
+  React Aria, tree components, virtualizers, or search UI primitives.
+- UI packages may own component behavior, accessibility, composition, and
+  rendering performance. They must not own Azurite's note identity, workspace
+  indexing, search semantics, filesystem model, or canonical knowledge state.
 - Keep product surfaces quiet, readable, and optimized for repeated knowledge
   work rather than landing-page composition.
 
