@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  apiErrorResponseSchema,
   listNotesResponseSchema,
   noteContentSchema,
   noteIdInputSchema,
@@ -103,24 +102,6 @@ describe("readNoteResponseSchema", () => {
   it("accepts one note content object", () => {
     expect(readNoteResponseSchema.parse({ note: validNoteContent })).toEqual({
       note: validNoteContent,
-    });
-  });
-});
-
-describe("apiErrorResponseSchema", () => {
-  it("accepts a safe error response", () => {
-    expect(
-      apiErrorResponseSchema.parse({
-        error: {
-          code: "workspace_not_configured",
-          message: "Workspace path is not configured.",
-        },
-      }),
-    ).toEqual({
-      error: {
-        code: "workspace_not_configured",
-        message: "Workspace path is not configured.",
-      },
     });
   });
 });

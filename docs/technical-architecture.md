@@ -65,11 +65,23 @@ packages/
 
 docs/
   product-vision.md
+  reference/
   slices/
   technical-architecture.md
   working-agreement.md
   research-sources.md
 ```
+
+## Reference Contracts
+
+Reusable product and system details live in `docs/reference/`.
+
+Use reference docs for stable details that multiple slices, packages, tests, or
+future UI states should name consistently, such as API error codes, runtime
+messages, route shapes, reserved workspace names, and note-ID rules.
+
+When a reference detail also exists in code, prefer a typed shared source of
+truth in `packages/shared` and keep the reference doc aligned with it.
 
 ## First Product Slice
 

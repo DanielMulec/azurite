@@ -73,17 +73,6 @@ export const readNoteResponseSchema = z.object({
 /** TypeScript view of the successful note-content API response. */
 export type ReadNoteResponse = z.infer<typeof readNoteResponseSchema>;
 
-/** Runtime contract for safe API errors that do not expose private filesystem paths. */
-export const apiErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.string().min(1),
-    message: z.string().min(1),
-  }),
-});
-
-/** TypeScript view of a safe API error response. */
-export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
-
 /** Checks whether a path segment is reserved for workspace metadata. */
 export function isIgnoredWorkspaceDirectoryName(
   directoryName: string,

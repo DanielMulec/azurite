@@ -5,7 +5,8 @@ import {
   WorkspaceResolutionError,
 } from "@azurite/core";
 import {
-  apiErrorResponseSchema,
+  apiErrorCodes,
+  createApiErrorResponse,
   listNotesResponseSchema,
   noteIdInputSchema,
   readNoteResponseSchema,
@@ -130,7 +131,7 @@ function sendWorkspaceNotConfigured(reply: FastifyReply) {
     .status(500)
     .send(
       createApiErrorResponse(
-        "workspace_not_configured",
+        apiErrorCodes.workspaceNotConfigured,
         "Workspace path is not configured.",
       ),
     );
@@ -141,7 +142,7 @@ function sendInvalidNoteId(reply: FastifyReply) {
     .status(400)
     .send(
       createApiErrorResponse(
-        "invalid_note_id",
+        apiErrorCodes.invalidNoteId,
         "Note ID must be a relative markdown path.",
       ),
     );
@@ -151,7 +152,7 @@ function createDiscoveryError(error: unknown): SafeErrorResult {
   if (error instanceof WorkspaceResolutionError) {
     return {
       body: createApiErrorResponse(
-        "invalid_workspace",
+        apiErrorCodes.invalidWorkspace,
         "Configured workspace path is not a readable directory.",
       ),
       statusCode: 500,
@@ -160,7 +161,7 @@ function createDiscoveryError(error: unknown): SafeErrorResult {
 
   return {
     body: createApiErrorResponse(
-      "note_discovery_failed",
+      apiErrorCodes.noteDiscoveryFailed,
       "Unable to list workspace notes.",
     ),
     statusCode: 500,
@@ -171,7 +172,7 @@ function createReadNoteError(error: unknown): SafeErrorResult {
   if (error instanceof WorkspaceResolutionError) {
     return {
       body: createApiErrorResponse(
-        "invalid_workspace",
+        apiErrorCodes.invalidWorkspace,
         "Configured workspace path is not a readable directory.",
       ),
       statusCode: 500,
@@ -184,7 +185,7 @@ function createReadNoteError(error: unknown): SafeErrorResult {
 
   return {
     body: createApiErrorResponse(
-      "note_read_failed",
+      apiErrorCodes.noteReadFailed,
       "Unable to read workspace note.",
     ),
     statusCode: 500,
@@ -194,10 +195,10 @@ function createReadNoteError(error: unknown): SafeErrorResult {
 function createNoteResolutionError(
   error: NoteResolutionError,
 ): SafeErrorResult {
-  if (error.code === "invalid_note_id") {
+  if (error.code === apiErrorCodes.invalidNoteId) {
     return {
       body: createApiErrorResponse(
-        "invalid_note_id",
+        apiErrorCodes.invalidNoteId,
         "Note ID must be a relative markdown path.",
       ),
       statusCode: 400,
@@ -206,7 +207,7 @@ function createNoteResolutionError(
 
   return {
     body: createApiErrorResponse(
-      "note_not_found",
+      apiErrorCodes.noteNotFound,
       "Requested note was not found.",
     ),
     statusCode: 404,
@@ -223,16 +224,4 @@ function logUnexpectedReadNoteError(
   }
 
   server.log.error({ error }, "Failed to read workspace note.");
-}
-
-function createApiErrorResponse(
-  code: string,
-  message: string,
-): ApiErrorResponse {
-  return apiErrorResponseSchema.parse({
-    error: {
-      code,
-      message,
-    },
-  });
 }

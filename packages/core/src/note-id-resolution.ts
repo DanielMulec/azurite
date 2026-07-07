@@ -1,4 +1,4 @@
-import { noteIdInputSchema } from "@azurite/shared";
+import { apiErrorCodes, noteIdInputSchema } from "@azurite/shared";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -7,7 +7,8 @@ import type { WorkspaceMarkdownFile } from "./note-metadata.js";
 import type { ResolvedWorkspaceRoot } from "./workspace-root.js";
 
 /** Stable reason code for failures while resolving a note ID. */
-export type NoteResolutionErrorCode = "invalid_note_id" | "note_not_found";
+export type NoteResolutionErrorCode =
+  typeof apiErrorCodes.invalidNoteId | typeof apiErrorCodes.noteNotFound;
 
 /** Error thrown when a note ID cannot resolve to a safe markdown file. */
 export class NoteResolutionError extends Error {
@@ -45,7 +46,7 @@ function parseNoteId(noteId: string): string {
 
   if (!parsedInput.success) {
     throw new NoteResolutionError(
-      "invalid_note_id",
+      apiErrorCodes.invalidNoteId,
       "Note ID must be a relative markdown path.",
     );
   }
@@ -58,7 +59,7 @@ async function resolveExistingNotePath(candidatePath: string): Promise<string> {
 
   if (realFilePath === undefined) {
     throw new NoteResolutionError(
-      "note_not_found",
+      apiErrorCodes.noteNotFound,
       "Requested note does not exist.",
     );
   }
@@ -81,7 +82,7 @@ function verifyInsideWorkspace(
 ): void {
   if (!isPathInsideWorkspace(workspaceRoot, realFilePath)) {
     throw new NoteResolutionError(
-      "invalid_note_id",
+      apiErrorCodes.invalidNoteId,
       "Requested note must stay inside the workspace.",
     );
   }
@@ -92,14 +93,14 @@ async function verifyRegularFile(realFilePath: string): Promise<void> {
 
   if (fileStats === undefined) {
     throw new NoteResolutionError(
-      "note_not_found",
+      apiErrorCodes.noteNotFound,
       "Requested note does not exist.",
     );
   }
 
   if (!fileStats.isFile()) {
     throw new NoteResolutionError(
-      "note_not_found",
+      apiErrorCodes.noteNotFound,
       "Requested note is not a markdown file.",
     );
   }
@@ -108,7 +109,7 @@ async function verifyRegularFile(realFilePath: string): Promise<void> {
 function verifyMarkdownPath(realFilePath: string): void {
   if (path.extname(realFilePath) !== ".md") {
     throw new NoteResolutionError(
-      "invalid_note_id",
+      apiErrorCodes.invalidNoteId,
       "Requested note must resolve to a markdown file.",
     );
   }

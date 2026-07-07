@@ -2,6 +2,7 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { apiErrorCodes } from "@azurite/shared";
 import {
   resolveNoteIdToMarkdownFile,
   resolveWorkspaceRoot,
@@ -45,7 +46,7 @@ describe("resolveNoteIdToMarkdownFile invalid IDs", () => {
     await expect(
       resolveNoteIdToMarkdownFile(workspaceRoot, noteId),
     ).rejects.toMatchObject({
-      code: "invalid_note_id",
+      code: apiErrorCodes.invalidNoteId,
     });
   });
 });
@@ -59,12 +60,12 @@ describe("resolveNoteIdToMarkdownFile missing targets", () => {
       await expect(
         resolveNoteIdToMarkdownFile(workspaceRoot, "missing.md"),
       ).rejects.toMatchObject({
-        code: "note_not_found",
+        code: apiErrorCodes.noteNotFound,
       });
       await expect(
         resolveNoteIdToMarkdownFile(workspaceRoot, "directory.md"),
       ).rejects.toMatchObject({
-        code: "note_not_found",
+        code: apiErrorCodes.noteNotFound,
       });
     });
   });
@@ -82,7 +83,7 @@ describe("resolveNoteIdToMarkdownFile symlinks", () => {
       await expect(
         resolveNoteIdToMarkdownFile(workspaceRoot, "linked.md"),
       ).rejects.toMatchObject({
-        code: "invalid_note_id",
+        code: apiErrorCodes.invalidNoteId,
       });
     });
   });
@@ -98,7 +99,7 @@ describe("resolveNoteIdToMarkdownFile symlinks", () => {
       await expect(
         resolveNoteIdToMarkdownFile(workspaceRoot, "alias.md"),
       ).rejects.toMatchObject({
-        code: "invalid_note_id",
+        code: apiErrorCodes.invalidNoteId,
       });
     });
   });

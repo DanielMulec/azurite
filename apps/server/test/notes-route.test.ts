@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { apiErrorCodes } from "@azurite/shared";
 import { createServer } from "../src/app.js";
 
 type TemporaryWorkspace = {
@@ -18,7 +19,7 @@ describe("GET /api/notes", () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({
       error: {
-        code: "workspace_not_configured",
+        code: apiErrorCodes.workspaceNotConfigured,
         message: "Workspace path is not configured.",
       },
     });
@@ -60,7 +61,7 @@ describe("GET /api/notes", () => {
       expect(response.statusCode).toBe(500);
       expect(response.json()).toEqual({
         error: {
-          code: "invalid_workspace",
+          code: apiErrorCodes.invalidWorkspace,
           message: "Configured workspace path is not a readable directory.",
         },
       });
@@ -80,7 +81,7 @@ describe("GET /api/notes/content success", () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({
       error: {
-        code: "workspace_not_configured",
+        code: apiErrorCodes.workspaceNotConfigured,
         message: "Workspace path is not configured.",
       },
     });
@@ -153,7 +154,7 @@ describe("GET /api/notes/content safe errors", () => {
       expect(response.statusCode).toBe(404);
       expect(response.json()).toEqual({
         error: {
-          code: "note_not_found",
+          code: apiErrorCodes.noteNotFound,
           message: "Requested note was not found.",
         },
       });
@@ -189,7 +190,7 @@ async function expectInvalidNoteResponse(
   expect(response.statusCode).toBe(400);
   expect(response.json()).toEqual({
     error: {
-      code: "invalid_note_id",
+      code: apiErrorCodes.invalidNoteId,
       message: "Note ID must be a relative markdown path.",
     },
   });
