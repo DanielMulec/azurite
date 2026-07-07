@@ -14,7 +14,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@azurite/core": "workspace:*",
     "@azurite/shared": "workspace:*",
     "fastify": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0"
   }
 }

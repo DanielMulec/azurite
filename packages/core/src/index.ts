@@ -1,4 +1,5 @@
-/** Placeholder message that keeps the core package testable until workspace discovery lands. */
-export function createWorkspaceDiscoveryPlaceholderMessage(): string {
-  return "Workspace discovery will be implemented in the next slice.";
-}
+export * from "./discover-markdown-files.js";
+export * from "./note-summaries.js";
+export * from "./path-boundary.js";
+export * from "./title-extraction.js";
+export * from "./workspace-root.js";
