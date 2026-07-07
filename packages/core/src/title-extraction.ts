@@ -1,3 +1,4 @@
+import { markdownNoteFileExtension } from "@azurite/shared";
 import { toString } from "mdast-util-to-string";
 import type { Heading, RootContent } from "mdast";
 import remarkParse from "remark-parse";
@@ -45,5 +46,9 @@ function createFallbackTitle(fileName: string): string {
 }
 
 function pathlessFileNameWithoutMarkdownExtension(fileName: string): string {
-  return fileName.endsWith(".md") ? fileName.slice(0, -3) : fileName;
+  if (!fileName.endsWith(markdownNoteFileExtension)) {
+    return fileName;
+  }
+
+  return fileName.slice(0, -markdownNoteFileExtension.length);
 }

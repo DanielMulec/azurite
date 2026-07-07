@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { apiRoutes } from "@azurite/shared";
 import { createServer } from "../src/app.js";
 
 describe("health route", () => {
@@ -7,7 +8,7 @@ describe("health route", () => {
     const server = createServer();
     const response = await server.inject({
       method: "GET",
-      url: "/health",
+      url: apiRoutes.health,
     });
 
     expect(response.statusCode).toBe(200);

@@ -1,4 +1,7 @@
-import { isIgnoredWorkspaceDirectoryName } from "@azurite/shared";
+import {
+  isIgnoredWorkspaceDirectoryName,
+  markdownNoteFileExtension,
+} from "@azurite/shared";
 import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -162,5 +165,5 @@ function isDiscoverableFileEntry(entry: Dirent): boolean {
 }
 
 function isMarkdownPath(filePath: string): boolean {
-  return path.extname(filePath) === ".md";
+  return path.extname(filePath) === markdownNoteFileExtension;
 }

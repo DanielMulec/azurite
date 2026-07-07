@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** File extension for markdown notes currently supported by Azurite. */
+export const markdownNoteFileExtension = ".md";
+
 /** Directory names that Azurite treats as workspace metadata instead of notes. */
 export const ignoredWorkspaceDirectoryNames = [
   ".azurite",
@@ -85,7 +88,7 @@ function isValidNoteId(noteId: string): boolean {
 }
 
 function hasMarkdownExtension(noteId: string): boolean {
-  return noteId.endsWith(".md");
+  return noteId.endsWith(markdownNoteFileExtension);
 }
 
 function isRelativePathText(noteId: string): boolean {

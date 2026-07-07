@@ -6,6 +6,8 @@ import {
 } from "@azurite/core";
 import {
   apiErrorCodes,
+  apiQueryParameters,
+  apiRoutes,
   createApiErrorResponse,
   listNotesResponseSchema,
   noteIdInputSchema,
@@ -21,9 +23,9 @@ type SafeErrorResult = {
   readonly statusCode: number;
 };
 
-type NoteContentQuery = {
-  readonly noteId?: unknown;
-};
+type NoteContentQuery = Partial<
+  Record<typeof apiQueryParameters.noteId, unknown>
+>;
 
 type NoteContentRequest = FastifyRequest<{
   readonly Querystring: NoteContentQuery;
@@ -51,14 +53,14 @@ export function registerNotesRoute(
 }
 
 function registerNoteListRoute(context: NotesRouteContext): void {
-  context.server.get("/api/notes", async (_request, reply) =>
+  context.server.get(apiRoutes.notes, async (_request, reply) =>
     handleNoteListRequest(context, reply),
   );
 }
 
 function registerNoteContentRoute(context: NotesRouteContext): void {
   context.server.get<{ Querystring: NoteContentQuery }>(
-    "/api/notes/content",
+    apiRoutes.noteContent,
     async (request, reply) => handleNoteContentRequest(context, request, reply),
   );
 }

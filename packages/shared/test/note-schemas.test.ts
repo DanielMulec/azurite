@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   listNotesResponseSchema,
+  markdownNoteFileExtension,
   noteContentSchema,
   noteIdInputSchema,
   noteSummarySchema,
@@ -21,6 +22,12 @@ const validNoteContent = {
   ...validNoteSummary,
   markdown: "# Index\n",
 };
+
+describe("markdownNoteFileExtension", () => {
+  it("names the currently supported markdown note extension", () => {
+    expect(markdownNoteFileExtension).toBe(".md");
+  });
+});
 
 describe("workspacePathInputSchema", () => {
   it("accepts a non-empty workspace path", () => {

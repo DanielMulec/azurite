@@ -1,4 +1,8 @@
-import { apiErrorCodes, noteIdInputSchema } from "@azurite/shared";
+import {
+  apiErrorCodes,
+  markdownNoteFileExtension,
+  noteIdInputSchema,
+} from "@azurite/shared";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -107,7 +111,7 @@ async function verifyRegularFile(realFilePath: string): Promise<void> {
 }
 
 function verifyMarkdownPath(realFilePath: string): void {
-  if (path.extname(realFilePath) !== ".md") {
+  if (path.extname(realFilePath) !== markdownNoteFileExtension) {
     throw new NoteResolutionError(
       apiErrorCodes.invalidNoteId,
       "Requested note must resolve to a markdown file.",

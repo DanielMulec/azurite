@@ -42,6 +42,8 @@ Rules:
 - `GET /api/notes`
 - `GET /api/notes/content?noteId=...`
 
+See `docs/reference/api-routes.md` for the shared route constants.
+
 ## Maintenance Rules
 
 - Add new API error codes to `@azurite/shared` before using them in server

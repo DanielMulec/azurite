@@ -1,4 +1,4 @@
-import { createHealthCheckResponse } from "@azurite/shared";
+import { apiRoutes, createHealthCheckResponse } from "@azurite/shared";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import { registerNotesRoute } from "./notes-route.js";
@@ -17,7 +17,9 @@ export function createServer(
     logger: true,
   });
 
-  server.get("/health", () => createHealthCheckResponse(currentServerVersion));
+  server.get(apiRoutes.health, () =>
+    createHealthCheckResponse(currentServerVersion),
+  );
   registerNotesRoute(server, options);
 
   return server;

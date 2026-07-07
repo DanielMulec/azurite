@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { apiErrorCodes } from "@azurite/shared";
+import {
+  apiErrorCodes,
+  apiRoutes,
+  createNoteContentRoute,
+} from "@azurite/shared";
 import { createServer } from "../src/app.js";
 
 type TemporaryWorkspace = {
@@ -14,7 +18,10 @@ type TemporaryWorkspace = {
 describe("GET /api/notes", () => {
   it("returns a safe error when no workspace path is configured", async () => {
     const server = createServer({});
-    const response = await server.inject({ method: "GET", url: "/api/notes" });
+    const response = await server.inject({
+      method: "GET",
+      url: apiRoutes.notes,
+    });
 
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({
@@ -32,7 +39,7 @@ describe("GET /api/notes", () => {
       const server = createServer({ workspacePath });
       const response = await server.inject({
         method: "GET",
-        url: "/api/notes",
+        url: apiRoutes.notes,
       });
 
       expect(response.statusCode).toBe(200);
@@ -55,7 +62,7 @@ describe("GET /api/notes", () => {
       const server = createServer({ workspacePath: missingWorkspacePath });
       const response = await server.inject({
         method: "GET",
-        url: "/api/notes",
+        url: apiRoutes.notes,
       });
 
       expect(response.statusCode).toBe(500);
@@ -75,7 +82,7 @@ describe("GET /api/notes/content success", () => {
     const server = createServer({});
     const response = await server.inject({
       method: "GET",
-      url: "/api/notes/content?noteId=index.md",
+      url: createNoteContentRoute("index.md"),
     });
 
     expect(response.statusCode).toBe(500);
@@ -100,7 +107,7 @@ describe("GET /api/notes/content success", () => {
       const server = createServer({ workspacePath });
       const response = await server.inject({
         method: "GET",
-        url: "/api/notes/content?noteId=Projects/azurite.md",
+        url: createNoteContentRoute("Projects/azurite.md"),
       });
 
       expect(response.statusCode).toBe(200);
@@ -123,20 +130,20 @@ describe("GET /api/notes/content safe errors", () => {
       const server = createServer({ workspacePath });
 
       await expectInvalidNoteResponse(
-        server.inject({ method: "GET", url: "/api/notes/content" }),
+        server.inject({ method: "GET", url: apiRoutes.noteContent }),
         rootPath,
       );
       await expectInvalidNoteResponse(
         server.inject({
           method: "GET",
-          url: "/api/notes/content?noteId=../secret.md",
+          url: createNoteContentRoute("../secret.md"),
         }),
         rootPath,
       );
       await expectInvalidNoteResponse(
         server.inject({
           method: "GET",
-          url: "/api/notes/content?noteId=.obsidian/private.md",
+          url: createNoteContentRoute(".obsidian/private.md"),
         }),
         rootPath,
       );
@@ -148,7 +155,7 @@ describe("GET /api/notes/content safe errors", () => {
       const server = createServer({ workspacePath });
       const response = await server.inject({
         method: "GET",
-        url: "/api/notes/content?noteId=missing.md",
+        url: createNoteContentRoute("missing.md"),
       });
 
       expect(response.statusCode).toBe(404);
