@@ -1,7 +1,7 @@
 import type { NoteContent } from "@azurite/shared";
 import type { ReactElement } from "react";
 
-import { SanitizedMarkdown } from "./SanitizedMarkdown.js";
+import { MilkdownEditor } from "./MilkdownEditor.js";
 
 type LoadableNote =
   | { readonly status: "error"; readonly message: string }
@@ -9,15 +9,17 @@ type LoadableNote =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly data: NoteContent };
 
-type NoteViewerProps = {
+type NoteEditorSurfaceProps = {
   readonly noteState: LoadableNote;
 };
 type NonReadyNote = Exclude<LoadableNote, { readonly status: "ready" }>;
 
-/** Main read-only surface for the selected markdown note. */
-export function NoteViewer({ noteState }: NoteViewerProps): ReactElement {
+/** Main editable surface for the selected markdown note. */
+export function NoteEditorSurface({
+  noteState,
+}: NoteEditorSurfaceProps): ReactElement {
   return (
-    <section className="min-h-[32rem] rounded-lg border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
+    <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
       {renderNoteState(noteState)}
     </section>
   );
@@ -34,7 +36,7 @@ function renderNoteState(noteState: LoadableNote): ReactElement {
 function SelectedNote({ note }: { readonly note: NoteContent }): ReactElement {
   return (
     <article className="mx-auto max-w-3xl">
-      <header className="mb-8 border-b border-[var(--azurite-border)] pb-5">
+      <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
         <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
           {note.relativePath}
         </p>
@@ -42,12 +44,16 @@ function SelectedNote({ note }: { readonly note: NoteContent }): ReactElement {
           {note.title}
         </h2>
       </header>
-      <SanitizedMarkdown markdown={note.markdown} />
+      <MilkdownEditor
+        initialMarkdown={note.markdown}
+        noteId={note.id}
+        title={note.title}
+      />
     </article>
   );
 }
 
-function ViewerMessage({
+function SurfaceMessage({
   text,
   title,
 }: {
@@ -75,16 +81,16 @@ function NonReadyNoteMessage({
 }): ReactElement {
   if (noteState.status === "error") {
     return (
-      <ViewerMessage title="Unable to load note" text={noteState.message} />
+      <SurfaceMessage title="Unable to load note" text={noteState.message} />
     );
   }
 
-  return <ViewerMessage {...nonReadyNoteContent[noteState.status]} />;
+  return <SurfaceMessage {...nonReadyNoteContent[noteState.status]} />;
 }
 
 const nonReadyNoteContent = {
   idle: {
-    text: "Choose a note from the workspace list.",
+    text: "Choose a note from the cluster list.",
     title: "No note selected",
   },
   loading: {

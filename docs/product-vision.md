@@ -28,20 +28,21 @@ programmatic capabilities:
 - Fast indexing of documents, links, tags, metadata, headings, and references.
 - Graph-aware behavior for links, backlinks, unresolved links, and relationship
   exploration.
-- Workspace-level organization similar to Obsidian vaults, but do not call the
-  concept "vaults".
+- Cluster-level organization similar to Obsidian vaults, using Azurite's own
+  product language instead of Obsidian's "vault" terminology.
 - LSP-like knowledge services where useful, such as link resolution, reference
   lookup, rename support, diagnostics for broken links, document symbols,
   completions, and hover metadata.
 - Derived indexes and caches may exist, but they must be rebuildable from the
   markdown source.
 
-For now, use "workspace" as the neutral term for a self-contained collection of
-markdown knowledge, configuration, indexes, and graph state. The final product
-name for this concept can still change. Possible alternatives include
-"chamber", "library", or "collection".
+Use "cluster" as the user-facing product term for Azurite's version of an
+Obsidian vault. A cluster is a self-contained folder-backed collection of
+markdown knowledge, configuration, indexes, and graph state. Current code and
+API contracts may still use "workspace" as the implementation term until a
+focused rename slice updates those contracts deliberately.
 
-## Repository And Workspace Boundaries
+## Repository And Cluster Boundaries
 
 Keep these locations conceptually separate:
 
@@ -51,15 +52,15 @@ Keep these locations conceptually separate:
   supporting files should be installable or runnable from any appropriate folder
   on the user's system. The product must not depend on this Git checkout being
   its runtime location.
-- Knowledge workspace: the user's markdown knowledge collection must be usable
-  from anywhere on the system, such as an existing notes folder, a synced
-  directory, an external drive, or another local path selected by the user.
+- Knowledge cluster: the user's markdown knowledge collection must be usable from
+  anywhere on the system, such as an existing notes folder, a synced directory,
+  an external drive, or another local path selected by the user.
 
-User knowledge workspaces must not be coupled to this repository or stored
-inside it by default. The application should treat workspace locations as
-user-selected filesystem roots. Any generated indexes, caches, or app metadata
-must respect that boundary: source markdown remains in the chosen workspace, and
-derived state should be clearly separated, rebuildable, and safe to delete.
+User knowledge clusters must not be coupled to this repository or stored inside
+it by default. The application should treat cluster locations as user-selected
+filesystem roots. Any generated indexes, caches, or app metadata must respect
+that boundary: source markdown remains in the chosen cluster, and derived state
+should be clearly separated, rebuildable, and safe to delete.
 
 ## Frontend
 
@@ -124,11 +125,12 @@ Production quality means:
 
 ## Open Product Decisions
 
-- Final name for the workspace-like container concept.
 - Exact markdown extensions and frontmatter conventions.
 - Whether editing should be pure markdown, block-oriented, or a careful hybrid.
 - How much Notion-like structured data should exist while keeping markdown as
   the source of truth.
 - Whether a later parser/renderer layer should support deliberate non-standard
   markdown extensions or custom blocks.
+- Exact implementation migration from current "workspace" contracts to
+  user-facing "cluster" language.
 - Authentication and network-binding strategy for local plus Tailscale access.

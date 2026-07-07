@@ -12,17 +12,12 @@
   },
   "dependencies": {
     "@azurite/shared": "workspace:*",
-    "@tailwindcss/typography": "^0.5.20",
+    "@milkdown/crepe": "^7.21.2",
+    "@milkdown/kit": "^7.21.2",
     "@tailwindcss/vite": "^4.3.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "rehype-sanitize": "^6.0.0",
-    "rehype-stringify": "^10.0.1",
-    "remark-gfm": "^4.0.1",
-    "remark-parse": "^11.0.0",
-    "remark-rehype": "^11.1.2",
-    "tailwindcss": "^4.3.2",
-    "unified": "^11.0.5"
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

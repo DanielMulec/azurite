@@ -12,7 +12,7 @@ Use this stack for the first high-fidelity slice:
 - Frontend styling: Tailwind CSS 4.x through the official Vite plugin.
 - PWA support: Vite-based PWA setup when the first installable shell is needed.
 - Markdown dialect: CommonMark plus GitHub Flavored Markdown.
-- Markdown processing: unified, remark, rehype, and rehype-sanitize.
+- Markdown editor surface: Milkdown with Crepe.
 - Validation: Zod 4.x for runtime validation and shared API contracts.
 - Testing: Vitest 4.x for unit and integration tests, Playwright plus available
   browser tooling for end-to-end and rendered UI checks.
@@ -30,13 +30,11 @@ unless there is a concrete compatibility reason not to. For package
 dependencies, use the newest compatible version line rather than forcing a major
 version that breaks required peer dependencies or rules.
 
-## Initial Markdown Package Set
+## Markdown Package Set
 
-The top-level markdown processing stack names the ecosystem. The first concrete
-packages for Slice 1 are:
+The top-level markdown package stack names the ecosystem. The first concrete
+packages for Slice 1 are still used in core:
 
-- `unified`: pipeline foundation for parsing and transforming markdown-related
-  syntax trees.
 - `remark-parse`: parses markdown into an mdast syntax tree.
 - `mdast-util-to-string`: extracts readable text from heading nodes for note
   titles.
@@ -47,7 +45,7 @@ Future slices may add:
 - wiki-link packages such as `remark-wiki-link` or `mdast-util-wiki-link`, but
   only in a focused wiki-link slice.
 
-The first concrete packages for Slice 3 are:
+Slice 3 temporarily used these packages for a read-only rendered note body:
 
 - `remark-gfm`: enables selected GitHub Flavored Markdown structures.
 - `remark-rehype`: converts markdown syntax trees into HTML syntax trees.
@@ -55,6 +53,14 @@ The first concrete packages for Slice 3 are:
 - `rehype-stringify`: serializes sanitized HTML for the approved read-only
   renderer.
 - `@tailwindcss/typography`: styles rendered markdown content.
+
+Slice 4 removes that temporary read-only renderer from the active selected-note
+surface and uses:
+
+- `@milkdown/crepe`: the WYSIWYG markdown editor surface Daniel selected from
+  the Milkdown Playground direction.
+- `@milkdown/kit`: Milkdown utilities such as markdown extraction and content
+  replacement.
 
 Keep slice-specific implementation details in
 `docs/slices/slice-1-workspace-discovery.md`.
@@ -91,6 +97,16 @@ messages, route shapes, reserved workspace names, and note-ID rules.
 
 When a reference detail also exists in code, prefer a typed shared source of
 truth in `packages/shared` and keep the reference doc aligned with it.
+
+## Product Terminology
+
+Azurite's user-facing term for its Obsidian-vault-like knowledge container is
+"cluster".
+
+Current backend, API, tests, and reference contracts still use "workspace" for
+the configured filesystem root. Treat that as an implementation term until a
+focused rename slice updates shared types, route docs, tests, environment
+variables, and user-facing copy together.
 
 ## First Product Slice
 
@@ -145,6 +161,26 @@ Initial behavior:
 - Keep editing, workspace picking, backlinks, graph behavior, search, and file
   watching out of this slice.
 
+## Fourth Product Slice
+
+The fourth product slice replaces the read-only note body with a Milkdown and
+Crepe editor surface before Azurite invests further in note browsing polish,
+search, or indexing.
+
+Detailed plan: `docs/slices/slice-4-milkdown-crepe-editor-surface.md`.
+
+Initial behavior:
+
+- Replace the current `NoteViewer` product concept with an editable note
+  surface.
+- Use Milkdown with Crepe as the selected-note editor experience.
+- Load selected-note markdown through the existing read API.
+- Allow local in-memory WYSIWYG editing.
+- Allow switching to plain markdown source mode.
+- Keep markdown files as canonical content.
+- Avoid save, autosave, write APIs, conflict detection, and file mutation until
+  the focused persistence slice.
+
 ## Frontend Styling
 
 Use Tailwind CSS as the styling foundation, with local semantic CSS tokens for
@@ -154,7 +190,7 @@ Initial rules:
 
 - Configure Tailwind through `@tailwindcss/vite`.
 - Keep global styling in one web stylesheet imported by the React entrypoint.
-- Use `@tailwindcss/typography` for rendered markdown content.
+- Keep editor styling local to Azurite tokens and the selected editor package.
 - Use simple local React components for trivial, slice-local UI.
 - Do not hand-roll complex accessible primitives. When a focused slice needs
   dialogs, menus, tabs, command palettes, forms, tooltips, trees, virtualized

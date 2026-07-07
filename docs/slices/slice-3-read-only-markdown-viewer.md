@@ -369,9 +369,9 @@ None.
 
 Resolve the temporary renderer before adding broader note-browsing polish.
 
-The next slice should evaluate the WYSIWYG/editor candidates that can also serve
-read-only rendered note views, then decide whether the chosen stack replaces,
-wraps, or reuses the Slice 3 markdown adapter. Do not grow the current
-unified-based renderer into a parallel long-term rendering architecture. Record
-any implications the chosen editor has for derived workspace indexes, local UI
-state, search metadata, and future note-browsing primitives.
+The next slice is planned in
+`docs/slices/slice-4-milkdown-crepe-editor-surface.md`. It replaces the
+temporary read-only note body with a Milkdown and Crepe editor surface that can
+load markdown, edit locally in memory, and switch to plain markdown source mode.
+Do not grow the current unified-based renderer into a parallel long-term
+rendering architecture.

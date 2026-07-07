@@ -1,4 +1,4 @@
-# Workspace And Note Rules
+# Workspace, Cluster, And Note Rules
 
 ## Purpose
 
@@ -7,6 +7,16 @@ Workspace and note rules define which files count as notes, how note IDs are
 formed, and which workspace paths are reserved for metadata or external tools.
 
 The main code source of truth is `@azurite/shared`.
+
+## Terminology
+
+"Cluster" is the user-facing product term for Azurite's version of an Obsidian
+vault.
+
+"Workspace" is the current implementation and API term for the configured
+filesystem root that contains notes. Keep using the implementation term in code
+contracts until a focused rename updates shared schemas, route docs, tests,
+environment variables, and UI copy together.
 
 ## Markdown Notes
 
@@ -88,4 +98,4 @@ Rules:
 - Add workspace/note contract changes to `@azurite/shared` before relying on
   them in core, server, frontend, or tests.
 - Keep this reference page aligned with shared schemas and constants.
-- Keep user knowledge workspaces decoupled from this source repository.
+- Keep user knowledge clusters decoupled from this source repository.

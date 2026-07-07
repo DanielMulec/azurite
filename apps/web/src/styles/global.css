@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 
 :root {
   color-scheme: light;
@@ -37,4 +36,24 @@ button {
 
 #root {
   min-height: 100vh;
+}
+
+.azurite-editor-surface .milkdown {
+  --crepe-color-background: var(--azurite-reading-surface);
+  --crepe-color-on-background: var(--azurite-text);
+  --crepe-color-surface: var(--azurite-surface);
+  --crepe-color-surface-low: var(--azurite-hover);
+  --crepe-color-on-surface: var(--azurite-text);
+  --crepe-color-outline: var(--azurite-border);
+  --crepe-color-primary: var(--azurite-accent);
+  --crepe-color-secondary: var(--azurite-selected);
+  --crepe-color-on-secondary: var(--azurite-selected-text);
+  min-height: 28rem;
+}
+
+.azurite-editor-surface .ProseMirror {
+  box-sizing: border-box;
+  min-height: 28rem;
+  outline: none;
+  padding-inline: clamp(1rem, 6vw, 4rem);
 }

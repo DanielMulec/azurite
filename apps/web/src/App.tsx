@@ -1,8 +1,8 @@
 import type { ReactElement } from "react";
 
 import { getApplicationTitle } from "./app-title.js";
+import { NoteEditorSurface } from "./components/NoteEditorSurface.js";
 import { NoteList } from "./components/NoteList.js";
-import { NoteViewer } from "./components/NoteViewer.js";
 import { useNoteBrowser } from "./use-note-browser.js";
 
 /** Root React component for the current Azurite web shell. */
@@ -22,7 +22,7 @@ export function App(): ReactElement {
           onSelectNote={browser.selectNote}
           selectedNoteId={browser.selectedNoteId}
         />
-        <NoteViewer noteState={browser.noteState} />
+        <NoteEditorSurface noteState={browser.noteState} />
       </div>
     </main>
   );

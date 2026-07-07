@@ -32,7 +32,7 @@ const defaultNoteBrowserApi: NoteBrowserApi = {
   readNote,
 };
 
-/** State and actions for the read-only note browsing screen. */
+/** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
   readonly noteState: Loadable<NoteContent>;
   readonly notesState: Loadable<readonly NoteSummary[]>;
@@ -40,7 +40,7 @@ export type NoteBrowserState = {
   readonly selectNote: (noteId: string) => void;
 };
 
-/** Loads notes and selected-note content for the read-only browser UI. */
+/** Loads notes and selected-note content for the browser UI. */
 export function useNoteBrowser(
   api: NoteBrowserApi = defaultNoteBrowserApi,
 ): NoteBrowserState {

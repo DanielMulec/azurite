@@ -13,6 +13,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiErrorCodes } from "@azurite/shared";
 import { App } from "../src/App.js";
 
+vi.mock("../src/components/MilkdownEditor.js", () => ({
+  MilkdownEditor: ({
+    initialMarkdown,
+    noteId,
+    title,
+  }: {
+    readonly initialMarkdown: string;
+    readonly noteId: string;
+    readonly title: string;
+  }) => (
+    <div data-testid="milkdown-editor" data-note-id={noteId}>
+      <p>Mock editor for {title}</p>
+      <pre>{initialMarkdown}</pre>
+    </div>
+  ),
+}));
+
 const homeSummary = {
   fileName: "index.md",
   id: "index.md",
@@ -36,14 +53,18 @@ afterEach(() => {
 });
 
 describe("App primary note flow", () => {
-  it("loads notes, auto-selects the first note, and renders markdown", async () => {
+  it("loads notes, auto-selects the first note, and mounts the editor", async () => {
     stubWorkspaceResponses();
 
     render(<App />);
 
     const homeButton = await screen.findByRole("button", { name: /Home/ });
     expect(homeButton).toHaveAttribute("aria-current", "page");
-    expect(await screen.findByText("Welcome to Azurite.")).toBeInTheDocument();
+    expect(await screen.findByTestId("milkdown-editor")).toHaveAttribute(
+      "data-note-id",
+      "index.md",
+    );
+    expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
   });
 
   it("renders the selected note after a user selects another note", async () => {
@@ -62,7 +83,10 @@ describe("App primary note flow", () => {
         name: "Project Plan",
       }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Slice notes.")).toBeInTheDocument();
+    expect(await screen.findByTestId("milkdown-editor")).toHaveAttribute(
+      "data-note-id",
+      "Projects/azurite.md",
+    );
   });
 });
 
@@ -89,13 +113,13 @@ describe("App note switching", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Welcome to Azurite.")).toBeInTheDocument();
+    expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("button", { name: /Project Plan/ }),
     );
 
     expect(screen.queryByText("Loading note")).not.toBeInTheDocument();
-    expect(screen.getByText("Welcome to Azurite.")).toBeInTheDocument();
+    expect(screen.getByText("Mock editor for Home")).toBeInTheDocument();
     deferredProjectResponse.resolve({
       body: {
         note: {
@@ -106,7 +130,9 @@ describe("App note switching", () => {
       status: 200,
     });
     await waitFor(() => {
-      expect(screen.getByText("Slice notes.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Mock editor for Project Plan"),
+      ).toBeInTheDocument();
     });
   });
 });
@@ -118,10 +144,10 @@ describe("App workspace states", () => {
     render(<App />);
 
     expect(
-      await screen.findByText("No markdown notes found in this workspace."),
+      await screen.findByText("No markdown notes found in this cluster."),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Choose a note from the workspace list."),
+      await screen.findByText("Choose a note from the cluster list."),
     ).toBeInTheDocument();
   });
 

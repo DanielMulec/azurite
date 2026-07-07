@@ -14,7 +14,7 @@ type NoteListProps = {
 };
 type NonReadyNotes = Exclude<LoadableNotes, { readonly status: "ready" }>;
 
-/** Sidebar list for selecting markdown notes in the current workspace. */
+/** Sidebar list for selecting markdown notes in the current cluster. */
 export function NoteList({
   notesState,
   onSelectNote,
@@ -40,7 +40,7 @@ function renderNotesState(
   }
 
   if (notesState.data.length === 0) {
-    return <ListMessage text="No markdown notes found in this workspace." />;
+    return <ListMessage text="No markdown notes found in this cluster." />;
   }
 
   return (
@@ -70,8 +70,8 @@ function NonReadyNotesMessage({
 }
 
 const nonReadyNotesText = {
-  idle: "No markdown notes found in this workspace.",
-  loading: "Loading workspace notes...",
+  idle: "No markdown notes found in this cluster.",
+  loading: "Loading cluster notes...",
 } as const;
 
 function NoteListItem({
@@ -88,6 +88,8 @@ function NoteListItem({
       <button
         aria-current={isSelected ? "page" : undefined}
         className={createNoteButtonClassName(isSelected)}
+        data-note-id={note.id}
+        data-testid="note-list-item"
         onClick={() => {
           onSelectNote(note.id);
         }}
