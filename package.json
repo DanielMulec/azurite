@@ -10,19 +10,21 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "check:file-lines": "node scripts/check-code-file-lines.mjs",
     "dev": "pnpm -r --parallel dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"
+    "validate": "pnpm format:check && pnpm check:file-lines && pnpm lint && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^26.1.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^63.0.12",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",

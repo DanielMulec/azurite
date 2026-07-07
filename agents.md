@@ -27,6 +27,12 @@ intentional project decisions rather than assumptions.
   `docs/working-agreement.md`.
 - Follow the stack, TypeScript, security, and code-quality rules in
   `docs/technical-architecture.md`.
+- Keep code files at 400 lines or fewer. This is a hard project requirement:
+  split files by responsibility before they reach 401 lines.
+- Keep code modular and separated by concern, with frontend, server, shared
+  contracts, and core behavior living behind clear boundaries.
+- Add beginner-readable JSDoc/TSDoc comments for exported APIs and plain
+  comments for non-obvious internal logic.
 - Inspect the repository state before editing: `git status --short --branch`.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.

@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 const currentServerVersion = "0.0.0";
 
+/** Creates the local Fastify server instance and registers API routes. */
 export function createServer(): FastifyInstance {
   const server = Fastify({
     logger: true,

@@ -130,6 +130,12 @@ JSON or non-markdown blocks.
 
 Use strict, beginner-readable TypeScript.
 
+- Keep every code file at 400 physical lines or fewer. This is a hard limit:
+  401 lines is too many. Split files by responsibility before they reach the
+  limit.
+- Keep code modular and separated by concern. A file should have one clear job,
+  and package boundaries should keep frontend, server, shared contracts, and
+  core knowledge behavior independent.
 - Enable TypeScript strict mode.
 - Enable `noImplicitAny`.
 - Ban explicit `any`; use `unknown`, discriminated unions, generics, or specific
@@ -140,8 +146,10 @@ Use strict, beginner-readable TypeScript.
 - Split functions before they become clever.
 - Use human, on-the-nose names for functions, variables, types, files, and tests.
 - Prefer names that explain the domain behavior over abbreviations.
-- Write plain-language comments for non-obvious code, especially where a
-  beginner reader would otherwise need to reverse-engineer intent.
+- Document exported public APIs with short JSDoc/TSDoc comments that explain
+  their purpose in beginner-readable language.
+- Write plain-language comments for non-obvious internal code, especially where
+  a beginner reader would otherwise need to reverse-engineer intent.
 - Comments should explain why a decision exists or how a tricky block works; do
   not use comments to restate obvious code.
 
@@ -188,6 +196,7 @@ on unchecked assumptions.
 
 ### Beginner-Readable Code Shape
 
+- `max-lines` with max `400` for code files
 - `complexity` with max `3`
 - `max-depth` with max `2`
 - `max-params` with max `3`
@@ -207,6 +216,19 @@ read.
 Use this to enforce monorepo boundaries. For example, the web app must not
 import server internals, the server must not import React code, and shared
 behavior should flow through `packages/core` and `packages/shared`.
+
+As the codebase grows, add a dependency graph tool such as dependency-cruiser if
+ESLint import restrictions are no longer expressive enough to enforce module
+boundaries, circular dependency policy, or feature-level separation.
+
+### Documentation Comments
+
+- Require JSDoc/TSDoc comments for exported APIs in app and package source
+  files.
+- Keep comments short and useful: explain purpose, constraints, or surprising
+  behavior.
+- Do not require comments for every local helper. Prefer readable names and
+  small functions first, then comments where intent would otherwise be hidden.
 
 ### Security
 

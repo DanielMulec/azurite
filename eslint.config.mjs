@@ -1,9 +1,12 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
+import jsdoc from "eslint-plugin-jsdoc";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+
+const codeFileLineLimit = 400;
 
 const sharedTypeScriptRules = {
   "@typescript-eslint/no-explicit-any": "error",
@@ -46,6 +49,30 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   prettier,
   {
+    files: ["**/*.{cjs,js,jsx,mjs}"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: {
+        ...globals.es2024,
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ["**/*.{cjs,js,jsx,mjs,ts,tsx}"],
+    rules: {
+      "max-lines": [
+        "error",
+        {
+          max: codeFileLineLimit,
+          skipBlankLines: false,
+          skipComments: false,
+        },
+      ],
+    },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
@@ -59,6 +86,37 @@ export default tseslint.config(
       },
     },
     rules: sharedTypeScriptRules,
+  },
+  {
+    files: ["apps/*/src/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
+    plugins: {
+      jsdoc,
+    },
+    rules: {
+      "jsdoc/require-description": "error",
+      "jsdoc/require-jsdoc": [
+        "error",
+        {
+          contexts: [
+            "ExportNamedDeclaration > ClassDeclaration",
+            "ExportNamedDeclaration > TSEnumDeclaration",
+            "ExportNamedDeclaration > TSInterfaceDeclaration",
+            "ExportNamedDeclaration > TSTypeAliasDeclaration",
+            "ExportNamedDeclaration > VariableDeclaration",
+          ],
+          publicOnly: {
+            ancestorsOnly: true,
+            cjs: false,
+            esm: true,
+            window: false,
+          },
+          require: {
+            ClassDeclaration: true,
+            FunctionDeclaration: true,
+          },
+        },
+      ],
+    },
   },
   {
     files: ["apps/web/**/*.{ts,tsx}"],
