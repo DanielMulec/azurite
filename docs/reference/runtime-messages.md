@@ -2,17 +2,25 @@
 
 ## Purpose
 
-Runtime messages are user-visible or operator-visible text emitted by the local
-server. They should stay intentional because they shape the product's feel and
-make local debugging easier.
+Runtime messages are user-visible or operator-visible text emitted by local
+Azurite processes. They should stay intentional because they shape the product's
+feel and make local debugging easier.
 
-## Current Server Lifecycle Messages
+## Current API Server Lifecycle Messages
 
 | Message                                          | When it appears                                       | Notes                                                   |
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
 | `Shutting down local server.`                    | The process receives `SIGINT` or `SIGTERM`.           | Includes the signal in structured log metadata.         |
 | `Azurite vein sealed. Server shut down cleanly.` | Fastify closes successfully during graceful shutdown. | This is intentional product tone, not placeholder text. |
 | `Failed to shut down local server.`              | Fastify fails during graceful shutdown.               | Includes error and signal metadata in server logs.      |
+
+## Current Web Dev Server Lifecycle Messages
+
+| Message                                                  | When it appears                           | Notes                                                   |
+| -------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| `Shutting down local web dev server after SIGINT.`       | The Vite dev process receives `SIGINT`.   | The signal name changes for other shutdown signals.     |
+| `Azurite vein sealed. Web dev server shut down cleanly.` | Vite closes successfully during shutdown. | This is intentional product tone, not placeholder text. |
+| `Failed to shut down local web dev server after SIGINT.` | Vite fails during shutdown.               | Includes the error object in Vite logger metadata.      |
 
 ## Maintenance Rules
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite --host 127.0.0.1",
+    "dev": "tsx src/dev-server.ts",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
