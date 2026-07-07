@@ -3,8 +3,9 @@
 ## Project Status
 
 This repository is currently a clean starting point. Product direction is
-documented in `docs/product-vision.md`; treat new structure, tooling, and
-conventions as intentional project decisions rather than assumptions.
+documented in `docs/product-vision.md`, and reusable research sources are tracked
+in `docs/research-sources.md`. Treat new structure, tooling, and conventions as
+intentional project decisions rather than assumptions.
 
 ## Working Guidelines
 
@@ -24,6 +25,18 @@ conventions as intentional project decisions rather than assumptions.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.
 - If no automated tests exist yet, document the manual verification performed.
+
+## Research Sources
+
+- Track useful research sources in `docs/research-sources.md` when they
+  materially inform product, architecture, security, dependency, standards, or
+  implementation decisions.
+- Treat the source list as a reusable starting point, never as an exhaustive or
+  exclusive list.
+- When research matters, consult existing collected sources and also look for
+  additional current sources.
+- Prefer primary and official sources where possible, and record context,
+  caveats, and access dates.
 
 ## Git Conventions
 
