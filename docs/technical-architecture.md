@@ -86,6 +86,26 @@ Initial behavior:
 - Return a note list through an API.
 - Avoid writing to the workspace during this slice.
 
+## Second Product Slice
+
+The second implementation slice reads one selected markdown note by its
+workspace-relative note ID and returns raw markdown plus metadata without
+exposing absolute filesystem paths.
+
+Detailed plan: `docs/slices/slice-2-safe-note-reading.md`.
+
+Initial behavior:
+
+- Keep the configured workspace path on the server.
+- Accept a slash-separated note ID through
+  `GET /api/notes/content?noteId=...`.
+- Validate that the note ID is relative, markdown-only, and cannot traverse
+  outside the workspace.
+- Reuse the existing workspace-root, path-boundary, note metadata, and title
+  extraction behavior from Slice 1.
+- Return raw markdown as data, not rendered HTML.
+- Avoid new packages during this slice.
+
 ## Local Server Lifecycle
 
 The local Fastify server should shut down gracefully when the process receives
