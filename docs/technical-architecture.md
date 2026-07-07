@@ -4,23 +4,30 @@
 
 Use this stack for the first high-fidelity slice:
 
-- Runtime: Node.js 24 LTS.
-- Package manager: pnpm workspaces.
-- Language: TypeScript across backend, frontend, and shared packages.
-- Backend: Fastify.
-- Frontend: React plus Vite.
+- Runtime: Node.js 26.x.
+- Package manager: pnpm 11.x workspaces.
+- Language: TypeScript 6.x across backend, frontend, and shared packages.
+- Backend: Fastify 5.x.
+- Frontend: React 19.x plus Vite 8.x.
 - PWA support: Vite-based PWA setup when the first installable shell is needed.
 - Markdown dialect: CommonMark plus GitHub Flavored Markdown.
 - Markdown processing: unified, remark, rehype, and rehype-sanitize.
-- Validation: Zod for runtime validation and shared API contracts.
-- Testing: Vitest for unit and integration tests, Playwright plus available
+- Validation: Zod 4.x for runtime validation and shared API contracts.
+- Testing: Vitest 4.x for unit and integration tests, Playwright plus available
   browser tooling for end-to-end and rendered UI checks.
-- Formatting: Prettier.
+- Linting: ESLint 9.x, using the latest compatible major for the selected
+  TypeScript, React hooks, and JSX accessibility plugins.
+- Formatting: Prettier 3.x.
 - Private access: bind locally by default and use Tailscale-oriented access for
   trusted device access.
 
 This stack is intended to support a local-first, markdown-first PWA without
 coupling the product to a public SaaS deployment model.
+
+Prefer the installed local toolchain when it is newer than an earlier proposal,
+unless there is a concrete compatibility reason not to. For package
+dependencies, use the newest compatible version line rather than forcing a major
+version that breaks required peer dependencies or rules.
 
 ## Repo Shape
 

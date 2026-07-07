@@ -44,9 +44,10 @@ should never be treated as the only sources to consult.
 - Area: Runtime selection
 - Use when: Choosing supported Node.js versions for production-oriented work.
 - Notes: Node.js recommends production applications use Active LTS or
-  Maintenance LTS releases.
-- Caveats: Re-check before changing the runtime version because LTS status
-  changes over time.
+  Maintenance LTS releases. Azurite currently targets Node.js 26.x by project
+  decision to match the local development runtime.
+- Caveats: Re-check before production distribution because LTS status changes
+  over time.
 
 ### pnpm Workspaces
 
