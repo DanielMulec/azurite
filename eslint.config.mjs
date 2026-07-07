@@ -49,17 +49,6 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   prettier,
   {
-    files: ["**/*.{cjs,js,jsx,mjs}"],
-    ...tseslint.configs.disableTypeChecked,
-    languageOptions: {
-      ...tseslint.configs.disableTypeChecked.languageOptions,
-      globals: {
-        ...globals.es2024,
-        ...globals.node,
-      },
-    },
-  },
-  {
     files: ["**/*.{cjs,js,jsx,mjs,ts,tsx}"],
     rules: {
       "max-lines": [

@@ -33,6 +33,9 @@ intentional project decisions rather than assumptions.
   contracts, and core behavior living behind clear boundaries.
 - Add beginner-readable JSDoc/TSDoc comments for exported APIs and plain
   comments for non-obvious internal logic.
+- Use TypeScript for repository utility scripts. Do not add `.mjs` files unless
+  an external dependency or tooling requirement makes it unavoidable, and
+  document why when that exception is needed.
 - Inspect the repository state before editing: `git status --short --branch`.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.

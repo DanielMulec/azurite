@@ -136,6 +136,9 @@ Use strict, beginner-readable TypeScript.
 - Keep code modular and separated by concern. A file should have one clear job,
   and package boundaries should keep frontend, server, shared contracts, and
   core knowledge behavior independent.
+- Use TypeScript for repository utility scripts. Do not add `.mjs` files unless
+  an external dependency or tool requirement makes TypeScript impractical; if
+  that exception is needed, document why.
 - Enable TypeScript strict mode.
 - Enable `noImplicitAny`.
 - Ban explicit `any`; use `unknown`, discriminated unions, generics, or specific
