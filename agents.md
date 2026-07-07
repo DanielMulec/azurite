@@ -2,8 +2,9 @@
 
 ## Project Status
 
-This repository is currently a clean starting point. Treat new structure, tooling,
-and conventions as intentional project decisions rather than assumptions.
+This repository is currently a clean starting point. Product direction is
+documented in `docs/product-vision.md`; treat new structure, tooling, and
+conventions as intentional project decisions rather than assumptions.
 
 ## Working Guidelines
 
