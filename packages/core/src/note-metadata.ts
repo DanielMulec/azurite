@@ -1,6 +1,7 @@
-import type { NoteContent, NoteSummary } from "@azurite/shared";
+import type { NoteContentWithHash, NoteSummary } from "@azurite/shared";
 import { readFile, stat } from "node:fs/promises";
 
+import { createContentHash } from "./content-hash.js";
 import { extractNoteTitle } from "./title-extraction.js";
 
 /** Markdown file details needed to build safe public note metadata. */
@@ -28,12 +29,13 @@ export async function buildNoteSummary(
 /** Builds a safe note body response from a markdown file inside the workspace. */
 export async function buildNoteContent(
   markdownFile: WorkspaceMarkdownFile,
-): Promise<NoteContent> {
+): Promise<NoteContentWithHash> {
   const fileData = await readMarkdownFileData(markdownFile);
   const noteSummary = buildNoteSummaryFromData(markdownFile, fileData);
 
   return {
     ...noteSummary,
+    contentHash: createContentHash(fileData.markdown),
     markdown: fileData.markdown,
   };
 }

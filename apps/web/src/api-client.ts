@@ -2,11 +2,15 @@ import {
   apiErrorResponseSchema,
   apiRoutes,
   createNoteContentRoute,
+  createSaveNoteRoute,
   listNotesResponseSchema,
   readNoteResponseSchema,
+  saveNoteResponseSchema,
   type ApiErrorCode,
   type ListNotesResponse,
   type ReadNoteResponse,
+  type SaveNoteInput,
+  type SaveNoteResponse,
 } from "@azurite/shared";
 
 type WebApiErrorOptions = {
@@ -51,16 +55,59 @@ export async function readNote(noteId: string): Promise<ReadNoteResponse> {
   return parsedPayload.data;
 }
 
-async function requestJson(routePath: string): Promise<unknown> {
+/** Saves one existing markdown note through the local Azurite API. */
+export async function saveNote(
+  input: SaveNoteInput,
+): Promise<SaveNoteResponse> {
+  const payload = await requestJson(createSaveNoteRoute(), {
+    body: JSON.stringify(input),
+    method: "PUT",
+  });
+  const parsedPayload = saveNoteResponseSchema.safeParse(payload);
+
+  if (!parsedPayload.success) {
+    throw createInvalidPayloadError();
+  }
+
+  return parsedPayload.data;
+}
+
+async function requestJson(
+  routePath: string,
+  request: JsonRequest = {},
+): Promise<unknown> {
   try {
-    const response = await fetch(routePath, {
-      headers: { Accept: "application/json" },
-    });
+    const response = await fetch(routePath, createFetchRequest(request));
 
     return await parseResponse(response);
   } catch (error) {
     throw normalizeRequestError(error);
   }
+}
+
+function createFetchRequest(request: JsonRequest): RequestInit {
+  if (request.body === undefined) {
+    return {
+      headers: createRequestHeaders(request),
+    };
+  }
+
+  return {
+    body: request.body,
+    headers: createRequestHeaders(request),
+    method: request.method,
+  };
+}
+
+function createRequestHeaders(request: JsonRequest): Record<string, string> {
+  if (request.body === undefined) {
+    return { Accept: "application/json" };
+  }
+
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
@@ -103,3 +150,7 @@ function normalizeRequestError(error: unknown): WebApiError {
 
   return new WebApiError("Could not reach the local Azurite server.");
 }
+
+type JsonRequest =
+  | { readonly body: string; readonly method: "PUT" }
+  | { readonly body?: undefined; readonly method?: undefined };

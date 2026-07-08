@@ -4,9 +4,12 @@ import {
   listNotesResponseSchema,
   markdownNoteFileExtension,
   noteContentSchema,
+  noteContentWithHashSchema,
   noteIdInputSchema,
   noteSummarySchema,
   readNoteResponseSchema,
+  saveNoteInputSchema,
+  saveNoteResponseSchema,
   workspacePathInputSchema,
 } from "../src/index.js";
 
@@ -21,6 +24,10 @@ const validNoteSummary = {
 const validNoteContent = {
   ...validNoteSummary,
   markdown: "# Index\n",
+};
+const validNoteContentWithHash = {
+  ...validNoteContent,
+  contentHash: "sha256-example",
 };
 
 describe("markdownNoteFileExtension", () => {
@@ -95,6 +102,14 @@ describe("noteContentSchema", () => {
   });
 });
 
+describe("noteContentWithHashSchema", () => {
+  it("accepts raw markdown plus a content hash", () => {
+    expect(noteContentWithHashSchema.parse(validNoteContentWithHash)).toEqual(
+      validNoteContentWithHash,
+    );
+  });
+});
+
 describe("listNotesResponseSchema", () => {
   it("accepts a list of note summaries", () => {
     expect(
@@ -106,9 +121,47 @@ describe("listNotesResponseSchema", () => {
 });
 
 describe("readNoteResponseSchema", () => {
-  it("accepts one note content object", () => {
-    expect(readNoteResponseSchema.parse({ note: validNoteContent })).toEqual({
-      note: validNoteContent,
+  it("accepts one note content object with a hash", () => {
+    expect(
+      readNoteResponseSchema.parse({ note: validNoteContentWithHash }),
+    ).toEqual({
+      note: validNoteContentWithHash,
+    });
+  });
+});
+
+describe("saveNoteInputSchema", () => {
+  it("accepts a manual save payload for an existing note", () => {
+    expect(
+      saveNoteInputSchema.parse({
+        expectedContentHash: "sha256-before",
+        markdown: "# Updated\n",
+        noteId: "notes/index.md",
+      }),
+    ).toEqual({
+      expectedContentHash: "sha256-before",
+      markdown: "# Updated\n",
+      noteId: "notes/index.md",
+    });
+  });
+
+  it("rejects unsafe note IDs and empty hashes", () => {
+    expect(() =>
+      saveNoteInputSchema.parse({
+        expectedContentHash: "",
+        markdown: "# Updated\n",
+        noteId: "../secret.md",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("saveNoteResponseSchema", () => {
+  it("accepts one saved note content object with a hash", () => {
+    expect(
+      saveNoteResponseSchema.parse({ note: validNoteContentWithHash }),
+    ).toEqual({
+      note: validNoteContentWithHash,
     });
   });
 });

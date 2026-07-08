@@ -4,6 +4,7 @@ import {
   apiQueryParameters,
   apiRoutes,
   createNoteContentRoute,
+  createSaveNoteRoute,
 } from "../src/index.js";
 
 describe("apiRoutes", () => {
@@ -27,5 +28,11 @@ describe("createNoteContentRoute", () => {
     expect(createNoteContentRoute("Projects/azurite.md")).toBe(
       "/api/notes/content?noteId=Projects%2Fazurite.md",
     );
+  });
+});
+
+describe("createSaveNoteRoute", () => {
+  it("returns the note-content route used for manual saves", () => {
+    expect(createSaveNoteRoute()).toBe("/api/notes/content");
   });
 });

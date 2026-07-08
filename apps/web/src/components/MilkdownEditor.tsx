@@ -3,13 +3,14 @@ import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 import { replaceAll } from "@milkdown/kit/utils";
 import type { ReactElement, RefObject } from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 type EditorMode = "source" | "wysiwyg";
 
 type MilkdownEditorProps = {
   readonly initialMarkdown: string;
   readonly noteId: string;
+  readonly onMarkdownChange?: (markdown: string) => void;
   readonly title: string;
 };
 
@@ -17,6 +18,7 @@ type MilkdownEditorProps = {
 export function MilkdownEditor({
   initialMarkdown,
   noteId,
+  onMarkdownChange,
   title,
 }: MilkdownEditorProps): ReactElement {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -26,18 +28,25 @@ export function MilkdownEditor({
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [mode, setMode] = useState<EditorMode>("wysiwyg");
   const [sourceMarkdown, setSourceMarkdown] = useState(initialMarkdown);
+  const updateMarkdown = useCallback(
+    (markdown: string) => {
+      setSourceMarkdown(markdown);
+      onMarkdownChange?.(markdown);
+    },
+    [onMarkdownChange],
+  );
 
   useEffect(() => {
     return createCrepeEditor({
       initialMarkdown,
       onEditorError: setEditorError,
-      onMarkdownChange: setSourceMarkdown,
+      onMarkdownChange: updateMarkdown,
       onReady: setIsEditorReady,
       root: rootRef.current,
       setMode,
       target: crepeRef,
     });
-  }, [initialMarkdown, noteId]);
+  }, [initialMarkdown, noteId, updateMarkdown]);
 
   const isSourceMode = mode === "source";
 
@@ -46,7 +55,7 @@ export function MilkdownEditor({
       <EditorModeToolbar
         isSourceMode={isSourceMode}
         onShowSource={() => {
-          setSourceMarkdown(getCurrentMarkdown(crepeRef.current));
+          updateMarkdown(getCurrentMarkdown(crepeRef.current));
           setMode("source");
         }}
         onShowWysiwyg={() => {
@@ -57,7 +66,7 @@ export function MilkdownEditor({
       <EditorStatus error={editorError} isReady={isEditorReady} />
       <EditorModeBody
         isSourceMode={isSourceMode}
-        onSourceChange={setSourceMarkdown}
+        onSourceChange={updateMarkdown}
         rootRef={rootRef}
         sourceInputId={sourceInputId}
         sourceMarkdown={sourceMarkdown}
@@ -77,10 +86,7 @@ function EditorModeToolbar({
   readonly onShowWysiwyg: () => void;
 }): ReactElement {
   return (
-    <div className="mb-4 flex flex-col gap-3 border-b border-[var(--azurite-border)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-[var(--azurite-muted)]">
-        Local editing only. Saving arrives in the next slice.
-      </p>
+    <div className="mb-4 flex justify-end">
       <div
         aria-label="Editor mode"
         className="inline-flex w-fit border border-[var(--azurite-border)] bg-[var(--azurite-surface)] p-1"

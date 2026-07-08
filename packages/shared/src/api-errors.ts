@@ -2,21 +2,27 @@ import { z } from "zod";
 
 /** Stable API error code strings that can be reused by server, frontend, and tests. */
 export const apiErrorCodes = {
+  invalidNoteSave: "invalid_note_save",
   invalidNoteId: "invalid_note_id",
   invalidWorkspace: "invalid_workspace",
   noteDiscoveryFailed: "note_discovery_failed",
   noteNotFound: "note_not_found",
   noteReadFailed: "note_read_failed",
+  noteWriteConflict: "note_write_conflict",
+  noteWriteFailed: "note_write_failed",
   workspaceNotConfigured: "workspace_not_configured",
 } as const;
 
 /** Runtime schema for stable API error code strings. */
 export const apiErrorCodeSchema = z.enum([
+  apiErrorCodes.invalidNoteSave,
   apiErrorCodes.invalidNoteId,
   apiErrorCodes.invalidWorkspace,
   apiErrorCodes.noteDiscoveryFailed,
   apiErrorCodes.noteNotFound,
   apiErrorCodes.noteReadFailed,
+  apiErrorCodes.noteWriteConflict,
+  apiErrorCodes.noteWriteFailed,
   apiErrorCodes.workspaceNotConfigured,
 ]);
 

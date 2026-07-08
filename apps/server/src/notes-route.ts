@@ -1,7 +1,9 @@
 import {
   listWorkspaceNotes,
   NoteResolutionError,
+  NoteWriteError,
   readWorkspaceNote,
+  writeWorkspaceNote,
   WorkspaceResolutionError,
 } from "@azurite/core";
 import {
@@ -12,7 +14,10 @@ import {
   listNotesResponseSchema,
   noteIdInputSchema,
   readNoteResponseSchema,
+  saveNoteInputSchema,
+  saveNoteResponseSchema,
   type ApiErrorResponse,
+  type SaveNoteInput,
 } from "@azurite/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -29,6 +34,10 @@ type NoteContentQuery = Partial<
 
 type NoteContentRequest = FastifyRequest<{
   readonly Querystring: NoteContentQuery;
+}>;
+
+type SaveNoteRequest = FastifyRequest<{
+  readonly Body: unknown;
 }>;
 
 type NotesRouteContext = {
@@ -62,6 +71,10 @@ function registerNoteContentRoute(context: NotesRouteContext): void {
   context.server.get<{ Querystring: NoteContentQuery }>(
     apiRoutes.noteContent,
     async (request, reply) => handleNoteContentRequest(context, request, reply),
+  );
+  context.server.put<{ Body: unknown }>(
+    apiRoutes.noteContent,
+    async (request, reply) => handleSaveNoteRequest(context, request, reply),
   );
 }
 
@@ -103,6 +116,26 @@ async function handleNoteContentRequest(
   return sendNoteContent(context, reply, { noteId, workspacePath });
 }
 
+async function handleSaveNoteRequest(
+  context: NotesRouteContext,
+  request: SaveNoteRequest,
+  reply: FastifyReply,
+) {
+  const workspacePath = context.options.workspacePath;
+
+  if (workspacePath === undefined) {
+    return sendWorkspaceNotConfigured(reply);
+  }
+
+  const saveInput = parseSaveNoteBody(request.body);
+
+  if (saveInput === undefined) {
+    return sendInvalidNoteSave(reply);
+  }
+
+  return sendSavedNote(context, reply, { saveInput, workspacePath });
+}
+
 async function sendNoteContent(
   context: NotesRouteContext,
   reply: FastifyReply,
@@ -118,6 +151,24 @@ async function sendNoteContent(
   }
 }
 
+async function sendSavedNote(
+  context: NotesRouteContext,
+  reply: FastifyReply,
+  request: SaveNoteRouteRequest,
+) {
+  try {
+    const note = await writeWorkspaceNote(
+      request.workspacePath,
+      request.saveInput,
+    );
+    return await reply.send(saveNoteResponseSchema.parse({ note }));
+  } catch (error) {
+    const safeError = createSaveNoteError(error);
+    logUnexpectedSaveNoteError(context.server, error, safeError);
+    return reply.status(safeError.statusCode).send(safeError.body);
+  }
+}
+
 function parseNoteIdQuery(query: NoteContentQuery): string | undefined {
   const parsedInput = noteIdInputSchema.safeParse(query);
 
@@ -126,6 +177,16 @@ function parseNoteIdQuery(query: NoteContentQuery): string | undefined {
   }
 
   return parsedInput.data.noteId;
+}
+
+function parseSaveNoteBody(body: unknown): SaveNoteInput | undefined {
+  const parsedInput = saveNoteInputSchema.safeParse(body);
+
+  if (!parsedInput.success) {
+    return undefined;
+  }
+
+  return parsedInput.data;
 }
 
 function sendWorkspaceNotConfigured(reply: FastifyReply) {
@@ -146,6 +207,17 @@ function sendInvalidNoteId(reply: FastifyReply) {
       createApiErrorResponse(
         apiErrorCodes.invalidNoteId,
         "Note ID must be a relative markdown path.",
+      ),
+    );
+}
+
+function sendInvalidNoteSave(reply: FastifyReply) {
+  return reply
+    .status(400)
+    .send(
+      createApiErrorResponse(
+        apiErrorCodes.invalidNoteSave,
+        "Save request must include a note ID, markdown, and content hash.",
       ),
     );
 }
@@ -194,6 +266,38 @@ function createReadNoteError(error: unknown): SafeErrorResult {
   };
 }
 
+function createSaveNoteError(error: unknown): SafeErrorResult {
+  if (error instanceof WorkspaceResolutionError) {
+    return {
+      body: createApiErrorResponse(
+        apiErrorCodes.invalidWorkspace,
+        "Configured workspace path is not a readable directory.",
+      ),
+      statusCode: 500,
+    };
+  }
+
+  return createSaveNoteFileError(error);
+}
+
+function createSaveNoteFileError(error: unknown): SafeErrorResult {
+  if (error instanceof NoteResolutionError) {
+    return createNoteResolutionError(error);
+  }
+
+  if (error instanceof NoteWriteError) {
+    return createNoteWriteError(error);
+  }
+
+  return {
+    body: createApiErrorResponse(
+      apiErrorCodes.noteWriteFailed,
+      "Unable to save workspace note.",
+    ),
+    statusCode: 500,
+  };
+}
+
 function createNoteResolutionError(
   error: NoteResolutionError,
 ): SafeErrorResult {
@@ -216,6 +320,16 @@ function createNoteResolutionError(
   };
 }
 
+function createNoteWriteError(error: NoteWriteError): SafeErrorResult {
+  return {
+    body: createApiErrorResponse(
+      error.code,
+      "The note changed on disk before Azurite could save it.",
+    ),
+    statusCode: 409,
+  };
+}
+
 function logUnexpectedReadNoteError(
   server: FastifyInstance,
   error: unknown,
@@ -227,3 +341,20 @@ function logUnexpectedReadNoteError(
 
   server.log.error({ error }, "Failed to read workspace note.");
 }
+
+function logUnexpectedSaveNoteError(
+  server: FastifyInstance,
+  error: unknown,
+  safeError: SafeErrorResult,
+): void {
+  if (safeError.statusCode < 500) {
+    return;
+  }
+
+  server.log.error({ error }, "Failed to save workspace note.");
+}
+
+type SaveNoteRouteRequest = {
+  readonly saveInput: SaveNoteInput;
+  readonly workspacePath: string;
+};

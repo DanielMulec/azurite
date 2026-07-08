@@ -18,3 +18,8 @@ export function createNoteContentRoute(noteId: string): string {
 
   return `${apiRoutes.noteContent}?${queryParameters.toString()}`;
 }
+
+/** Returns the stable route path used to save an existing markdown note. */
+export function createSaveNoteRoute(): string {
+  return apiRoutes.noteContent;
+}

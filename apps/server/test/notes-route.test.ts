@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   apiRoutes,
   createNoteContentRoute,
 } from "@azurite/shared";
+import { createContentHash } from "@azurite/core";
 import { createServer } from "../src/app.js";
 
 type TemporaryWorkspace = {
@@ -98,11 +99,8 @@ describe("GET /api/notes/content success", () => {
     await withTemporaryWorkspace(async ({ workspacePath }) => {
       const projectPath = path.join(workspacePath, "Projects");
       await mkdir(projectPath);
-      await writeFile(
-        path.join(projectPath, "azurite.md"),
-        "# Azurite Plan\n\nSlice notes.\n",
-        "utf8",
-      );
+      const markdown = "# Azurite Plan\n\nSlice notes.\n";
+      await writeFile(path.join(projectPath, "azurite.md"), markdown, "utf8");
 
       const server = createServer({ workspacePath });
       const response = await server.inject({
@@ -114,12 +112,105 @@ describe("GET /api/notes/content success", () => {
       expect(response.json()).toMatchObject({
         note: {
           fileName: "azurite.md",
+          contentHash: createContentHash(markdown),
           id: "Projects/azurite.md",
-          markdown: "# Azurite Plan\n\nSlice notes.\n",
+          markdown,
           relativePath: "Projects/azurite.md",
           title: "Azurite Plan",
         },
       });
+    });
+  });
+});
+
+describe("PUT /api/notes/content success", () => {
+  it("saves an existing markdown note and returns updated content", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const notePath = path.join(workspacePath, "index.md");
+      await writeFile(notePath, "# Home\n", "utf8");
+
+      const server = createServer({ workspacePath });
+      const response = await injectSave(server, {
+        expectedContentHash: createContentHash("# Home\n"),
+        markdown: "# Updated\n",
+        noteId: "index.md",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        note: {
+          contentHash: createContentHash("# Updated\n"),
+          markdown: "# Updated\n",
+          title: "Updated",
+        },
+      });
+      await expect(readFile(notePath, "utf8")).resolves.toBe("# Updated\n");
+    });
+  });
+});
+
+describe("PUT /api/notes/content safe errors", () => {
+  it("returns a safe validation error for invalid save payloads", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const server = createServer({ workspacePath });
+      const response = await injectSave(server, {
+        markdown: "# Updated\n",
+        noteId: "index.md",
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({
+        error: {
+          code: apiErrorCodes.invalidNoteSave,
+          message:
+            "Save request must include a note ID, markdown, and content hash.",
+        },
+      });
+    });
+  });
+
+  it("returns a safe not-found error for missing notes", async () => {
+    await withTemporaryWorkspace(async ({ rootPath, workspacePath }) => {
+      const server = createServer({ workspacePath });
+      const response = await injectSave(server, {
+        expectedContentHash: createContentHash(""),
+        markdown: "# Updated\n",
+        noteId: "missing.md",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({
+        error: {
+          code: apiErrorCodes.noteNotFound,
+          message: "Requested note was not found.",
+        },
+      });
+      expect(response.body).not.toContain(rootPath);
+    });
+  });
+
+  it("rejects stale hashes without overwriting the note", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const notePath = path.join(workspacePath, "index.md");
+      await writeFile(notePath, "# Changed elsewhere\n", "utf8");
+
+      const server = createServer({ workspacePath });
+      const response = await injectSave(server, {
+        expectedContentHash: createContentHash("# Home\n"),
+        markdown: "# Updated\n",
+        noteId: "index.md",
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({
+        error: {
+          code: apiErrorCodes.noteWriteConflict,
+          message: "The note changed on disk before Azurite could save it.",
+        },
+      });
+      await expect(readFile(notePath, "utf8")).resolves.toBe(
+        "# Changed elsewhere\n",
+      );
     });
   });
 });
@@ -182,6 +273,15 @@ async function withTemporaryWorkspace(
   } finally {
     await rm(rootPath, { force: true, recursive: true });
   }
+}
+
+function injectSave(server: ReturnType<typeof createServer>, payload: unknown) {
+  return server.inject({
+    headers: { "content-type": "application/json" },
+    method: "PUT",
+    payload: JSON.stringify(payload),
+    url: apiRoutes.noteContent,
+  });
 }
 
 async function expectInvalidNoteResponse(

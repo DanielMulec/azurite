@@ -1,4 +1,4 @@
-import type { NoteContent } from "@azurite/shared";
+import type { NoteContentWithHash } from "@azurite/shared";
 
 import { buildNoteContent } from "./note-metadata.js";
 import { resolveNoteIdToMarkdownFile } from "./note-id-resolution.js";
@@ -8,7 +8,7 @@ import { resolveWorkspaceRoot } from "./workspace-root.js";
 export async function readWorkspaceNote(
   workspacePath: string,
   noteId: string,
-): Promise<NoteContent> {
+): Promise<NoteContentWithHash> {
   const workspaceRoot = await resolveWorkspaceRoot(workspacePath);
   const markdownFile = await resolveNoteIdToMarkdownFile(workspaceRoot, noteId);
 

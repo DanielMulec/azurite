@@ -60,6 +60,14 @@ export const noteContentSchema = noteSummarySchema.extend({
 /** TypeScript view of a markdown note body plus its safe list metadata. */
 export type NoteContent = z.infer<typeof noteContentSchema>;
 
+/** Runtime contract for a markdown note body plus a content version hash. */
+export const noteContentWithHashSchema = noteContentSchema.extend({
+  contentHash: z.string().min(1),
+});
+
+/** TypeScript view of a markdown note body plus its content version hash. */
+export type NoteContentWithHash = z.infer<typeof noteContentWithHashSchema>;
+
 /** Runtime contract for the successful note-list API response. */
 export const listNotesResponseSchema = z.object({
   notes: z.array(noteSummarySchema),
@@ -70,11 +78,29 @@ export type ListNotesResponse = z.infer<typeof listNotesResponseSchema>;
 
 /** Runtime contract for the successful note-content API response. */
 export const readNoteResponseSchema = z.object({
-  note: noteContentSchema,
+  note: noteContentWithHashSchema,
 });
 
 /** TypeScript view of the successful note-content API response. */
 export type ReadNoteResponse = z.infer<typeof readNoteResponseSchema>;
+
+/** Runtime contract for saving an existing markdown note. */
+export const saveNoteInputSchema = z.object({
+  expectedContentHash: z.string().min(1),
+  markdown: z.string(),
+  noteId: z.string().min(1).refine(isValidNoteId),
+});
+
+/** TypeScript view of a save-note request payload. */
+export type SaveNoteInput = z.infer<typeof saveNoteInputSchema>;
+
+/** Runtime contract for the successful save-note API response. */
+export const saveNoteResponseSchema = z.object({
+  note: noteContentWithHashSchema,
+});
+
+/** TypeScript view of the successful save-note API response. */
+export type SaveNoteResponse = z.infer<typeof saveNoteResponseSchema>;
 
 /** Checks whether a path segment is reserved for workspace metadata. */
 export function isIgnoredWorkspaceDirectoryName(

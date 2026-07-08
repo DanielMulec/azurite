@@ -184,9 +184,10 @@ Initial behavior:
 ## Fifth Product Slice
 
 The fifth product slice starts safe markdown persistence with explicit manual
-save before autosave.
+save. It proves trusted writes for existing notes before note creation,
+recoverable delete, or autosave.
 
-Detailed plan: `docs/slices/slice-5a-safe-manual-save-foundation.md`.
+Detailed plan: `docs/slices/slice-5-safe-manual-save-foundation.md`.
 
 Initial behavior:
 
@@ -201,6 +202,20 @@ Initial behavior:
 - Show dirty, saving, saved, conflict, and failed save states.
 - Keep autosave, merge UI, create, rename, delete, file watching, indexing, and
   graph behavior out of this slice.
+
+## Persistence Roadmap After Slice 5
+
+After safe manual save exists, the next persistence slices should prioritize
+core note lifecycle actions before autosave.
+
+- Slice 6: create new markdown notes.
+- Slice 7: recoverable delete or move-to-trash behavior.
+- Later separate numbered slice: autosave policy.
+
+Create and delete are higher-priority user experience work than autosave
+because they let Azurite become a complete capture and note-management surface.
+Autosave remains valuable, but it is a comfort layer on top of trusted save,
+create, and recoverable delete semantics.
 
 ## Frontend Styling
 

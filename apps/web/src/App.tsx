@@ -22,7 +22,10 @@ export function App(): ReactElement {
           onSelectNote={browser.selectNote}
           selectedNoteId={browser.selectedNoteId}
         />
-        <NoteEditorSurface noteState={browser.noteState} />
+        <NoteEditorSurface
+          noteState={browser.noteState}
+          onSaveNote={browser.saveNote}
+        />
       </div>
     </main>
   );

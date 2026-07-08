@@ -16,6 +16,7 @@ The source of truth in code is `apiRoutes` and `apiQueryParameters` in
 | `apiRoutes.health`      | `GET`  | `/health`            | Reports local server health and version metadata.           |
 | `apiRoutes.notes`       | `GET`  | `/api/notes`         | Lists markdown note summaries for the configured workspace. |
 | `apiRoutes.noteContent` | `GET`  | `/api/notes/content` | Reads one markdown note by workspace-relative note ID.      |
+| `apiRoutes.noteContent` | `PUT`  | `/api/notes/content` | Saves one existing markdown note by workspace-relative ID.  |
 
 ## Query Parameters
 
@@ -40,6 +41,10 @@ returns:
 ```text
 /api/notes/content?noteId=Projects%2Fazurite.md
 ```
+
+Use `createSaveNoteRoute()` for manual save requests. It returns
+`/api/notes/content`, where the save payload carries `noteId`, `markdown`, and
+`expectedContentHash` in the JSON request body.
 
 ## Maintenance Rules
 

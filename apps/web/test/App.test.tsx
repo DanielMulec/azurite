@@ -104,6 +104,7 @@ describe("App note switching", () => {
         body: {
           note: {
             ...homeSummary,
+            contentHash: "sha256-home",
             markdown: "# Home\n\nWelcome to Azurite.",
           },
         },
@@ -124,6 +125,7 @@ describe("App note switching", () => {
       body: {
         note: {
           ...projectSummary,
+          contentHash: "sha256-project",
           markdown: "# Project Plan\n\nSlice notes.",
         },
       },
@@ -185,6 +187,7 @@ function stubWorkspaceResponses(): void {
       body: {
         note: {
           ...projectSummary,
+          contentHash: "sha256-project",
           markdown: "# Project Plan\n\nSlice notes.",
         },
       },
@@ -194,6 +197,7 @@ function stubWorkspaceResponses(): void {
       body: {
         note: {
           ...homeSummary,
+          contentHash: "sha256-home",
           markdown: "# Home\n\nWelcome to Azurite.",
         },
       },

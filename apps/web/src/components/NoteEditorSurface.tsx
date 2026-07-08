@@ -1,39 +1,50 @@
-import type { NoteContent } from "@azurite/shared";
+import type { NoteContentWithHash, SaveNoteInput } from "@azurite/shared";
 import type { ReactElement } from "react";
 
-import { MilkdownEditor } from "./MilkdownEditor.js";
+import { SaveableNoteEditor } from "./SaveableNoteEditor.js";
 
 type LoadableNote =
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "idle" }
   | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly data: NoteContent };
+  | { readonly status: "ready"; readonly data: NoteContentWithHash };
 
 type NoteEditorSurfaceProps = {
   readonly noteState: LoadableNote;
+  readonly onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
 };
 type NonReadyNote = Exclude<LoadableNote, { readonly status: "ready" }>;
 
 /** Main editable surface for the selected markdown note. */
 export function NoteEditorSurface({
   noteState,
+  onSaveNote,
 }: NoteEditorSurfaceProps): ReactElement {
   return (
     <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
-      {renderNoteState(noteState)}
+      {renderNoteState(noteState, onSaveNote)}
     </section>
   );
 }
 
-function renderNoteState(noteState: LoadableNote): ReactElement {
+function renderNoteState(
+  noteState: LoadableNote,
+  onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>,
+): ReactElement {
   if (noteState.status === "ready") {
-    return <SelectedNote note={noteState.data} />;
+    return <SelectedNote note={noteState.data} onSaveNote={onSaveNote} />;
   }
 
   return <NonReadyNoteMessage noteState={noteState} />;
 }
 
-function SelectedNote({ note }: { readonly note: NoteContent }): ReactElement {
+function SelectedNote({
+  note,
+  onSaveNote,
+}: {
+  readonly note: NoteContentWithHash;
+  readonly onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
+}): ReactElement {
   return (
     <article className="mx-auto max-w-3xl">
       <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
@@ -44,11 +55,7 @@ function SelectedNote({ note }: { readonly note: NoteContent }): ReactElement {
           {note.title}
         </h2>
       </header>
-      <MilkdownEditor
-        initialMarkdown={note.markdown}
-        noteId={note.id}
-        title={note.title}
-      />
+      <SaveableNoteEditor note={note} onSaveNote={onSaveNote} />
     </article>
   );
 }

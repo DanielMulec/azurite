@@ -1,13 +1,34 @@
-# Slice 5A: Safe Manual Save Foundation
+# Slice 5: Safe Manual Save Foundation
 
 ## Status
 
-Planned.
+Implemented on July 8, 2026.
 
 This slice adds explicit manual saving for existing markdown notes. It turns the
 Milkdown and Crepe editor surface from a local draft surface into a safe
 markdown writer while keeping autosave, merge UI, file creation, rename, delete,
 backlinks, graph behavior, search, indexing, and file watching out of scope.
+
+Implementation added the shared save contract, content hashes, safe core note
+writes, server save route, web API save client, and editor save state UI for
+existing markdown notes.
+
+Verification completed:
+
+- `pnpm validate`
+- focused `@azurite/web` test and typecheck after the CRLF dirty-state fix
+- browser QA against `/tmp/azurite-slice5-qa.yJ038O`, not Daniel's real
+  knowledgebase
+- source-mode save persisted to disk and preserved CRLF-dominant line endings
+- browser refresh reloaded the saved content and updated note metadata
+- WYSIWYG editing saved Crepe's current markdown to disk
+- stale save after an external file edit returned `409 note_write_conflict`,
+  showed `Changed on disk`, kept the browser draft intact, and did not
+  overwrite the external file
+- invalid traversal-style save request returned a safe typed error without
+  exposing absolute filesystem paths
+- mobile-sized and desktop-sized browser checks showed readable save UI without
+  horizontal overflow or status/button overlap
 
 ## Product Decision
 
@@ -15,7 +36,7 @@ Implement manual save before autosave.
 
 Autosave is still a good future Azurite experience, but it should reuse a
 boringly correct write path instead of defining conflict, retry, and persistence
-semantics at the same time as the first filesystem write. Slice 5A therefore
+semantics at the same time as the first filesystem write. Slice 5 therefore
 proves the write API, content-hash conflict protection, atomic replacement, and
 basic save UI first.
 
@@ -281,7 +302,7 @@ On `note_write_conflict`:
 - require a later reload, conflict review, or merge-oriented slice to resolve
   the conflict.
 
-No merge UI is required in Slice 5A.
+No merge UI is required in Slice 5.
 
 ## Tests
 
@@ -353,9 +374,22 @@ Verify:
 - `pnpm validate` passes.
 - Browser verification passes against a temporary cluster.
 
-## Follow-Up Slice
+## Follow-Up Slices
 
-Slice 5B should add autosave policy on top of this write foundation.
+Slice 6 should add new markdown note creation.
+
+It should decide the first creation location, filename validation, duplicate
+filename handling, title behavior, optional folder creation, list refresh, and
+auto-selection after creation.
+
+Slice 7 should add recoverable delete or move-to-trash behavior.
+
+It should decide whether deletion moves notes to a local trash area, the user's
+system trash, or a workspace-local recovery folder. It should not introduce
+permanent one-click deletion as the first delete experience.
+
+Autosave should be a later separately numbered slice after manual save,
+creation, and recoverable delete are stable.
 
 It should decide debounce timing, queued saves, retry behavior, mobile sleep and
 reconnect behavior, stale-save UX while typing, whether a manual Save Now escape

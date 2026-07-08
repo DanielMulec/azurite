@@ -16,6 +16,7 @@ describe("readWorkspaceNote", () => {
     });
     expect(note.lastModifiedAt).toMatch(/Z$/u);
     expect(note.sizeBytes).toBeGreaterThan(0);
+    expect(note.contentHash).toMatch(/^sha256:/u);
     expect(JSON.stringify(note)).not.toContain(fixtureWorkspacePath);
   });
 

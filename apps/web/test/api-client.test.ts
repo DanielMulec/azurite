@@ -4,8 +4,14 @@ import {
   apiErrorCodes,
   type ListNotesResponse,
   type ReadNoteResponse,
+  type SaveNoteResponse,
 } from "@azurite/shared";
-import { listNotes, readNote, WebApiError } from "../src/api-client.js";
+import {
+  listNotes,
+  readNote,
+  saveNote,
+  WebApiError,
+} from "../src/api-client.js";
 
 const validNoteSummary = {
   fileName: "index.md",
@@ -17,6 +23,7 @@ const validNoteSummary = {
 };
 const validNoteContent = {
   ...validNoteSummary,
+  contentHash: "sha256-home",
   markdown: "# Home\n",
 };
 
@@ -80,6 +87,56 @@ describe("readNote", () => {
         headers: { Accept: "application/json" },
       },
     );
+  });
+});
+
+describe("saveNote", () => {
+  it("saves one note with the expected JSON request", async () => {
+    const responseBody = { note: validNoteContent } satisfies SaveNoteResponse;
+    const fetchMock = stubJsonResponse(responseBody, 200);
+
+    await expect(
+      saveNote({
+        expectedContentHash: "sha256-before",
+        markdown: "# Home\n",
+        noteId: "index.md",
+      }),
+    ).resolves.toEqual(responseBody);
+    expect(fetchMock).toHaveBeenCalledWith("/api/notes/content", {
+      body: JSON.stringify({
+        expectedContentHash: "sha256-before",
+        markdown: "# Home\n",
+        noteId: "index.md",
+      }),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      method: "PUT",
+    });
+  });
+
+  it("preserves typed conflict errors", async () => {
+    stubJsonResponse(
+      {
+        error: {
+          code: apiErrorCodes.noteWriteConflict,
+          message: "The note changed on disk before Azurite could save it.",
+        },
+      },
+      409,
+    );
+
+    await expect(
+      saveNote({
+        expectedContentHash: "sha256-before",
+        markdown: "# Home\n",
+        noteId: "index.md",
+      }),
+    ).rejects.toMatchObject({
+      code: apiErrorCodes.noteWriteConflict,
+      statusCode: 409,
+    });
   });
 });
 

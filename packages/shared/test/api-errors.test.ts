@@ -9,14 +9,14 @@ import {
 describe("apiErrorResponseSchema", () => {
   it("accepts known safe error codes", () => {
     const response = createApiErrorResponse(
-      apiErrorCodes.workspaceNotConfigured,
-      "Workspace path is not configured.",
+      apiErrorCodes.noteWriteConflict,
+      "The note changed on disk.",
     );
 
     expect(apiErrorResponseSchema.parse(response)).toEqual({
       error: {
-        code: apiErrorCodes.workspaceNotConfigured,
-        message: "Workspace path is not configured.",
+        code: apiErrorCodes.noteWriteConflict,
+        message: "The note changed on disk.",
       },
     });
   });

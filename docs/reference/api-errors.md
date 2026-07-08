@@ -36,11 +36,15 @@ Rules:
 | `invalid_note_id`          |                 400 | The note ID is missing, malformed, absolute, unsafe, non-markdown, or points into an ignored workspace directory. |
 | `note_not_found`           |                 404 | The note ID is valid, but no readable markdown file exists at that location.                                      |
 | `note_read_failed`         |                 500 | The server could not read a note for an unexpected reason.                                                        |
+| `invalid_note_save`        |                 400 | The save request body is missing required fields or has an invalid shape.                                         |
+| `note_write_conflict`      |                 409 | The note changed on disk after the client loaded it, so Azurite refused to overwrite it.                          |
+| `note_write_failed`        |                 500 | The server could not save a note for an unexpected reason.                                                        |
 
 ## Current Users
 
 - `GET /api/notes`
 - `GET /api/notes/content?noteId=...`
+- `PUT /api/notes/content`
 
 See `docs/reference/api-routes.md` for the shared route constants.
 

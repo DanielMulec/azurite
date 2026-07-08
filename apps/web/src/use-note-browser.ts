@@ -1,13 +1,20 @@
 import type {
   ListNotesResponse,
-  NoteContent,
+  NoteContentWithHash,
   NoteSummary,
   ReadNoteResponse,
+  SaveNoteInput,
+  SaveNoteResponse,
 } from "@azurite/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 
-import { listNotes, readNote, WebApiError } from "./api-client.js";
+import {
+  listNotes,
+  readNote,
+  saveNote as saveNoteRequest,
+  WebApiError,
+} from "./api-client.js";
 
 type Loadable<T> =
   | { readonly status: "error"; readonly message: string }
@@ -18,6 +25,7 @@ type Loadable<T> =
 type NoteBrowserApi = {
   readonly listNotes: () => Promise<ListNotesResponse>;
   readonly readNote: (noteId: string) => Promise<ReadNoteResponse>;
+  readonly saveNote: (input: SaveNoteInput) => Promise<SaveNoteResponse>;
 };
 type LoadNotesActions = {
   readonly setNotesState: (state: Loadable<readonly NoteSummary[]>) => void;
@@ -25,17 +33,26 @@ type LoadNotesActions = {
     selectNote: (current: string | undefined) => string | undefined,
   ) => void;
 };
-type NoteStateSetter = Dispatch<SetStateAction<Loadable<NoteContent>>>;
+type NoteStateSetter = Dispatch<SetStateAction<Loadable<NoteContentWithHash>>>;
+type NotesStateSetter = Dispatch<
+  SetStateAction<Loadable<readonly NoteSummary[]>>
+>;
+type SaveSelectedNoteActions = {
+  readonly setNoteState: NoteStateSetter;
+  readonly setNotesState: NotesStateSetter;
+};
 
 const defaultNoteBrowserApi: NoteBrowserApi = {
   listNotes,
   readNote,
+  saveNote: saveNoteRequest,
 };
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
-  readonly noteState: Loadable<NoteContent>;
+  readonly noteState: Loadable<NoteContentWithHash>;
   readonly notesState: Loadable<readonly NoteSummary[]>;
+  readonly saveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
 };
@@ -47,7 +64,7 @@ export function useNoteBrowser(
   const [notesState, setNotesState] = useState<
     Loadable<readonly NoteSummary[]>
   >({ status: "loading" });
-  const [noteState, setNoteState] = useState<Loadable<NoteContent>>({
+  const [noteState, setNoteState] = useState<Loadable<NoteContentWithHash>>({
     status: "idle",
   });
   const [selectedNoteId, setSelectedNoteId] = useState<string | undefined>();
@@ -61,6 +78,11 @@ export function useNoteBrowser(
   return {
     noteState,
     notesState,
+    saveNote: (input) =>
+      saveSelectedNote(api, input, {
+        setNoteState,
+        setNotesState,
+      }),
     selectNote: setSelectedNoteId,
     selectedNoteId,
   };
@@ -153,6 +175,54 @@ function handleLoadedNote(
   }
 
   setNoteState({ data: response.note, status: "ready" });
+}
+
+async function saveSelectedNote(
+  api: NoteBrowserApi,
+  input: SaveNoteInput,
+  actions: SaveSelectedNoteActions,
+): Promise<NoteContentWithHash> {
+  const response = await api.saveNote(input);
+  updateSavedNote(response.note, actions.setNoteState, actions.setNotesState);
+  return response.note;
+}
+
+function updateSavedNote(
+  note: NoteContentWithHash,
+  setNoteState: NoteStateSetter,
+  setNotesState: NotesStateSetter,
+): void {
+  setNoteState({ data: note, status: "ready" });
+  setNotesState((currentNotesState) =>
+    patchSavedNoteSummary(currentNotesState, note),
+  );
+}
+
+function patchSavedNoteSummary(
+  notesState: Loadable<readonly NoteSummary[]>,
+  note: NoteContentWithHash,
+): Loadable<readonly NoteSummary[]> {
+  if (notesState.status !== "ready") {
+    return notesState;
+  }
+
+  return {
+    data: notesState.data.map((summary) =>
+      summary.id === note.id ? toNoteSummary(note) : summary,
+    ),
+    status: "ready",
+  };
+}
+
+function toNoteSummary(note: NoteContentWithHash): NoteSummary {
+  return {
+    fileName: note.fileName,
+    id: note.id,
+    lastModifiedAt: note.lastModifiedAt,
+    relativePath: note.relativePath,
+    sizeBytes: note.sizeBytes,
+    title: note.title,
+  };
 }
 
 function keepRenderedNoteWhileLoading(setNoteState: NoteStateSetter): void {
