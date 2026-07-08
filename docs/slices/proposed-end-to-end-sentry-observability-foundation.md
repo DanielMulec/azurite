@@ -2,7 +2,8 @@
 
 ## Status
 
-Revised after adversarial review and side-chat decisions.
+Revised after adversarial review, side-chat decisions, and third-review
+hardening.
 
 This observability foundation is the next real implementation slice. This
 planning update deliberately moves create-new-notes later in the roadmap so the
@@ -17,7 +18,7 @@ Sentry owns the durable observability platform role: event capture, structured
 logs, session replay, error grouping, trace correlation, and investigation UI.
 Azurite owns a thin semantic instrumentation layer that explains product events
 such as note routing, editor updates, draft persistence, save conflicts, and
-filesystem-backed note operations.
+filesystem-backed note route outcomes.
 
 This settles that Azurite will not hand-roll a custom logging/replay system for
 development debugging when a mature observability platform can own that future
@@ -32,7 +33,7 @@ Azurite feels wrong, we can inspect the real session path in Sentry:
 - frontend errors, logs, breadcrumbs, and traces
 - frontend API request breadcrumbs with request IDs
 - backend Fastify request/error telemetry for the same request IDs
-- backend structured logs for note list/read/save behavior
+- backend route-boundary structured logs for note list/read/save behavior
 - Azurite-specific breadcrumbs for routing, Milkdown, Zustand, Dexie, save,
   conflict, recovery, and cluster metadata behavior
 
@@ -68,12 +69,13 @@ This slice covers the current local development workflow end to end:
 8. Missing-note, degraded draft recovery, save failure, and conflict states stay
    visible and debuggable.
 9. Sentry shows the replay, frontend logs/breadcrumbs/traces, backend
-   request/error telemetry, and Azurite semantic events for the same session,
-   note, request, and save operation.
+   route-boundary request/error telemetry, and Azurite semantic events for the
+   same session, note, request, and save operation.
 
 The user story is complete only when a real desktop session and a real
 mobile/Tailscale session can be followed from browser behavior through the API
-request and filesystem-backed note operation.
+request, server route boundary, and filesystem-backed note outcome surfaced by
+that boundary.
 
 ### Future Workflows This Foundation Must Support
 
@@ -113,8 +115,10 @@ investigation workflow:
 - `apps/server` entrypoint, Sentry initialization, Fastify lifecycle, and Pino
   logging
 - Fastify note list/read/save routes
-- `packages/core` filesystem note read/write, note ID, path boundary, content
-  hash, and cluster metadata behavior
+- existing `packages/core` filesystem note read/write, note ID, path boundary,
+  content hash, and cluster metadata behavior as surfaced by server route
+  return values and caught errors. `packages/core` stays Sentry-free in this
+  slice and receives no new observer contract.
 - Vitest unit/integration tests
 - manual desktop and mobile Sentry UI verification
 
@@ -144,11 +148,16 @@ Azurite runtime or because they would create a different product slice:
 - custom in-app log viewer
 - Sentry self-hosting or billing work
 - source-map upload automation that requires Sentry auth tokens
+- direct `packages/core` observability hooks, observer interfaces, or Sentry
+  imports
 - fixing the Milkdown block-menu bug itself
 
 The exclusions are stable for this slice because the current product value is
 development observability for the existing browser, API, and filesystem-backed
-note workflow.
+note workflow at the browser, API, and server route boundary. Direct core-level
+observability waits until a future slice introduces a second core runtime,
+background worker, indexing service, or repeated need to inspect below the route
+boundary.
 
 ## Goals
 
@@ -158,7 +167,7 @@ note workflow.
 - Capture frontend session replay for editor QA with unmasked debug content.
 - Capture frontend logs, errors, breadcrumbs, and traces.
 - Capture backend Fastify errors, request telemetry, structured logs, and
-  note-operation breadcrumbs.
+  route-level core outcome/error evidence.
 - Propagate trace context across frontend `/api/*` calls into the backend.
 - Add Azurite request IDs and operation IDs so events remain correlatable even
   when Sentry trace propagation is incomplete.
@@ -180,6 +189,8 @@ note workflow.
 - Creating a custom in-app log viewer.
 - Persisting observability events as Azurite product state.
 - Replacing existing Fastify/Pino logs with Sentry.
+- Adding direct Sentry instrumentation, observer hooks, or telemetry contracts to
+  `packages/core`.
 - Adding payment information, paid Sentry features, or billing-dependent
   behavior.
 - Uploading source maps to Sentry during local development.
@@ -211,9 +222,10 @@ Use two Sentry projects:
 - `azurite-server` for Fastify API telemetry.
 
 This split matches Azurite's current runtime boundary and Sentry's project
-model. Browser/editor problems and backend/filesystem problems should be
-grouped separately while still being correlatable through trace IDs, Azurite
-request IDs, note operation IDs, note IDs, release, and environment.
+model. Browser/editor problems and backend route-boundary/filesystem-backed
+outcomes should be grouped separately while still being correlatable through
+trace IDs, Azurite request IDs, note operation IDs, note IDs, release, and
+environment.
 
 ### Configuration Boundary
 
@@ -260,7 +272,7 @@ Exact loading mechanism:
   code.
 - `apps/web/src/config/sentry-config.ts` parses `import.meta.env` into a typed
   web Sentry config, including strict booleans and sample-rate numbers.
-- The server startup path loads the root `.env.local` before Sentry
+- The server ESM preload path loads the root `.env.local` before Sentry
   initialization by using Node 26's built-in environment-file support from a
   small server-local env module. The loader is optional: missing `.env.local`
   keeps normal Sentry-disabled startup working.
@@ -289,12 +301,19 @@ and uploaded artifact verification as one focused release-observability task.
 
 Sentry must initialize before Fastify is imported or instrumented.
 
-The server entrypoint must not statically import `createServer` before Sentry
-initialization. Use a dedicated server instrumentation module plus a dynamic
-import of the Fastify app after environment loading and Sentry initialization.
-Do not switch to a separate ESM preload path in this slice unless the dynamic
-import approach fails during implementation; if that happens, record the
-decision and keep the `tsx` dev command behavior equally verified.
+Use Sentry's official ESM `--import` preload path for the server dev/start
+runtime. Add a committed server preload file such as
+`apps/server/src/sentry-preload.mjs`, and document it as the required
+external-tooling exception to Azurite's TypeScript-script preference. This
+exception is justified because the file is loaded by Node before TypeScript app
+modules and before Fastify can be imported.
+
+Remove the dynamic-import-first framing from implementation. The server package
+`dev` and `start` scripts must run through the real `tsx` path with the Sentry
+preload installed, for example `tsx --import ./src/sentry-preload.mjs
+src/index.ts`, unless implementation discovers the exact `tsx` flag shape needs
+minor adjustment. Any adjustment must preserve the same preload ordering and be
+recorded in the slice notes.
 
 The accepted behavior is:
 
@@ -303,14 +322,51 @@ The accepted behavior is:
   startup behavior.
 - Existing graceful shutdown behavior remains intact.
 - Existing Fastify/Pino logging remains intact.
-- Automated startup tests prove the Sentry-enabled path loads the
-  instrumentation module before `apps/server/src/app.ts` imports Fastify.
+- Automated startup tests prove the real `tsx` dev/start path loads the preload
+  before `apps/server/src/app.ts` imports Fastify.
+- The required `.mjs` preload file is the only `.mjs` exception introduced by
+  this slice and is documented where the file or package script is defined.
+
+### Backend Shutdown Boundary
+
+Graceful shutdown must give Sentry a short chance to send queued backend
+telemetry without making Azurite hang forever.
+
+Accepted shutdown behavior:
+
+- Sentry-enabled shutdown closes or flushes the Sentry SDK after Fastify stops
+  accepting work and before process exit.
+- The flush/close timeout is bounded and short enough for local development,
+  with an initial maximum of `1000ms`.
+- Sentry-disabled shutdown follows the current Fastify/Pino behavior and does
+  not import or await Sentry runtime work.
+- Existing `SIGINT`/`SIGTERM` behavior and fallback exit protection remain
+  intact.
+
+### URL-Driven Dev Diagnostics Boundary
+
+The web development test trigger remains URL-driven, but its URL state must be
+part of the typed router contract instead of an incidental query string.
+
+Accepted URL behavior:
+
+- The preferred diagnostics URL is `/?note=index.md&azurite-dev=sentry-test`.
+- TanStack Router search parsing explicitly accepts and exposes
+  `azurite-dev=sentry-test`.
+- Startup note selection, list-click note navigation, and browser-history note
+  navigation preserve the `azurite-dev` value when it is present.
+- Invalid or absent `azurite-dev` values are ignored without changing selected
+  note behavior.
+- The diagnostics panel renders only when `import.meta.env.DEV` is true,
+  `VITE_SENTRY_TEST_EVENTS_ENABLED=true`, and the parsed dev diagnostics state
+  is `sentry-test`.
 
 ### Trace And Correlation Contract
 
 Sentry trace propagation alone is not enough for this slice. Azurite must add
 stable semantic correlation IDs so desktop, mobile, frontend, backend, and
-filesystem evidence can be joined even when a trace is missing or sampled out.
+server route-boundary evidence can be joined even when a trace is missing or
+sampled out.
 
 Required correlation fields:
 
@@ -342,10 +398,17 @@ Implementation requirements:
 - The typed `NoteBrowserApi` boundary must accept optional request metadata for
   correlation IDs instead of relying on hidden globals, module-level mutable
   state, or Sentry-only scope state.
-- Backend request hooks read `x-azurite-request-id` when present and generate a
-  server request ID when absent.
-- Backend request hooks read `x-azurite-note-operation-id` when present and
-  attach it to request-scoped observability context.
+- Shared correlation schemas define accepted ID format and length for request
+  IDs and note operation IDs. Web-generated IDs use `crypto.randomUUID()` where
+  available and a tested fallback only if needed.
+- Backend request hooks accept only a single valid `x-azurite-request-id` header.
+  Missing or invalid request IDs cause the server to generate a fresh server
+  request ID for telemetry without changing API response bodies.
+- Backend request hooks accept only a single valid
+  `x-azurite-note-operation-id` header. Missing or invalid operation IDs are
+  omitted from request-scoped observability context.
+- Invalid, oversized, or duplicated correlation headers are recorded as
+  diagnostic metadata, not trusted as canonical correlation IDs.
 - Existing frontend numeric request counters remain local
   `azurite.ui_request_sequence` metadata for stale-response protection. They
   must not be used as `azurite.request_id`.
@@ -360,6 +423,8 @@ Implementation requirements:
 - Tests prove that request IDs and operation IDs are present in fetch headers,
   frontend helper calls, backend request context, and backend observability calls
   without changing API response bodies.
+- Tests prove invalid, oversized, duplicated, and absent correlation headers do
+  not weaken API behavior or pollute canonical request/operation IDs.
 
 ### Replay, Logs, And Tracing Configuration
 
@@ -403,23 +468,41 @@ Telemetry carrier mapping:
   intent, and recovery visibility. Breadcrumbs must help replay navigation
   without carrying every full payload.
 - Spans measure operations with duration: frontend API calls, note load, draft
-  read/write/delete, save, backend request handling, cluster metadata reads, and
-  filesystem read/write operations. Spans should attach request ID, operation
-  ID, route, method, note ID, cluster ID, result status, and duration where
-  available.
+  read/write/delete, save, backend request handling, and server route-boundary
+  work that calls into cluster metadata and filesystem-backed core helpers. Spans
+  should attach request ID, operation ID, route, method, note ID, cluster ID,
+  result status, and duration where available. This slice does not create direct
+  spans inside `packages/core`.
 - Tags carry low-cardinality filter dimensions such as `app.surface`,
   environment, release, route pattern, result status, editor mode, recovery
   kind, and test-event status.
 - Context and structured attributes carry high-cardinality or rich diagnostic
   fields such as note ID, cluster ID, request ID, operation ID, content hashes,
   local filesystem paths, selected route values, markdown lengths, draft
-  timestamps, and bounded payload snapshots.
+  timestamps, and bounded payload summaries.
 - Errors and captured exceptions are reserved for real failures, deliberate
   development test events, and error-boundary captures. Do not turn normal
   successful lifecycle events into fake exceptions just to make them visible.
 - Sentry scopes may attach current request/editor context during one operation,
   but scopes must be cleared or isolated so note IDs, markdown, and operation
   IDs do not leak into unrelated events.
+
+Payload carrier mapping:
+
+- Structured logs are the searchable primary event record and carry payload
+  metadata: payload kind, byte length, markdown length, content hash, truncation
+  status, and the correlation IDs needed to find the related replay/trace/event.
+- Breadcrumbs never carry full markdown or draft payloads.
+- Full markdown and draft text can be sent only on eligible bounded debug events.
+  The chosen carrier is a Sentry captured event context named
+  `azurite.debug_payload` on a paired `captureMessage` or `captureException`
+  event for that eligible debug event.
+- Payload-bearing captured events must use the same event names, request IDs,
+  operation IDs, note IDs, cluster IDs, release, environment, and result status
+  as their structured log pair.
+- Captured messages used for payload-bearing debug events are not fake failures.
+  They are explicit debug payload carriers for allowed state transitions,
+  deliberate test events, and real failure/conflict/recovery evidence.
 
 ### Telemetry Volume Contract
 
@@ -431,16 +514,18 @@ Volume requirements:
 - Lifecycle events such as `editor.milkdown.markdown_updated` record note ID,
   editor session ID, markdown length, dirty status, revision, and hashes by
   default.
-- Full markdown snapshots are attached only to bounded events where the payload
-  explains the failure or state transition: note load success/failure, draft
-  recovery visibility, save start, save conflict, save failure, and deliberate
-  test events.
+- Full markdown snapshots can be attached only to bounded events where the
+  payload explains the failure or state transition: note load success/failure,
+  draft recovery visibility, save start, save conflict, save failure, and
+  deliberate test events. Eligible does not mean mandatory for every event; the
+  helper decides from event type, configured limit, and available payload.
 - Full payload capture is bounded for event-size and usefulness reasons, not
   privacy minimization. The implementation must define shared debug payload
   limits with an initial default of 128 KiB per text payload. Payloads at or
-  below the limit are sent whole. Larger payloads are represented with explicit
-  `azurite.payload_truncated_for_size = true`, original byte length, content
-  hash, and diagnostically useful leading/trailing text windows.
+  below the limit are sent whole in the `azurite.debug_payload` event context
+  for eligible payload-bearing captured events. Larger payloads are represented
+  with explicit `azurite.payload_truncated_for_size = true`, original byte
+  length, content hash, and diagnostically useful leading/trailing text windows.
 - Draft payloads are attached for draft read/write/delete failures and recovery
   states, not for every debounced successful write.
 - Zustand snapshots are attached for explicit error, conflict, stale-response,
@@ -480,6 +565,32 @@ Sentry debug mode is intentionally uncensored. Instrumentation may send rich
 diagnostic context when Sentry is explicitly enabled, but it must not own
 product decisions, editor state, draft state, route state, save behavior, or
 cluster state.
+
+### Core And Filesystem Boundary
+
+`packages/core` remains Sentry-free in this slice.
+
+The current user story needs backend-route evidence for filesystem-backed note
+behavior, not a new core observer abstraction. Server routes should capture
+useful evidence from core calls and caught core errors:
+
+- request ID
+- note operation ID when available
+- note ID
+- cluster ID when available
+- route pattern and HTTP method
+- duration
+- result status
+- shared API error code
+- content hashes
+- caught core error name, code, message, stack, and local filesystem path context
+  where available
+
+Do not add a core observer, hook, dependency injection surface, or Sentry import
+to `packages/core` in this slice. Direct core-level observability is deferred
+until a future slice introduces a second core runtime, background worker,
+indexing service, or repeated need to inspect behavior below the server route
+boundary.
 
 ### File-Line And Refactor Boundary
 
@@ -546,27 +657,27 @@ instead of appending logs to already-large modules.
 
 ### Backend Events
 
-| Event                             | Required attributes                                         |
-| --------------------------------- | ----------------------------------------------------------- |
-| `workspace.notes.list.started`    | request ID, route, method                                   |
-| `workspace.notes.list.succeeded`  | request ID, cluster ID, note count, duration                |
-| `workspace.notes.list.failed`     | request ID, API error code, duration                        |
-| `note.read.started`               | request ID, note ID, route, method                          |
-| `note.read.succeeded`             | request ID, note ID, cluster ID, content hash, duration     |
-| `note.read.not_found`             | request ID, note ID, API error code                         |
-| `note.read.invalid`               | request ID, API error code                                  |
-| `note.read.failed`                | request ID, note ID when known, API error code, duration    |
-| `note.save.started`               | request ID, note ID, expected content hash                  |
-| `note.save.succeeded`             | request ID, note ID, cluster ID, new content hash, duration |
-| `note.save.conflicted`            | request ID, note ID, expected content hash, API error code  |
-| `note.save.invalid`               | request ID, API error code                                  |
-| `note.save.failed`                | request ID, note ID when known, API error code, duration    |
-| `cluster.metadata.read.succeeded` | request ID, cluster ID                                      |
-| `cluster.metadata.created`        | request ID, cluster ID                                      |
-| `cluster.metadata.failed`         | request ID, filesystem path, error details                  |
-| `security.note_id.rejected`       | request ID, rejected note ID, API error code                |
-| `filesystem.boundary.rejected`    | request ID, rejected path, API error code                   |
-| `telemetry.server.test.triggered` | request ID, release, environment, surface, test marker      |
+| Event                             | Required attributes                                                        |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `workspace.notes.list.started`    | request ID, route, method                                                  |
+| `workspace.notes.list.succeeded`  | request ID, cluster ID, note count, duration                               |
+| `workspace.notes.list.failed`     | request ID, API error code, duration, caught core error context            |
+| `note.read.started`               | request ID, operation ID when present, note ID, route, method              |
+| `note.read.succeeded`             | request ID, operation ID when present, note ID, cluster ID, content hash   |
+| `note.read.not_found`             | request ID, operation ID when present, note ID, API error code             |
+| `note.read.invalid`               | request ID, operation ID when present, API error code                      |
+| `note.read.failed`                | request ID, operation ID when present, note ID when known, API error code  |
+| `note.save.started`               | request ID, operation ID when present, note ID, expected content hash      |
+| `note.save.succeeded`             | request ID, operation ID when present, note ID, cluster ID, new hash       |
+| `note.save.conflicted`            | request ID, operation ID when present, note ID, expected hash, error code  |
+| `note.save.invalid`               | request ID, operation ID when present, API error code                      |
+| `note.save.failed`                | request ID, operation ID when present, note ID when known, API error code  |
+| `cluster.metadata.read.succeeded` | request ID, operation ID when present, cluster ID                          |
+| `cluster.metadata.created`        | request ID, operation ID when present, cluster ID                          |
+| `cluster.metadata.failed`         | request ID, operation ID when present, filesystem path, error details      |
+| `security.note_id.rejected`       | request ID, operation ID when present, rejected note ID, API error code    |
+| `filesystem.boundary.rejected`    | request ID, operation ID when present, rejected path, API error code       |
+| `telemetry.server.test.triggered` | request ID, release, environment, surface, test marker, payload test state |
 
 ## Implementation Plan
 
@@ -622,13 +733,18 @@ Implementation requirements:
 
 ### 4. Add Shared Observability Constants
 
-Create shared event-name and attribute constants in `packages/shared`.
+Create shared event-name, attribute, route, and correlation constants in
+`packages/shared`.
 
 Requirements:
 
 - frontend and backend import event names from the same source
 - attribute names for correlation IDs, note IDs, cluster IDs, route patterns,
   result statuses, hashes, and API error codes are shared
+- `POST /__azurite/dev/sentry-test-event` is added to shared route constants and
+  reference docs as a development-only route registered only when the server
+  test-event env gate is enabled
+- request ID and note operation ID validation schemas are shared
 - exported constants include beginner-readable TSDoc
 - tests prove event names do not drift from the documented contract
 
@@ -658,7 +774,8 @@ Web requirements:
 
 ### 6. Initialize Server Sentry
 
-Initialize Sentry before Fastify is imported.
+Initialize Sentry before Fastify is imported by using Sentry's official ESM
+`--import` preload path.
 
 Server requirements:
 
@@ -674,8 +791,16 @@ Server requirements:
 - keep existing Fastify/Pino logging intact
 - capture unhandled backend errors
 - capture route/request errors without weakening existing error responses
-- keep graceful shutdown behavior intact
+- update the real server `dev` and `start` scripts so the `tsx` startup path uses
+  the Sentry preload before `src/index.ts`
+- document the `.mjs` preload file as the required external-tooling exception to
+  the repository's TypeScript-script preference
+- add bounded Sentry flush/close behavior during graceful shutdown, with an
+  initial timeout no longer than `1000ms`
+- keep graceful shutdown behavior intact when Sentry is disabled
 - verify that Sentry-disabled startup still works without a DSN
+- verify that the Sentry-enabled real `tsx` startup path initializes Sentry before
+  Fastify is imported
 
 ### 7. Add Request And Operation Correlation
 
@@ -687,9 +812,12 @@ Requirements:
 - web note load/save API requests include `x-azurite-note-operation-id`
 - the `NoteBrowserApi` TypeScript boundary accepts optional correlation
   metadata for operations that need transport headers
-- backend request hooks read or create `azurite.request_id`
-- backend request hooks read `x-azurite-note-operation-id` and attach
-  `azurite.note_operation_id` to request-scoped observability context
+- backend request hooks validate, read, or create `azurite.request_id`
+- backend request hooks validate `x-azurite-note-operation-id` and attach
+  `azurite.note_operation_id` to request-scoped observability context only when
+  the header is valid
+- invalid, oversized, duplicated, and absent correlation headers never change API
+  response body shapes
 - note load and save workflows create `azurite.note_operation_id`
 - editor lifecycle uses `azurite.editor_session_id` by reusing or deliberately
   renaming the existing editor session identity instead of adding a duplicate
@@ -734,13 +862,20 @@ Requirements:
 
 - instrument note list/read/save started, succeeded, invalid, not-found,
   conflicted, and failed states
-- instrument cluster metadata read/create/failure behavior
-- instrument note ID rejection and filesystem boundary rejection
+- instrument cluster metadata read/create/failure behavior as observed from the
+  server route boundary
+- instrument note ID rejection and filesystem boundary rejection as route-level
+  outcomes from existing core behavior
 - map backend semantic events to Sentry logs, breadcrumbs, spans, tags,
   contexts, and errors according to the telemetry carrier contract
 - include local filesystem paths, stack traces, request/response context, and
   full markdown only where useful for debugging and allowed by the telemetry
   volume contract
+- capture useful route-level evidence from core outcomes/errors: request ID,
+  operation ID, note ID, cluster ID when available, route/method, duration,
+  result status, API error code, content hashes, and caught core error context
+- keep `packages/core` Sentry-free; do not add core observer hooks, Sentry
+  imports, or a new core telemetry contract in this slice
 - avoid replacing or weakening existing Fastify/Pino logs; Sentry logs are an
   additional structured observability path
 - preserve existing Fastify error response shapes and shared API error codes
@@ -755,14 +890,20 @@ Requirements:
 - web test events are available only when `import.meta.env.DEV` is true and
   `VITE_SENTRY_TEST_EVENTS_ENABLED=true`
 - the web trigger is not part of the normal note workflow. Use an explicit
-  development diagnostics panel at `/?azurite-dev=sentry-test` that is hidden
-  unless test events are enabled and requires an intentional click or command to
-  send the event.
+  URL-driven development diagnostics panel at
+  `/?note=index.md&azurite-dev=sentry-test` that is hidden unless dev mode,
+  test events, and the parsed `azurite-dev=sentry-test` state are all active.
+  It requires an intentional click or command to send the event.
+- `azurite-dev=sentry-test` is an explicitly parsed TanStack Router search param
+  and startup note selection, note-list navigation, and browser-history note
+  navigation preserve it when present
 - server test events are available only when `NODE_ENV` is not `production` and
   `SENTRY_TEST_EVENTS_ENABLED=true`
 - the server trigger is the development-only route
   `POST /__azurite/dev/sentry-test-event`, registered only when test events are
   enabled
+- the server test-event route is defined in shared route constants and marked
+  development-only in reference docs
 - server test-event requests must require an explicit confirmation header such
   as `x-azurite-dev-test-event: sentry`
 - test events are impossible to trigger accidentally in normal user workflows
@@ -773,6 +914,9 @@ Requirements:
 - test events exercise the same logs/breadcrumbs/spans/tags/context/error
   carrier mapping used by real observability events without pretending that a
   successful product workflow failed
+- deliberate web and server test events include under-limit and over-limit
+  payload cases proving the selected `azurite.debug_payload` carrier, whole-text
+  capture, and truncation metadata behavior
 
 ### 11. Refactor Before Instrumenting Near-Limit Files
 
@@ -841,6 +985,8 @@ Validation, security, and filesystem boundaries that must not weaken:
 - note ID validation remains shared and enforced
 - path traversal remains rejected
 - filesystem boundary protections remain in core/server behavior
+- `packages/core` remains free of Sentry imports, observer contracts, and
+  telemetry-specific state
 - existing API error codes and response body shapes remain stable unless tests
   and reference docs explicitly cover a deliberate change
 - Sentry credentials, auth tokens, DSNs, and unrelated local credentials stay
@@ -849,17 +995,24 @@ Validation, security, and filesystem boundaries that must not weaken:
   only
 - Sentry debug payloads may include real note/debug content only when Sentry is
   explicitly enabled by local debug configuration
+- payload-bearing debug events use the configured `azurite.debug_payload`
+  carrier and bounded payload helper instead of ad hoc event context shapes
 
 URL, state, cache, and storage behavior that must stay coherent:
 
 - URL-owned selected-note state remains the route source of truth
 - browser history behavior does not change
+- `azurite-dev=sentry-test` remains a typed dev diagnostics search param and is
+  preserved during startup note selection, note-list navigation, and
+  browser-history navigation
 - Zustand remains the note browser state owner
 - Dexie remains the draft persistence owner
 - Sentry does not become a cache, source of truth, or recovery mechanism
 - request IDs and operation IDs are diagnostic metadata only
 - development test telemetry triggers do not mutate notes, drafts, route state,
   cluster metadata, or filesystem content
+- the backend development test route is registered only when the explicit
+  test-event env gate is enabled
 
 Degraded, error, and recovery states that must remain visible:
 
@@ -904,19 +1057,36 @@ Run targeted automated tests for:
   changes
 - local UI stale-response sequence IDs remaining separate from API request IDs
 - Sentry-disabled server initialization
-- Sentry-enabled server initialization before Fastify import
+- Sentry-enabled real `tsx` server startup using the ESM `--import` preload
+  before Fastify import
+- server graceful shutdown flushes/closes Sentry with a bounded timeout when
+  enabled and preserves existing disabled-mode shutdown behavior
 - server request ID and note operation ID creation/propagation
+- invalid, oversized, duplicated, and absent correlation headers
 - Sentry-enabled server route instrumentation with mocked SDK calls
 - web and server telemetry carrier mapping for logs, breadcrumbs, spans, tags,
   context, and errors
 - development test-event triggers being unavailable when env flags are missing
   and available only in development when explicitly enabled
+- router parsing and preserving `azurite-dev=sentry-test` during startup note
+  selection, note-list navigation, and browser-history navigation
+- shared route constants and reference docs for the development-only backend test
+  event route
 - frontend observability helpers preserving rich diagnostic payloads
+- frontend payload helpers attaching under-limit markdown to
+  `azurite.debug_payload` on eligible debug events
+- frontend payload helpers replacing over-limit markdown with
+  `azurite.payload_truncated_for_size`, original length, content hash, and
+  leading/trailing text windows
 - frontend observability helpers coalescing or summarizing high-frequency
   editor updates
 - frontend observability helpers clearing coalesced editor buffers when the
   editor session changes
 - backend observability helpers preserving rich diagnostic payloads
+- backend payload helpers proving the same under-limit and over-limit payload
+  carrier behavior through deliberate test events
+- backend route-level observability capturing core outcomes/errors without adding
+  Sentry imports or observer hooks to `packages/core`
 - shared observability event and attribute constants
 - existing route, draft, save, conflict, and recovery tests
 
@@ -927,11 +1097,19 @@ Run manual/browser QA:
 - Create or update root `.env.local` with web and server Sentry env vars, then
   start Azurite locally.
 - Open the Tailscale MagicDNS URL on desktop Chrome.
+- Open `/?note=index.md&azurite-dev=sentry-test`, confirm the dev diagnostics
+  panel appears only when the web test-event env gate is enabled, then navigate
+  between notes and confirm the `azurite-dev` search param is preserved.
 - Trigger the explicit web development test event and confirm it reaches
   `azurite-web` with `azurite.test_event = true`.
 - Trigger the explicit server development test event with the confirmation
   header and confirm it reaches `azurite-server` with
   `azurite.test_event = true`.
+- Confirm deliberate under-limit payload test content appears in Sentry under
+  `azurite.debug_payload`.
+- Confirm deliberate over-limit payload test content is represented with
+  `azurite.payload_truncated_for_size`, original length, content hash, and useful
+  leading/trailing text windows.
 - Load the note from the Milkdown block-menu bug report.
 - Confirm Sentry captures the browser session, console warnings/logs, API
   request path, request ID, note operation ID, note-load breadcrumbs, and
@@ -957,6 +1135,8 @@ Run manual/browser QA:
   mode is explicitly enabled.
 - Confirm the backend remains local-only while the frontend proxies API requests
   for Tailscale/phone QA.
+- Stop the backend with Sentry enabled and confirm shutdown stays bounded while
+  pending backend telemetry is flushed or closed.
 
 ## Acceptance Criteria
 
@@ -967,6 +1147,13 @@ Run manual/browser QA:
   remains untracked.
 - web and server Sentry config parsing is centralized behind typed config
   modules and Sentry stays disabled unless enabled flags and DSNs are present.
+- Server Sentry initialization uses the official ESM `--import` preload under the
+  real `tsx` dev/start path and initializes before Fastify imports.
+- The `.mjs` preload file is documented as the required external-tooling
+  exception to the repository's TypeScript-script preference.
+- Sentry-enabled graceful backend shutdown flushes/closes queued Sentry telemetry
+  with a bounded timeout, while Sentry-disabled shutdown behavior remains
+  unchanged.
 - Frontend and backend events include shared release/environment metadata.
 - Frontend API calls and backend requests are trace-correlatable through Sentry
   where supported.
@@ -976,17 +1163,33 @@ Run manual/browser QA:
   `azurite.note_operation_id`.
 - Request IDs, note operation IDs, editor session IDs, and local UI request
   sequences remain distinct and are transported or scoped only where intended.
+- Correlation headers are validated; invalid, oversized, duplicated, and absent
+  headers do not change API response bodies or pollute canonical IDs.
 - Development test telemetry triggers are dev-only, env-gated, impossible to
   reach through normal note workflows, and do not mutate notes, drafts, routes,
   or cluster metadata.
+- `azurite-dev=sentry-test` is a typed router search param, uses the preferred
+  URL `/?note=index.md&azurite-dev=sentry-test`, and is preserved during startup
+  note selection, note-list navigation, and browser-history navigation.
+- `POST /__azurite/dev/sentry-test-event` is defined in shared route constants,
+  documented as development-only, and registered only when the server test-event
+  env gate is enabled.
 - The Milkdown block-menu bug report can be investigated with Sentry evidence
   instead of only terminal logs.
 - Session Replay captures unmasked editor/debug context in explicitly enabled
   local debug sessions.
 - Telemetry is mapped intentionally into logs, breadcrumbs, spans, tags, context,
   and errors.
+- Eligible payload-bearing debug events use `azurite.debug_payload` as the
+  payload carrier; under-limit markdown appears whole in Sentry, while over-limit
+  markdown sends truncation metadata, original length, content hash, and useful
+  leading/trailing text windows.
+- Deliberate web and server test events prove the payload carrier, whole-payload
+  path, and truncated-payload path.
 - Bounded full-payload capture, rate-limited editor updates, and cleared
   coalescing buffers keep normal editing responsive and Sentry inspectable.
+- Backend observability captures route-level evidence from core outcomes/errors,
+  and `packages/core` remains Sentry-free with no new observer contract.
 - Sentry-disabled Azurite behaves the same as before this slice.
 - All negative side-effect guardrails remain true.
 - `/opt/homebrew/bin/pnpm validate` passes.
@@ -1003,12 +1206,28 @@ Run manual/browser QA:
   environment variables or secrets without changing feature code.
 - Use Sentry's Fastify setup path for the backend project. Use generic Node.js
   only as a documented fallback if Fastify setup is unavailable or blocked.
+- Use Sentry's official ESM `--import` preload for Fastify/server startup. The
+  required `.mjs` preload file is a justified external-tooling exception, and
+  the dynamic-import-first framing is removed.
 - Do not include source-map upload infrastructure in the first implementation.
   Use release naming plus local source maps now.
 - Session Replay should run for every explicitly enabled local debug session,
   with env-configurable sampling and unmasked debug capture.
 - Deliberate test telemetry triggers are required, but they must be
   development-only, env-gated, explicit, and non-mutating.
+- The web test trigger stays URL-driven through the typed and preserved
+  `azurite-dev=sentry-test` search param, with preferred URL
+  `/?note=index.md&azurite-dev=sentry-test`.
+- The backend test trigger is the shared, development-only
+  `POST /__azurite/dev/sentry-test-event` route.
+- `packages/core` remains Sentry-free in this slice. Route-level backend
+  evidence is enough until a future runtime/worker/indexing need justifies direct
+  core observability hooks.
+- Backend shutdown gets bounded Sentry flushing/closing without changing
+  Sentry-disabled shutdown behavior.
 - Sentry debug mode remains uncensored, while full-payload capture and
   high-frequency editor telemetry must be bounded and mapped intentionally into
   logs, breadcrumbs, spans, tags, context, and errors.
+- Full markdown can be sent only for eligible bounded debug events through the
+  chosen `azurite.debug_payload` carrier. Test events must prove both
+  under-limit full capture and over-limit truncation metadata.
