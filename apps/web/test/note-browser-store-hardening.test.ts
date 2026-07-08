@@ -21,7 +21,8 @@ afterEach(() => {
 describe("note browser store save race hardening", () => {
   it("keeps newer same-note edits dirty after an older save succeeds", async () => {
     const drafts = createMemoryDraftPersistence();
-    const saveResponse = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
+    const saveResponse =
+      createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const api = createApi({
       saveNote: vi.fn(() => saveResponse.promise),
     });
@@ -65,7 +66,8 @@ describe("note browser store save race hardening", () => {
 
   it("does not mark newer same-note edits failed after an older save fails", async () => {
     const drafts = createMemoryDraftPersistence();
-    const saveFailure = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
+    const saveFailure =
+      createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const store = createLoadedStore({
       api: createApi({
         saveNote: vi.fn(() => saveFailure.promise),
@@ -96,7 +98,8 @@ describe("note browser store save race hardening", () => {
 
   it("persists the latest current draft when an older save conflicts", async () => {
     const drafts = createMemoryDraftPersistence();
-    const saveConflict = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
+    const saveConflict =
+      createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const store = createLoadedStore({
       api: createApi({
         saveNote: vi.fn(() => saveConflict.promise),
@@ -133,7 +136,8 @@ describe("note browser store save race hardening", () => {
 
 describe("note browser store route hardening", () => {
   it("uses the latest route note after note-list loading resolves", async () => {
-    const listResponse = createDeferred<ReturnType<NoteBrowserApi["listNotes"]>>();
+    const listResponse =
+      createDeferred<ReturnType<NoteBrowserApi["listNotes"]>>();
     const home = createNote("index.md", "# Home", "sha256-home");
     const project = createNote(
       "Projects/azurite.md",
@@ -154,9 +158,7 @@ describe("note browser store route hardening", () => {
     const navigation = { replaceSelectedNote: vi.fn() };
 
     const load = store.getState().loadNotes("index.md", navigation);
-    await store
-      .getState()
-      .syncRouteNote("Projects/azurite.md", navigation);
+    await store.getState().syncRouteNote("Projects/azurite.md", navigation);
     listResponse.resolve({
       clusterIdentity: readyClusterIdentity,
       notes: [toSummary(home), toSummary(project)],

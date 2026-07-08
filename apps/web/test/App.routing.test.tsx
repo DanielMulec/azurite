@@ -83,7 +83,9 @@ describe("App routing hardening", () => {
       noteRoute(projectSummary, "# Project", "sha256-project"),
     );
     await waitFor(() => {
-      expect(screen.getByText("Mock editor for Daily Note")).toBeInTheDocument();
+      expect(
+        screen.getByText("Mock editor for Daily Note"),
+      ).toBeInTheDocument();
     });
 
     expect(navigation.pushSelectedNote).toHaveBeenCalledWith("Daily/today.md");
@@ -121,9 +123,7 @@ describe("App routing hardening", () => {
       await screen.findByRole("button", { name: /Project Plan/ }),
     );
     await waitFor(() => {
-      expect(window.location.search).toContain(
-        "note=Projects%2Fazurite.md",
-      );
+      expect(window.location.search).toContain("note=Projects%2Fazurite.md");
     });
     expect(
       await screen.findByText("Mock editor for Project Plan"),

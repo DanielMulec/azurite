@@ -86,7 +86,9 @@ function renderSurface(
 ): void {
   render(
     <NoteEditorSurface
-      draftRecoveryStatus={options.draftRecoveryStatus ?? { status: "available" }}
+      draftRecoveryStatus={
+        options.draftRecoveryStatus ?? { status: "available" }
+      }
       noteState={noteState}
       onDiscardDraftAndReloadDiskVersion={() => Promise.resolve()}
       onDiscardMissingDraft={

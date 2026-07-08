@@ -15,7 +15,10 @@ import {
   isSameSaveSnapshot,
   patchSavedNoteSummary,
 } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type {
+  NoteBrowserStore,
+  StoreContext,
+} from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 import { selectNoteAction } from "./note-browser-route-actions.js";
 
@@ -36,31 +39,49 @@ export function updateCurrentEditor(
   patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
   context: Pick<StoreContext, "set">,
 ): void {
-  context.set((state) => {
-    if (state.noteState.status !== "ready") {
-      return state;
-    }
+  context.set((state) => patchCurrentEditorState(state, patch));
+}
 
-    const editor = state.noteState.editor;
+function patchCurrentEditorState(
+  state: NoteBrowserStore,
+  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
+) {
+  if (state.noteState.status !== "ready") {
+    return state;
+  }
 
-    if (!hasEditorPatchChange(editor, patch)) {
-      return state;
-    }
+  return patchReadyEditorState(state, patch);
+}
 
-    const saveStatus = editor.saveStatus === "conflict" ? "conflict" : "idle";
+function patchReadyEditorState(
+  state: Extract<NoteBrowserStore, { readonly noteState: unknown }>,
+  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
+) {
+  const noteState = state.noteState;
 
-    return {
-      noteState: {
-        editor: {
-          ...editor,
-          ...patch,
-          revision: editor.revision + 1,
-          saveStatus,
-        },
-        status: "ready",
+  if (noteState.status !== "ready") {
+    return state;
+  }
+
+  const editor = noteState.editor;
+
+  if (!hasEditorPatchChange(editor, patch)) {
+    return state;
+  }
+
+  const saveStatus = editor.saveStatus === "conflict" ? "conflict" : "idle";
+
+  return {
+    noteState: {
+      editor: {
+        ...editor,
+        ...patch,
+        revision: editor.revision + 1,
+        saveStatus,
       },
-    };
-  });
+      status: "ready",
+    },
+  };
 }
 
 /** Persists or clears the current ready editor draft in IndexedDB. */

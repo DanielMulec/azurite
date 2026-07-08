@@ -1,8 +1,6 @@
 import type { ReactElement } from "react";
 
-import type {
-  EditorSession,
-} from "../state/note-browser-types.js";
+import type { EditorSession } from "../state/note-browser-types.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
 
 const blockedSaveStatuses: readonly EditorSession["saveStatus"][] = [

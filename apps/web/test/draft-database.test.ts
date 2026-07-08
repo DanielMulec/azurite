@@ -88,12 +88,12 @@ describe("draft database current records", () => {
       updatedAt: "2026-07-08T10:00:00.000Z",
     });
 
-    await expect(persistence.readDraft(clusterId, unsafeNoteId)).resolves.toEqual(
-      {
-        reason: "validation_failed",
-        status: "unavailable",
-      },
-    );
+    await expect(
+      persistence.readDraft(clusterId, unsafeNoteId),
+    ).resolves.toEqual({
+      reason: "validation_failed",
+      status: "unavailable",
+    });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
 });
