@@ -137,6 +137,34 @@ describe("App browser history routing", () => {
   });
 });
 
+describe("App invalid route startup", () => {
+  it("drops encoded unsafe route notes before selecting a note", async () => {
+    window.history.replaceState({}, "", "/?note=..%2Fsecret.md");
+    stubJsonFetch({
+      "/api/notes": {
+        body: {
+          clusterIdentity: readyClusterIdentity,
+          notes: [homeSummary, projectSummary],
+        },
+        status: 200,
+      },
+      "/api/notes/content?noteId=index.md": noteRoute(
+        homeSummary,
+        "# Home",
+        "sha256-home",
+      ),
+    });
+
+    render(<AzuriteRouterProvider />);
+
+    expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.search).toBe("?note=index.md");
+    });
+    expect(screen.queryByText("Note not found")).not.toBeInTheDocument();
+  });
+});
+
 function renderApp(routeNoteId?: string) {
   const navigation = {
     pushSelectedNote: vi.fn(),
