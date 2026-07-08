@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAppSearch } from "../src/app-router.js";
+import { parseAppLocationSearch, parseAppSearch } from "../src/app-router.js";
 
 describe("app router search parsing", () => {
   it("parses selected note search state from the URL", () => {
@@ -11,9 +11,24 @@ describe("app router search parsing", () => {
     });
   });
 
-  it("decodes selected note search state before validation", () => {
-    expect(parseAppSearch({ note: "Phone%20QA%2Fslice.md" })).toEqual({
+  it("parses browser URL search through one decoding boundary", () => {
+    expect(parseAppLocationSearch("?note=Phone%20QA%2Fslice.md")).toEqual({
       note: "Phone QA/slice.md",
+    });
+  });
+
+  it("preserves safe percent-containing note IDs", () => {
+    expect(parseAppSearch({ note: "100%.md" })).toEqual({
+      note: "100%.md",
+    });
+    expect(parseAppLocationSearch("?note=100%25.md")).toEqual({
+      note: "100%.md",
+    });
+  });
+
+  it("does not double-decode encoded-looking filenames", () => {
+    expect(parseAppLocationSearch("?note=foo%252Fbar.md")).toEqual({
+      note: "foo%2Fbar.md",
     });
   });
 
@@ -22,14 +37,17 @@ describe("app router search parsing", () => {
     expect(parseAppSearch({})).toEqual({});
   });
 
-  it.each([
-    "",
-    "../secret.md",
-    "..%2Fsecret.md",
-    "%2Ftmp%2Fsecret.md",
-    "/tmp/secret.md",
-    ".azurite/cache.md",
-  ])("drops unsafe selected note search state %s", (note) => {
-    expect(parseAppSearch({ note })).toEqual({});
-  });
+  it.each(["", "../secret.md", "/tmp/secret.md", ".azurite/cache.md"])(
+    "drops unsafe normalized selected note search state %s",
+    (note) => {
+      expect(parseAppSearch({ note })).toEqual({});
+    },
+  );
+
+  it.each(["?note=..%2Fsecret.md", "?note=%2Ftmp%2Fsecret.md"])(
+    "drops unsafe encoded browser location search %s",
+    (note) => {
+      expect(parseAppLocationSearch(note)).toEqual({});
+    },
+  );
 });

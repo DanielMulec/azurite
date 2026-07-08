@@ -165,6 +165,66 @@ describe("App invalid route startup", () => {
   });
 });
 
+describe("App percent route startup", () => {
+  it("loads a note with a literal percent character from encoded URL search", async () => {
+    const percentSummary = createSummary("100%.md", "Percent Note");
+    window.history.replaceState({}, "", "/?note=100%25.md");
+    stubJsonFetch({
+      "/api/notes": {
+        body: {
+          clusterIdentity: readyClusterIdentity,
+          notes: [homeSummary, percentSummary],
+        },
+        status: 200,
+      },
+      "/api/notes/content?noteId=100%25.md": noteRoute(
+        percentSummary,
+        "# Percent",
+        "sha256-percent",
+      ),
+    });
+
+    render(<AzuriteRouterProvider />);
+
+    expect(
+      await screen.findByText("Mock editor for Percent Note"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("milkdown-editor")).toHaveAttribute(
+      "data-note-id",
+      "100%.md",
+    );
+  });
+
+  it("does not turn a literal encoded-looking filename into a path", async () => {
+    const encodedNameSummary = createSummary("foo%2Fbar.md", "Encoded Name");
+    window.history.replaceState({}, "", "/?note=foo%252Fbar.md");
+    stubJsonFetch({
+      "/api/notes": {
+        body: {
+          clusterIdentity: readyClusterIdentity,
+          notes: [homeSummary, encodedNameSummary],
+        },
+        status: 200,
+      },
+      "/api/notes/content?noteId=foo%252Fbar.md": noteRoute(
+        encodedNameSummary,
+        "# Encoded",
+        "sha256-encoded",
+      ),
+    });
+
+    render(<AzuriteRouterProvider />);
+
+    expect(
+      await screen.findByText("Mock editor for Encoded Name"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("milkdown-editor")).toHaveAttribute(
+      "data-note-id",
+      "foo%2Fbar.md",
+    );
+  });
+});
+
 function renderApp(routeNoteId?: string) {
   const navigation = {
     pushSelectedNote: vi.fn(),

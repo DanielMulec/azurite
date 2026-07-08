@@ -37,31 +37,20 @@ export function parseAppSearch(search: Record<string, unknown>): AppSearch {
     return {};
   }
 
-  return parseRouteNoteSearch(search.note);
+  return parseSafeRouteNote(search.note);
 }
 
-function parseRouteNoteSearch(note: string): AppSearch {
-  const routeNote = decodeRouteNote(note);
-
-  if (routeNote === undefined) {
-    return {};
-  }
-
-  return parseSafeRouteNote(routeNote);
+/** Parses browser URL search text through one URL-decoding boundary. */
+export function parseAppLocationSearch(locationSearch: string): AppSearch {
+  return parseAppSearch({
+    note: new URLSearchParams(locationSearch).get("note") ?? undefined,
+  });
 }
 
 function parseSafeRouteNote(note: string): AppSearch {
   const parsedNote = noteIdSchema.safeParse(note);
 
   return parsedNote.success ? { note: parsedNote.data } : {};
-}
-
-function decodeRouteNote(note: string): string | undefined {
-  try {
-    return decodeURIComponent(note);
-  } catch {
-    return undefined;
-  }
 }
 
 type AzuriteRouter = ReturnType<typeof createAzuriteRouter>;
@@ -82,7 +71,7 @@ export function AzuriteRouterProvider(): ReactElement {
 function AppRoute(): ReactElement {
   const search = appRoute.useSearch();
   const navigate = appRoute.useNavigate();
-  const routeNoteId = parseAppSearch({ note: search.note }).note;
+  const routeNoteId = getRouteNoteId(search);
   const replaceSelectedNote = useCallback(
     (noteId: string) => {
       void navigate({ replace: true, search: { note: noteId }, to: "/" });
@@ -101,4 +90,12 @@ function AppRoute(): ReactElement {
   );
 
   return <App navigation={navigation} routeNoteId={routeNoteId} />;
+}
+
+function getRouteNoteId(search: AppSearch): string | undefined {
+  if (typeof window === "undefined") {
+    return parseAppSearch(search).note;
+  }
+
+  return parseAppLocationSearch(window.location.search).note;
 }

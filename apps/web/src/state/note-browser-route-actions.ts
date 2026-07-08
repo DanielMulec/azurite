@@ -1,5 +1,9 @@
 import type { NoteContentWithHash, ReadNoteResponse } from "@azurite/shared";
 
+import type {
+  DraftPersistenceUnavailableReason,
+  DraftReadResult,
+} from "../persistence/draft-database.js";
 import type { DraftRecord } from "../persistence/draft-records.js";
 import {
   applyClusterIdentity,
@@ -32,6 +36,16 @@ type SelectedNoteRequest = {
   readonly noteId: string;
   readonly requestId: number;
 };
+
+type DraftLookupResult =
+  | {
+      readonly draft: DraftRecord | undefined;
+      readonly status: "ready";
+    }
+  | {
+      readonly reason: DraftPersistenceUnavailableReason;
+      readonly status: "unavailable";
+    };
 
 /** Loads note summaries and synchronizes the selected note from the URL. */
 export async function loadNotesAction(
@@ -139,7 +153,7 @@ async function syncExplicitRouteNote(
     return;
   }
 
-  await applyMissingNoteDraft(noteId, context);
+  await recoverMissingRouteNote(noteId, context);
 }
 
 function applyEmptyNoteList(context: StoreContext): void {
@@ -204,20 +218,19 @@ async function applySelectedNoteFailure(
     return;
   }
 
-  await applyCurrentSelectedNoteFailure(error, request.noteId, request.context);
+  await applyCurrentSelectedNoteFailure(error, request);
 }
 
 async function applyCurrentSelectedNoteFailure(
   error: unknown,
-  noteId: string,
-  context: StoreContext,
+  request: SelectedNoteRequest,
 ): Promise<void> {
   if (isNoteNotFoundError(error)) {
-    await applyMissingNoteDraft(noteId, context);
+    await applyMissingNoteDraft(request);
     return;
   }
 
-  context.set({
+  request.context.set({
     noteState: { message: getErrorMessage(error), status: "error" },
   });
 }
@@ -227,11 +240,13 @@ async function applyLoadedNote(
   requestId: number,
   context: StoreContext,
 ): Promise<void> {
-  const draft = await readDraftForCurrentCluster(note.id, context);
+  const draftLookup = await readDraftForCurrentCluster(note.id, context);
 
   if (!context.isCurrentNoteRequest(requestId, note.id)) {
     return;
   }
+
+  const draft = applyDraftLookupResult(draftLookup, context);
 
   context.set({
     noteState: {
@@ -241,46 +256,89 @@ async function applyLoadedNote(
   });
 }
 
-async function applyMissingNoteDraft(
+async function recoverMissingRouteNote(
   noteId: string,
   context: StoreContext,
 ): Promise<void> {
-  const draft = await readDraftForCurrentCluster(noteId, context);
+  const requestId = startMissingNoteLoad(noteId, context);
+  await applyMissingNoteDraft({ context, noteId, requestId });
+}
+
+function startMissingNoteLoad(noteId: string, context: StoreContext): number {
+  const requestId = context.nextNoteRequestId();
+  context.set((state) => ({
+    noteState: keepRenderedNoteWhileLoading(state.noteState),
+    selectedNoteId: noteId,
+  }));
+
+  return requestId;
+}
+
+async function applyMissingNoteDraft(
+  request: SelectedNoteRequest,
+): Promise<void> {
+  const draftLookup = await readDraftForCurrentCluster(
+    request.noteId,
+    request.context,
+  );
+
+  if (
+    !request.context.isCurrentNoteRequest(request.requestId, request.noteId)
+  ) {
+    return;
+  }
+
+  const draft = applyDraftLookupResult(draftLookup, request.context);
 
   if (draft === undefined) {
-    context.set({
-      noteState: { noteId, status: "missing" },
-      selectedNoteId: noteId,
+    request.context.set({
+      noteState: { noteId: request.noteId, status: "missing" },
+      selectedNoteId: request.noteId,
     });
     return;
   }
 
-  context.set({
+  request.context.set({
     noteState: {
       draft: {
         editorMode: draft.editorMode,
         markdown: draft.markdown,
         updatedAt: draft.updatedAt,
       },
-      noteId,
+      noteId: request.noteId,
       status: "missing-draft",
     },
-    selectedNoteId: noteId,
+    selectedNoteId: request.noteId,
   });
 }
 
 async function readDraftForCurrentCluster(
   noteId: string,
   context: StoreContext,
-): Promise<DraftRecord | undefined> {
+): Promise<DraftLookupResult> {
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
 
   if (clusterId === undefined) {
-    return undefined;
+    return { draft: undefined, status: "ready" };
   }
 
   const result = await context.draftPersistence.readDraft(clusterId, noteId);
 
+  return toDraftLookupResult(result);
+}
+
+function toDraftLookupResult(result: DraftReadResult): DraftLookupResult {
+  if (result.status === "unavailable") {
+    return { reason: result.reason, status: "unavailable" };
+  }
+
+  return { draft: result.draft, status: "ready" };
+}
+
+function applyDraftLookupResult(
+  result: DraftLookupResult,
+  context: StoreContext,
+): DraftRecord | undefined {
   if (result.status === "unavailable") {
     degradeDraftRecovery(result.reason, context);
     return undefined;

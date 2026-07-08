@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiErrorCodes } from "@azurite/shared";
 import { WebApiError } from "../src/api-client.js";
+import type { DraftReadResult } from "../src/persistence/draft-database.js";
 import { createNoteBrowserStore } from "../src/state/note-browser-store.js";
 import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
 import {
@@ -174,6 +175,115 @@ describe("note browser store route hardening", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: { note: { id: "Projects/azurite.md" } },
       status: "ready",
+    });
+  });
+});
+
+describe("note browser store stale missing-note recovery hardening", () => {
+  it("does not let stale missing-note draft recovery overwrite a newer note", async () => {
+    const missingDraftLookup = createDeferred<DraftReadResult>();
+    const home = createNote("index.md", "# Home", "sha256-home");
+    const project = createNote(
+      "Projects/azurite.md",
+      "# Project",
+      "sha256-project",
+    );
+    const store = createNoteBrowserStore({
+      api: createApi({
+        listNotes: () =>
+          Promise.resolve({
+            clusterIdentity: readyClusterIdentity,
+            notes: [toSummary(home), toSummary(project)],
+          }),
+        readNote: (noteId) =>
+          Promise.resolve({
+            clusterIdentity: readyClusterIdentity,
+            note: noteId === project.id ? project : home,
+          }),
+      }),
+      draftPersistence: {
+        deleteDraft: () => Promise.resolve({ status: "ok" }),
+        readDraft: (_clusterId, noteId) =>
+          noteId === "missing.md"
+            ? missingDraftLookup.promise
+            : Promise.resolve({ draft: undefined, status: "ok" }),
+        writeDraft: () => Promise.resolve({ status: "ok" }),
+      },
+    });
+    const navigation = { replaceSelectedNote: vi.fn() };
+
+    await store.getState().loadNotes(undefined, navigation);
+    const missingSync = store
+      .getState()
+      .syncRouteNote("missing.md", navigation);
+    const projectSync = store
+      .getState()
+      .syncRouteNote("Projects/azurite.md", navigation);
+    await projectSync;
+    missingDraftLookup.resolve({ draft: undefined, status: "ok" });
+    await missingSync;
+
+    expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
+    expect(store.getState().noteState).toMatchObject({
+      editor: { note: { id: "Projects/azurite.md" } },
+      status: "ready",
+    });
+  });
+});
+
+describe("note browser store stale missing-note degradation hardening", () => {
+  it("does not let stale missing-note draft failures degrade the current note", async () => {
+    const missingDraftLookup = createDeferred<DraftReadResult>();
+    const store = createNoteBrowserStore({
+      api: createApi(),
+      draftPersistence: {
+        deleteDraft: () => Promise.resolve({ status: "ok" }),
+        readDraft: (_clusterId, noteId) =>
+          noteId === "missing.md"
+            ? missingDraftLookup.promise
+            : Promise.resolve({ draft: undefined, status: "ok" }),
+        writeDraft: () => Promise.resolve({ status: "ok" }),
+      },
+    });
+    const navigation = { replaceSelectedNote: vi.fn() };
+
+    await store.getState().loadNotes(undefined, navigation);
+    const missingSync = store
+      .getState()
+      .syncRouteNote("missing.md", navigation);
+    const projectSync = store
+      .getState()
+      .syncRouteNote("Projects/azurite.md", navigation);
+    await projectSync;
+    missingDraftLookup.resolve({
+      reason: "database_unavailable",
+      status: "unavailable",
+    });
+    await missingSync;
+
+    expect(store.getState().draftRecoveryStatus).toEqual({
+      status: "available",
+    });
+    expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
+    expect(store.getState().noteState.status).toBe("ready");
+  });
+});
+
+describe("note browser store current missing-note recovery", () => {
+  it("still shows a missing route note when no matching draft exists", async () => {
+    const store = createNoteBrowserStore({
+      api: createApi(),
+      draftPersistence: createMemoryDraftPersistence().persistence,
+    });
+
+    await store
+      .getState()
+      .loadNotes("missing.md", { replaceSelectedNote: vi.fn() });
+
+    expect(store.getState().selectedNoteId).toBe("missing.md");
+    expect(store.getState().noteState).toEqual({
+      noteId: "missing.md",
+      status: "missing",
     });
   });
 });

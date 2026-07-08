@@ -2,15 +2,16 @@
 
 ## Status
 
-Implementation attempted, with open adversarial review findings.
+P1 and P3 adversarial review fixes implemented and locally verified.
 
 This is not a new product slice. It finishes the acceptance bar for
 `slice-6-client-persistence-and-navigation-foundation.md` before Daniel starts
 desktop QA and Android/Tailscale QA with real notes.
 
-The main hardening implementation has been committed, but this document must
-not be marked implemented until the adversarial review findings below are fixed,
-validated, and verified against the original Slice 6 guardrails.
+The main hardening implementation and the P1/P3 adversarial review corrections
+are implemented in the current codebase. Daniel's desktop QA and
+Android/Tailscale QA with real notes remain the final product verification pass
+before moving to the next slice.
 
 ## Required Implementation Context
 
@@ -26,10 +27,10 @@ note-ID validation.
 
 ## Adversarial Review Findings Before Completion
 
-Status: Open.
+Status: Fixed locally and kept as regression reference.
 
-These findings must be fixed before this hardening document can be marked
-implemented.
+These findings were the blocking adversarial review gaps. Keep the scenarios
+below covered by tests and browser smoke so future changes do not reopen them.
 
 ### P1: Stale Missing-Note Draft Recovery
 
