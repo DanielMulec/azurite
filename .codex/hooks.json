@@ -11,17 +11,6 @@
             "statusMessage": "Reconciling Azurite git state"
           }
         ]
-      },
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/prefix_azurite_session_title.py\"",
-            "timeout": 10,
-            "statusMessage": "Adding Azurite session title prefix"
-          }
-        ]
       }
     ],
     "PreToolUse": [
