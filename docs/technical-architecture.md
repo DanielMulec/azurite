@@ -181,6 +181,27 @@ Initial behavior:
 - Avoid save, autosave, write APIs, conflict detection, and file mutation until
   the focused persistence slice.
 
+## Fifth Product Slice
+
+The fifth product slice starts safe markdown persistence with explicit manual
+save before autosave.
+
+Detailed plan: `docs/slices/slice-5a-safe-manual-save-foundation.md`.
+
+Initial behavior:
+
+- Extend selected-note reads with a content hash.
+- Save existing markdown notes through `PUT /api/notes/content`.
+- Use `expectedContentHash` to reject stale saves with HTTP `409 Conflict` and
+  shared error code `note_write_conflict`.
+- Reuse existing note ID and path traversal protections for writes.
+- Persist by writing a temporary file in the target directory and renaming it
+  over the original note.
+- Preserve dominant existing line endings.
+- Show dirty, saving, saved, conflict, and failed save states.
+- Keep autosave, merge UI, create, rename, delete, file watching, indexing, and
+  graph behavior out of this slice.
+
 ## Frontend Styling
 
 Use Tailwind CSS as the styling foundation, with local semantic CSS tokens for

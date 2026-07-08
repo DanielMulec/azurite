@@ -273,20 +273,13 @@ Verified in the in-app Browser at `http://127.0.0.1:5173/`:
 
 ## Follow-Up Slice
 
-Slice 5 should focus on safe markdown persistence.
+Slice 5A should focus on safe manual markdown persistence.
 
-It should decide and implement:
-
-- the write API,
-- path traversal protection for writes,
-- atomic file writes,
-- changed-on-disk conflict handling,
-- line-ending behavior,
-- manual save versus autosave,
-- dirty/saved/error UI states,
-- permission, disk-full, deleted-file, and renamed-file failures,
-- backup or temporary-file behavior,
-- note metadata and list refresh after save.
+The next slice is planned in
+`docs/slices/slice-5a-safe-manual-save-foundation.md`. It adds an explicit Save
+action, content-hash conflict protection, atomic file writes, line-ending
+handling, save-state UI, and note metadata refresh after save. Autosave remains
+a follow-up policy slice so it can reuse the proven write path.
 
 ## Sources
 
