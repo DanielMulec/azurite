@@ -36,6 +36,15 @@ intentional project decisions rather than assumptions.
   listing implementation tasks. Explain why the capability matters for
   Azurite's future, what architecture it establishes, what user workflows it
   unlocks, and how it will be verified.
+- Before narrowing any meaningful slice to an implementation surface, define a
+  `Future Workflow Boundary`. This is mandatory when the work touches a
+  foundation such as observability, persistence, routing, editor integration,
+  authentication, search, indexing, sync, local hosting, storage, or telemetry.
+  The boundary must name the current user workflow, predictable future
+  workflows, every product layer that participates now, every layer that is
+  predictably needed soon, and any deliberately excluded layer with the stable
+  reason it can wait. Do not propose a symptom-shaped slice until this boundary
+  is explicit.
 - For every meaningful slice proposal, include a section named
   `Negative Side-Effect Guardrails`. It should name existing behavior,
   persistence guarantees, validation/security boundaries, URL/state behavior,
@@ -108,6 +117,12 @@ intentional project decisions rather than assumptions.
   frame the next slice around that product capability, not around the narrow
   symptom. Start from the future product behavior Azurite needs, then derive the
   architecture and implementation layers from that.
+- For cross-cutting foundations, default to the architecture that covers the
+  full current product workflow. If frontend, backend, shared contracts, browser
+  storage, filesystem behavior, external services, or QA tooling all participate
+  in the workflow, treat them as part of the candidate slice until a stable
+  delivery boundary proves otherwise. Excluding a participating layer requires a
+  concrete reason tied to user value, verification, or risk control.
 - Before recommending a dependency, state what product capability it supports
   long-term. Compare dependency categories by their future role in Azurite, not
   only by what solves the immediate issue.

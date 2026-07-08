@@ -39,10 +39,14 @@ slices are user-facing features; others are refactors, foundations, tooling, or
 quality improvements that unlock user-facing work or remove current product
 pain.
 
-A slice may span any product layer required to complete the user story honestly:
-frontend UI, client state, URL state, browser storage, IndexedDB, backend
-routes, shared contracts, filesystem behavior, databases, tests, documentation,
-tooling, and development workflow.
+A slice should span every product layer required to complete the user story
+honestly: frontend UI, client state, URL state, browser storage, IndexedDB,
+backend routes, shared contracts, filesystem behavior, databases, tests,
+documentation, tooling, and development workflow. If a layer participates in the
+current workflow or is predictably required by the capability being established,
+include it in the candidate scope first. Exclude it only when the exclusion forms
+a stable, useful delivery boundary and does not create immediate follow-up work
+for the same user story.
 
 Do not split a slice just because part of it can be implemented separately.
 Split only when each side is a stable, useful delivery unit.
@@ -60,10 +64,16 @@ A slice proposal should answer, in this order:
 
 1. What product capability or user story does this establish?
 2. What product decision does it settle?
-3. What future workflows should this architecture support?
-4. What dependencies, state boundaries, storage layers, contracts, and tests are
-   needed to make the capability dependable?
-5. What acceptance criteria prove the user story works?
+3. What is the `Future Workflow Boundary`?
+   - What current workflow must work end to end?
+   - What future workflows should this architecture support?
+   - Which product layers participate in that workflow now?
+   - Which product layers are predictably needed soon?
+   - Which layers are deliberately excluded, and why is that exclusion stable?
+4. What dependencies, state boundaries, storage layers, contracts, services, and
+   tests are needed to make the capability dependable?
+5. What negative side-effect guardrails protect existing behavior?
+6. What acceptance criteria prove both the new capability and preserved behavior?
 
 Do not frame foundational work as a narrow bug fix when the evidence shows that
 Azurite needs a reusable architecture. Prefer durable product foundations over
@@ -126,6 +136,12 @@ Implementation plans should be decisive, not speculative.
   tool.
 - If a dependency is chosen, document the product role it owns and the kind of
   future work it should make easier.
+- For cross-cutting foundations such as observability, persistence, routing,
+  editor integration, authentication, search, indexing, sync, local hosting,
+  storage, and telemetry, compare tools by the future product role they will
+  own. Prefer adopting a durable platform or dependency when the capability
+  needs correlation, inspection, replay, persistence, security, or operational
+  workflow that would otherwise become custom infrastructure inside Azurite.
 
 ## Quality And Scope
 
