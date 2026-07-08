@@ -1,0 +1,42 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/azurite_git_policy.py\" sync",
+            "timeout": 300,
+            "statusMessage": "Reconciling Azurite git state"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/azurite_git_policy.py\" guard",
+            "timeout": 10,
+            "statusMessage": "Checking Azurite git policy"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/azurite_git_policy.py\" sync",
+            "timeout": 300,
+            "statusMessage": "Pushing Azurite main"
+          }
+        ]
+      }
+    ]
+  }
+}
