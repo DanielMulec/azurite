@@ -36,6 +36,11 @@ intentional project decisions rather than assumptions.
   listing implementation tasks. Explain why the capability matters for
   Azurite's future, what architecture it establishes, what user workflows it
   unlocks, and how it will be verified.
+- For every meaningful slice proposal, include a section named
+  `Negative Side-Effect Guardrails`. It should name existing behavior,
+  persistence guarantees, validation/security boundaries, URL/state behavior,
+  degraded states, and QA flows that must not regress while the slice adds new
+  capability.
 - Keep code files at 400 lines or fewer. This is a hard project requirement:
   split files by responsibility before they reach 401 lines.
 - Keep code modular and separated by concern, with frontend, server, shared
@@ -56,6 +61,10 @@ intentional project decisions rather than assumptions.
 - Inspect the repository state before editing: `git status --short --branch`.
 - Use fast search tools such as `rg` and `rg --files` when exploring files.
 - Add tests or validation steps that match the size and risk of the change.
+- Verification must prove both the new behavior and the preserved behavior named
+  in the slice guardrails. Do not treat a slice as complete when it passes new
+  happy-path tests but weakens an existing save, recovery, routing, security, or
+  data-integrity guarantee.
 - If no automated tests exist yet, document the manual verification performed.
 - When Daniel asks to boot Azurite for Tailscale or phone access, bind only to
   the Tailscale interface needed for that session, keep the backend local-only
@@ -72,6 +81,10 @@ intentional project decisions rather than assumptions.
 - Product slices are for delivered value, durable architecture, and reviewable
   progress. A slice should complete at least one real user story, product
   capability, engineering foundation, refactor, or quality improvement.
+- A slice should define both what new product truth becomes possible and what
+  existing product truths must remain intact. Treat regressions and negative
+  side effects as first-class acceptance risks, not as cleanup discovered after
+  implementation.
 - Do not split work just because part of it can be implemented separately. Split
   only when each side is a stable, useful delivery unit.
 - A slice is too small when it proves an implementation detail but leaves the

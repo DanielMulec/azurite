@@ -72,6 +72,39 @@ patches that would require predictable replacement.
 Avoid proposals that solve only the observed symptom while ignoring the product
 capability revealed by that symptom.
 
+## Regression And Side-Effect Guardrails
+
+Every meaningful slice should define not only what new capability becomes true,
+but also what existing guarantees must remain true.
+
+A regression is when behavior, safety, performance, data integrity, recovery, or
+user experience that already worked gets worse because of a new change. Other
+negative side effects include silent data loss, stale state, hidden degraded
+states, weaker validation, duplicated sources of truth, broken browser history,
+performance cliffs, confusing UI copy, and tests that pass while real product
+behavior fails.
+
+Slice proposals should include a `Negative Side-Effect Guardrails` section when
+the work touches existing behavior, persistence, routing, state, storage,
+security, recovery, performance, or user-facing workflows.
+
+That section should name:
+
+- Existing user workflows that must keep working.
+- Existing persistence, save, recovery, deletion, or migration guarantees that
+  must not regress.
+- Existing validation, security, privacy, and filesystem boundaries that must
+  not weaken.
+- Existing URL, browser history, client state, cache, or storage behavior that
+  must stay coherent.
+- Existing degraded, error, and recovery states that must remain visible.
+- Existing tests, manual QA flows, browser checks, or device checks that must
+  still pass after the change.
+
+The implementation and verification plan should cover both the new behavior and
+these preservation guarantees. Do not accept a slice as complete when it adds
+the requested capability but silently breaks an earlier product promise.
+
 ## Implementation Plans
 
 Implementation plans should be decisive, not speculative.
@@ -112,6 +145,10 @@ Use this loop for meaningful product work:
 2. Research only the domain needed for that delivery unit, deeply enough to
    preserve fidelity.
 3. Record important sources, constraints, and decisions.
-4. Implement the slice across every layer required to complete it honestly.
-5. Verify it with tests, manual checks, or a local demo.
-6. Summarize what changed and identify the next valuable delivery unit.
+4. Define negative side-effect guardrails for existing behavior the slice
+   touches.
+5. Implement the slice across every layer required to complete it honestly.
+6. Verify both the new behavior and the preserved guardrail behavior with tests,
+   manual checks, or a local demo.
+7. Summarize what changed, what was preserved, and identify the next valuable
+   delivery unit.
