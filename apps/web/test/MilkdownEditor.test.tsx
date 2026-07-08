@@ -79,6 +79,7 @@ describe("MilkdownEditor lifecycle", () => {
     const { unmount } = render(
       <MilkdownEditor
         initialMarkdown="# Home"
+        initialMode="wysiwyg"
         noteId="index.md"
         title="Home"
       />,
@@ -98,6 +99,7 @@ describe("MilkdownEditor lifecycle", () => {
     const { rerender } = render(
       <MilkdownEditor
         initialMarkdown="# Home"
+        initialMode="wysiwyg"
         noteId="index.md"
         title="Home"
       />,
@@ -109,6 +111,7 @@ describe("MilkdownEditor lifecycle", () => {
     rerender(
       <MilkdownEditor
         initialMarkdown="# Project"
+        initialMode="wysiwyg"
         noteId="Projects/azurite.md"
         title="Project"
       />,
@@ -131,6 +134,7 @@ describe("MilkdownEditor source mode", () => {
     render(
       <MilkdownEditor
         initialMarkdown="# Home"
+        initialMode="wysiwyg"
         noteId="index.md"
         title="Home"
       />,

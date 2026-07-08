@@ -5,9 +5,17 @@ import { NoteEditorSurface } from "./components/NoteEditorSurface.js";
 import { NoteList } from "./components/NoteList.js";
 import { useNoteBrowser } from "./use-note-browser.js";
 
+type AppProps = {
+  readonly navigation: {
+    readonly pushSelectedNote: (noteId: string) => void;
+    readonly replaceSelectedNote: (noteId: string) => void;
+  };
+  readonly routeNoteId: string | undefined;
+};
+
 /** Root React component for the current Azurite web shell. */
-export function App(): ReactElement {
-  const browser = useNoteBrowser();
+export function App({ navigation, routeNoteId }: AppProps): ReactElement {
+  const browser = useNoteBrowser({ navigation, routeNoteId });
 
   return (
     <main className="min-h-screen bg-[var(--azurite-background)] text-[var(--azurite-text)]">
@@ -23,8 +31,15 @@ export function App(): ReactElement {
           selectedNoteId={browser.selectedNoteId}
         />
         <NoteEditorSurface
+          draftRecoveryStatus={browser.draftRecoveryStatus}
+          onDiscardDraftAndReloadDiskVersion={
+            browser.discardDraftAndReloadDiskVersion
+          }
+          onDiscardMissingDraft={browser.discardMissingDraft}
+          onMarkdownChange={browser.updateDraftMarkdown}
           noteState={browser.noteState}
-          onSaveNote={browser.saveNote}
+          onSaveNote={browser.saveSelectedNote}
+          onEditorModeChange={browser.updateEditorMode}
         />
       </div>
     </main>

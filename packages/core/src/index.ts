@@ -1,3 +1,4 @@
+export * from "./cluster-metadata.js";
 export * from "./content-hash.js";
 export * from "./discover-markdown-files.js";
 export * from "./note-id-resolution.js";

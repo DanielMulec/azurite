@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clusterIdentitySchema,
   listNotesResponseSchema,
   markdownNoteFileExtension,
   noteContentSchema,
@@ -13,6 +14,10 @@ import {
   workspacePathInputSchema,
 } from "../src/index.js";
 
+const validClusterIdentity = {
+  clusterId: "019f427d-90da-760f-9772-9cf300c80b81",
+  status: "ready",
+} as const;
 const validNoteSummary = {
   fileName: "index.md",
   id: "notes/index.md",
@@ -96,6 +101,26 @@ describe("noteIdInputSchema", () => {
   });
 });
 
+describe("clusterIdentitySchema", () => {
+  it("accepts a ready cluster identity", () => {
+    expect(clusterIdentitySchema.parse(validClusterIdentity)).toEqual(
+      validClusterIdentity,
+    );
+  });
+
+  it("accepts unavailable cluster identity states", () => {
+    expect(
+      clusterIdentitySchema.parse({
+        reason: "metadata_unwritable",
+        status: "unavailable",
+      }),
+    ).toEqual({
+      reason: "metadata_unwritable",
+      status: "unavailable",
+    });
+  });
+});
+
 describe("noteContentSchema", () => {
   it("accepts raw markdown plus safe note metadata", () => {
     expect(noteContentSchema.parse(validNoteContent)).toEqual(validNoteContent);
@@ -113,8 +138,12 @@ describe("noteContentWithHashSchema", () => {
 describe("listNotesResponseSchema", () => {
   it("accepts a list of note summaries", () => {
     expect(
-      listNotesResponseSchema.parse({ notes: [validNoteSummary] }),
+      listNotesResponseSchema.parse({
+        clusterIdentity: validClusterIdentity,
+        notes: [validNoteSummary],
+      }),
     ).toEqual({
+      clusterIdentity: validClusterIdentity,
       notes: [validNoteSummary],
     });
   });
@@ -123,8 +152,12 @@ describe("listNotesResponseSchema", () => {
 describe("readNoteResponseSchema", () => {
   it("accepts one note content object with a hash", () => {
     expect(
-      readNoteResponseSchema.parse({ note: validNoteContentWithHash }),
+      readNoteResponseSchema.parse({
+        clusterIdentity: validClusterIdentity,
+        note: validNoteContentWithHash,
+      }),
     ).toEqual({
+      clusterIdentity: validClusterIdentity,
       note: validNoteContentWithHash,
     });
   });
@@ -159,8 +192,12 @@ describe("saveNoteInputSchema", () => {
 describe("saveNoteResponseSchema", () => {
   it("accepts one saved note content object with a hash", () => {
     expect(
-      saveNoteResponseSchema.parse({ note: validNoteContentWithHash }),
+      saveNoteResponseSchema.parse({
+        clusterIdentity: validClusterIdentity,
+        note: validNoteContentWithHash,
+      }),
     ).toEqual({
+      clusterIdentity: validClusterIdentity,
       note: validNoteContentWithHash,
     });
   });

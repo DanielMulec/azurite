@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { clusterIdentitySchema } from "./cluster.js";
+
 /** File extension for markdown notes currently supported by Azurite. */
 export const markdownNoteFileExtension = ".md";
 
@@ -70,6 +72,7 @@ export type NoteContentWithHash = z.infer<typeof noteContentWithHashSchema>;
 
 /** Runtime contract for the successful note-list API response. */
 export const listNotesResponseSchema = z.object({
+  clusterIdentity: clusterIdentitySchema,
   notes: z.array(noteSummarySchema),
 });
 
@@ -78,6 +81,7 @@ export type ListNotesResponse = z.infer<typeof listNotesResponseSchema>;
 
 /** Runtime contract for the successful note-content API response. */
 export const readNoteResponseSchema = z.object({
+  clusterIdentity: clusterIdentitySchema,
   note: noteContentWithHashSchema,
 });
 
@@ -96,6 +100,7 @@ export type SaveNoteInput = z.infer<typeof saveNoteInputSchema>;
 
 /** Runtime contract for the successful save-note API response. */
 export const saveNoteResponseSchema = z.object({
+  clusterIdentity: clusterIdentitySchema,
   note: noteContentWithHashSchema,
 });
 

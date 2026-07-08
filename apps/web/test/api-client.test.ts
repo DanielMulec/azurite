@@ -13,6 +13,10 @@ import {
   WebApiError,
 } from "../src/api-client.js";
 
+const validClusterIdentity = {
+  clusterId: "019f42b1-558c-7114-8b2d-5d34cb7a4ef7",
+  status: "ready",
+} as const;
 const validNoteSummary = {
   fileName: "index.md",
   id: "index.md",
@@ -34,6 +38,7 @@ afterEach(() => {
 describe("listNotes", () => {
   it("loads and validates note list responses", async () => {
     const responseBody = {
+      clusterIdentity: validClusterIdentity,
       notes: [validNoteSummary],
     } satisfies ListNotesResponse;
     const fetchMock = stubJsonResponse(responseBody, 200);
@@ -75,7 +80,10 @@ describe("listNotes", () => {
 
 describe("readNote", () => {
   it("loads one note through an encoded shared route", async () => {
-    const responseBody = { note: validNoteContent } satisfies ReadNoteResponse;
+    const responseBody = {
+      clusterIdentity: validClusterIdentity,
+      note: validNoteContent,
+    } satisfies ReadNoteResponse;
     const fetchMock = stubJsonResponse(responseBody, 200);
 
     await expect(readNote("Projects/azurite.md")).resolves.toEqual(
@@ -92,7 +100,10 @@ describe("readNote", () => {
 
 describe("saveNote", () => {
   it("saves one note with the expected JSON request", async () => {
-    const responseBody = { note: validNoteContent } satisfies SaveNoteResponse;
+    const responseBody = {
+      clusterIdentity: validClusterIdentity,
+      note: validNoteContent,
+    } satisfies SaveNoteResponse;
     const fetchMock = stubJsonResponse(responseBody, 200);
 
     await expect(

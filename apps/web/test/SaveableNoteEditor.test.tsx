@@ -1,132 +1,218 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { apiErrorCodes, type NoteContentWithHash } from "@azurite/shared";
-import { WebApiError } from "../src/api-client.js";
 import { SaveableNoteEditor } from "../src/components/SaveableNoteEditor.js";
+import type {
+  DraftRecoveryStatus,
+  EditorSession,
+} from "../src/state/note-browser-types.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
     initialMarkdown,
+    initialMode,
+    onEditorModeChange,
     onMarkdownChange,
-    title,
   }: {
     readonly initialMarkdown: string;
+    readonly initialMode: "markdown" | "wysiwyg";
+    readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
     readonly onMarkdownChange?: (markdown: string) => void;
-    readonly title: string;
   }) => (
-    <textarea
-      aria-label={`Editor markdown for ${title}`}
-      defaultValue={initialMarkdown}
-      onChange={(event) => {
-        onMarkdownChange?.(event.currentTarget.value);
-      }}
-    />
+    <div data-testid="milkdown-editor">
+      <p>Mode: {initialMode}</p>
+      <pre>{initialMarkdown}</pre>
+      <button
+        onClick={() => {
+          onMarkdownChange?.(`${initialMarkdown}\nDraft edit`);
+        }}
+        type="button"
+      >
+        Edit markdown
+      </button>
+      <button
+        onClick={() => {
+          onEditorModeChange?.("markdown");
+        }}
+        type="button"
+      >
+        Source mode
+      </button>
+    </div>
   ),
 }));
 
-const initialNote = {
-  contentHash: "sha256-before",
-  fileName: "index.md",
-  id: "index.md",
-  lastModifiedAt: "2026-07-07T12:00:00.000Z",
-  markdown: "# Home\n",
-  relativePath: "index.md",
-  sizeBytes: 7,
-  title: "Home",
-} satisfies NoteContentWithHash;
-
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
-describe("SaveableNoteEditor save success", () => {
-  it("saves current markdown and clears dirty state", async () => {
-    const onSaveNote = vi.fn(() =>
-      Promise.resolve({
-        ...initialNote,
-        contentHash: "sha256-after",
-        markdown: "# Updated\n",
-        sizeBytes: 10,
-        title: "Updated",
+type RenderEditorOptions = {
+  readonly draftRecoveryStatus?: DraftRecoveryStatus;
+  readonly editor?: EditorSession;
+  readonly onDiscardDraftAndReloadDiskVersion?: () => Promise<void>;
+  readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
+  readonly onMarkdownChange?: (markdown: string) => void;
+  readonly onSaveNote?: () => Promise<void>;
+};
+
+describe("SaveableNoteEditor save state", () => {
+  it("shows a saved clean note with save disabled", () => {
+    renderEditor();
+
+    expect(screen.getByText("Saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("enables save for dirty markdown and forwards editor changes", () => {
+    const onMarkdownChange = vi.fn();
+    const onSaveNote = vi.fn(() => Promise.resolve());
+
+    renderEditor({
+      editor: createEditor({ currentMarkdown: "# Home\nDraft" }),
+      onMarkdownChange,
+      onSaveNote,
+    });
+
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit markdown" }));
+
+    expect(onSaveNote).toHaveBeenCalledTimes(1);
+    expect(onMarkdownChange).toHaveBeenCalledWith("# Home\nDraft\nDraft edit");
+  });
+
+  it("normalizes CRLF and LF before deciding the note is dirty", () => {
+    renderEditor({
+      editor: createEditor({
+        currentMarkdown: "# Home\r\nLine",
+        savedMarkdown: "# Home\nLine",
+      }),
+    });
+
+    expect(screen.getByText("Saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+});
+
+describe("SaveableNoteEditor recovery state", () => {
+  it("blocks normal save for recovered conflicts and confirms destructive discard", () => {
+    const onDiscardDraftAndReloadDiskVersion = vi.fn(() => Promise.resolve());
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderEditor({
+      editor: createEditor({
+        currentMarkdown: "# Recovered draft",
+        recovery: "conflict",
+        saveStatus: "conflict",
+      }),
+      onDiscardDraftAndReloadDiskVersion,
+    });
+
+    expect(
+      screen.getByText("Recovered draft changed on disk"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Discard draft and reload disk version",
       }),
     );
 
-    render(<SaveableNoteEditor note={initialNote} onSaveNote={onSaveNote} />);
-
-    expect(screen.getByText("Saved")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Editor markdown for Home"), {
-      target: { value: "# Updated\n" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => {
-      expect(onSaveNote).toHaveBeenCalledWith({
-        expectedContentHash: "sha256-before",
-        markdown: "# Updated\n",
-        noteId: "index.md",
-      });
-    });
-    await waitFor(() => {
-      expect(screen.getByText("Saved")).toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-  });
-});
-
-describe("SaveableNoteEditor save guards", () => {
-  it("does not mark editor-normalized line endings as dirty", () => {
-    const onSaveNote = vi.fn();
-    const crlfNote = {
-      ...initialNote,
-      markdown: "# Home\r\n\r\nBody\r\n",
-      sizeBytes: 16,
-    } satisfies NoteContentWithHash;
-
-    render(<SaveableNoteEditor note={crlfNote} onSaveNote={onSaveNote} />);
-
-    fireEvent.change(screen.getByLabelText("Editor markdown for Home"), {
-      target: { value: "# Home\n\nBody\n" },
-    });
-
-    expect(screen.getByText("Saved")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-  });
-
-  it("keeps unsaved content visible after a conflict", async () => {
-    const onSaveNote = vi.fn(() =>
-      Promise.reject(
-        new WebApiError(
-          "The note changed on disk before Azurite could save it.",
-          {
-            code: apiErrorCodes.noteWriteConflict,
-            statusCode: 409,
-          },
-        ),
-      ),
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Discard this recovered draft and reload the disk version?",
     );
+    expect(onDiscardDraftAndReloadDiskVersion).toHaveBeenCalledTimes(1);
+  });
 
-    render(<SaveableNoteEditor note={initialNote} onSaveNote={onSaveNote} />);
-
-    const editor = screen.getByLabelText("Editor markdown for Home");
-    fireEvent.change(editor, {
-      target: { value: "# Local draft\n" },
+  it("shows degraded draft recovery without disabling manual save", () => {
+    renderEditor({
+      draftRecoveryStatus: {
+        message: "Draft recovery is degraded. Manual save still works.",
+        reason: "write_failed",
+        status: "degraded",
+      },
+      editor: createEditor({ currentMarkdown: "# Home\nDirty" }),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("Changed on disk")).toBeInTheDocument();
-    expect(editor).toHaveValue("# Local draft\n");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.getByText("Draft recovery is degraded. Manual save still works."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 });
+
+function renderEditor(options: RenderEditorOptions = {}): void {
+  render(
+    <SaveableNoteEditor
+      draftRecoveryStatus={getDraftRecoveryStatus(options)}
+      editor={getEditor(options)}
+      onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
+      onEditorModeChange={getEditorModeAction(options)}
+      onMarkdownChange={getMarkdownAction(options)}
+      onSaveNote={getSaveAction(options)}
+    />,
+  );
+}
+
+function getDraftRecoveryStatus(
+  options: RenderEditorOptions,
+): DraftRecoveryStatus {
+  return options.draftRecoveryStatus ?? { status: "available" };
+}
+
+function getEditor(options: RenderEditorOptions): EditorSession {
+  return options.editor ?? createEditor();
+}
+
+function getDiscardDraftAction(
+  options: RenderEditorOptions,
+): () => Promise<void> {
+  return (
+    options.onDiscardDraftAndReloadDiskVersion ?? (() => Promise.resolve())
+  );
+}
+
+function getEditorModeAction(
+  options: RenderEditorOptions,
+): (mode: "markdown" | "wysiwyg") => void {
+  return options.onEditorModeChange ?? (() => {});
+}
+
+function getMarkdownAction(
+  options: RenderEditorOptions,
+): (markdown: string) => void {
+  return options.onMarkdownChange ?? (() => {});
+}
+
+function getSaveAction(options: RenderEditorOptions): () => Promise<void> {
+  return options.onSaveNote ?? (() => Promise.resolve());
+}
+
+function createEditor(patch: Partial<EditorSession> = {}): EditorSession {
+  const savedMarkdown = patch.savedMarkdown ?? "# Home";
+
+  return {
+    baseContentHash: "sha256-home",
+    currentMarkdown: savedMarkdown,
+    editorMode: "wysiwyg",
+    note: {
+      contentHash: "sha256-home",
+      fileName: "index.md",
+      id: "index.md",
+      lastModifiedAt: "2026-07-08T10:00:00.000Z",
+      markdown: savedMarkdown,
+      relativePath: "index.md",
+      sizeBytes: savedMarkdown.length,
+      title: "Home",
+    },
+    recovery: "none",
+    savedMarkdown,
+    saveStatus: "idle",
+    sessionKey: "index.md:sha256-home:1",
+    ...patch,
+  };
+}

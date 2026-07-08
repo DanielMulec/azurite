@@ -2,6 +2,7 @@ import {
   listWorkspaceNotes,
   NoteResolutionError,
   NoteWriteError,
+  readOrCreateClusterIdentity,
   readWorkspaceNote,
   writeWorkspaceNote,
   WorkspaceResolutionError,
@@ -87,8 +88,13 @@ async function handleNoteListRequest(
   }
 
   try {
+    const clusterIdentity = await readOrCreateClusterIdentity(
+      context.options.workspacePath,
+    );
     const notes = await listWorkspaceNotes(context.options.workspacePath);
-    return await reply.send(listNotesResponseSchema.parse({ notes }));
+    return await reply.send(
+      listNotesResponseSchema.parse({ clusterIdentity, notes }),
+    );
   } catch (error) {
     const safeError = createDiscoveryError(error);
     context.server.log.error({ error }, "Failed to list workspace notes.");
@@ -142,8 +148,13 @@ async function sendNoteContent(
   request: ReadNoteRequest,
 ) {
   try {
+    const clusterIdentity = await readOrCreateClusterIdentity(
+      request.workspacePath,
+    );
     const note = await readWorkspaceNote(request.workspacePath, request.noteId);
-    return await reply.send(readNoteResponseSchema.parse({ note }));
+    return await reply.send(
+      readNoteResponseSchema.parse({ clusterIdentity, note }),
+    );
   } catch (error) {
     const safeError = createReadNoteError(error);
     logUnexpectedReadNoteError(context.server, error, safeError);
@@ -157,11 +168,16 @@ async function sendSavedNote(
   request: SaveNoteRouteRequest,
 ) {
   try {
+    const clusterIdentity = await readOrCreateClusterIdentity(
+      request.workspacePath,
+    );
     const note = await writeWorkspaceNote(
       request.workspacePath,
       request.saveInput,
     );
-    return await reply.send(saveNoteResponseSchema.parse({ note }));
+    return await reply.send(
+      saveNoteResponseSchema.parse({ clusterIdentity, note }),
+    );
   } catch (error) {
     const safeError = createSaveNoteError(error);
     logUnexpectedSaveNoteError(context.server, error, safeError);

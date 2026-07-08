@@ -1,61 +1,145 @@
-import type { NoteContentWithHash, SaveNoteInput } from "@azurite/shared";
 import type { ReactElement } from "react";
 
+import type {
+  DraftRecoveryStatus,
+  NoteViewState,
+} from "../state/note-browser-types.js";
 import { SaveableNoteEditor } from "./SaveableNoteEditor.js";
 
-type LoadableNote =
-  | { readonly status: "error"; readonly message: string }
-  | { readonly status: "idle" }
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly data: NoteContentWithHash };
-
 type NoteEditorSurfaceProps = {
-  readonly noteState: LoadableNote;
-  readonly onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
+  readonly draftRecoveryStatus: DraftRecoveryStatus;
+  readonly noteState: NoteViewState;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onDiscardMissingDraft: () => Promise<void>;
+  readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
+  readonly onMarkdownChange: (markdown: string) => void;
+  readonly onSaveNote: () => Promise<void>;
 };
-type NonReadyNote = Exclude<LoadableNote, { readonly status: "ready" }>;
+type NonReadyNote = Exclude<
+  NoteViewState,
+  { readonly status: "missing-draft" } | { readonly status: "ready" }
+>;
 
 /** Main editable surface for the selected markdown note. */
 export function NoteEditorSurface({
+  draftRecoveryStatus,
   noteState,
+  onDiscardDraftAndReloadDiskVersion,
+  onDiscardMissingDraft,
+  onEditorModeChange,
+  onMarkdownChange,
   onSaveNote,
 }: NoteEditorSurfaceProps): ReactElement {
   return (
     <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
-      {renderNoteState(noteState, onSaveNote)}
+      {renderNoteState({
+        draftRecoveryStatus,
+        noteState,
+        onDiscardDraftAndReloadDiskVersion,
+        onDiscardMissingDraft,
+        onEditorModeChange,
+        onMarkdownChange,
+        onSaveNote,
+      })}
     </section>
   );
 }
 
-function renderNoteState(
-  noteState: LoadableNote,
-  onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>,
-): ReactElement {
-  if (noteState.status === "ready") {
-    return <SelectedNote note={noteState.data} onSaveNote={onSaveNote} />;
+function renderNoteState(props: NoteEditorSurfaceProps): ReactElement {
+  if (props.noteState.status === "ready") {
+    return <SelectedNote {...props} editor={props.noteState.editor} />;
   }
 
-  return <NonReadyNoteMessage noteState={noteState} />;
+  if (props.noteState.status === "missing-draft") {
+    return (
+      <MissingNoteDraft
+        noteState={props.noteState}
+        onDiscardMissingDraft={props.onDiscardMissingDraft}
+      />
+    );
+  }
+
+  return <NonReadyNoteMessage noteState={props.noteState} />;
 }
 
 function SelectedNote({
-  note,
+  draftRecoveryStatus,
+  editor,
+  onDiscardDraftAndReloadDiskVersion,
+  onEditorModeChange,
+  onMarkdownChange,
   onSaveNote,
-}: {
-  readonly note: NoteContentWithHash;
-  readonly onSaveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
+}: NoteEditorSurfaceProps & {
+  readonly editor: Extract<
+    NoteViewState,
+    { readonly status: "ready" }
+  >["editor"];
 }): ReactElement {
   return (
     <article className="mx-auto max-w-3xl">
       <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
         <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
-          {note.relativePath}
+          {editor.note.relativePath}
         </p>
         <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-          {note.title}
+          {editor.note.title}
         </h2>
       </header>
-      <SaveableNoteEditor note={note} onSaveNote={onSaveNote} />
+      <SaveableNoteEditor
+        draftRecoveryStatus={draftRecoveryStatus}
+        editor={editor}
+        onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
+        onEditorModeChange={onEditorModeChange}
+        onMarkdownChange={onMarkdownChange}
+        onSaveNote={onSaveNote}
+      />
+    </article>
+  );
+}
+
+function MissingNoteDraft({
+  noteState,
+  onDiscardMissingDraft,
+}: {
+  readonly noteState: Extract<
+    NoteViewState,
+    { readonly status: "missing-draft" }
+  >;
+  readonly onDiscardMissingDraft: () => Promise<void>;
+}): ReactElement {
+  return (
+    <article className="mx-auto max-w-3xl">
+      <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
+        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
+          {noteState.noteId}
+        </p>
+        <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
+          Recovered draft for missing note
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
+          The file is no longer present on disk, but Azurite recovered the
+          browser draft. Save is disabled until note restore or creation exists.
+        </p>
+      </header>
+      <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
+        <button
+          className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+          onClick={() => {
+            if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
+              void onDiscardMissingDraft();
+            }
+          }}
+          type="button"
+        >
+          Discard recovered draft
+        </button>
+      </div>
+      <textarea
+        className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
+        readOnly
+        spellCheck={false}
+        value={noteState.draft.markdown}
+      />
     </article>
   );
 }
@@ -92,7 +176,24 @@ function NonReadyNoteMessage({
     );
   }
 
+  if (noteState.status === "missing") {
+    return (
+      <SurfaceMessage
+        title="Note not found"
+        text="The selected note no longer exists on disk."
+      />
+    );
+  }
+
   return <SurfaceMessage {...nonReadyNoteContent[noteState.status]} />;
+}
+
+function confirmMissingDraftDiscard(markdown: string): boolean {
+  if (markdown.length === 0) {
+    return true;
+  }
+
+  return window.confirm("Discard this recovered draft?");
 }
 
 const nonReadyNoteContent = {

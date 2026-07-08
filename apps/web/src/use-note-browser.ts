@@ -1,258 +1,171 @@
-import type {
-  ListNotesResponse,
-  NoteContentWithHash,
-  NoteSummary,
-  ReadNoteResponse,
-  SaveNoteInput,
-  SaveNoteResponse,
-} from "@azurite/shared";
-import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "zustand";
 
 import {
-  listNotes,
-  readNote,
-  saveNote as saveNoteRequest,
-  WebApiError,
-} from "./api-client.js";
+  createNoteBrowserStore,
+  type NoteBrowserStore,
+} from "./state/note-browser-store.js";
+import type {
+  DraftRecoveryStatus,
+  LoadableNotes,
+  NoteViewState,
+} from "./state/note-browser-types.js";
 
-type Loadable<T> =
-  | { readonly status: "error"; readonly message: string }
-  | { readonly status: "idle" }
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly data: T };
-
-type NoteBrowserApi = {
-  readonly listNotes: () => Promise<ListNotesResponse>;
-  readonly readNote: (noteId: string) => Promise<ReadNoteResponse>;
-  readonly saveNote: (input: SaveNoteInput) => Promise<SaveNoteResponse>;
-};
-type LoadNotesActions = {
-  readonly setNotesState: (state: Loadable<readonly NoteSummary[]>) => void;
-  readonly setSelectedNoteId: (
-    selectNote: (current: string | undefined) => string | undefined,
-  ) => void;
-};
-type NoteStateSetter = Dispatch<SetStateAction<Loadable<NoteContentWithHash>>>;
-type NotesStateSetter = Dispatch<
-  SetStateAction<Loadable<readonly NoteSummary[]>>
->;
-type SaveSelectedNoteActions = {
-  readonly setNoteState: NoteStateSetter;
-  readonly setNotesState: NotesStateSetter;
+type NoteBrowserNavigation = {
+  readonly pushSelectedNote: (noteId: string) => void;
+  readonly replaceSelectedNote: (noteId: string) => void;
 };
 
-const defaultNoteBrowserApi: NoteBrowserApi = {
-  listNotes,
-  readNote,
-  saveNote: saveNoteRequest,
+type UseNoteBrowserInput = {
+  readonly navigation: NoteBrowserNavigation;
+  readonly routeNoteId: string | undefined;
+};
+
+type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
+
+type NoteBrowserSelectors = Omit<NoteBrowserState, "selectNote"> & {
+  readonly selectNoteInStore: NoteBrowserStore["selectNote"];
+};
+
+type RouteEffectInput = {
+  readonly routeNavigation: Pick<NoteBrowserNavigation, "replaceSelectedNote">;
+  readonly routeNoteId: string | undefined;
+  readonly store: NoteBrowserStoreApi;
 };
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
-  readonly noteState: Loadable<NoteContentWithHash>;
-  readonly notesState: Loadable<readonly NoteSummary[]>;
-  readonly saveNote: (input: SaveNoteInput) => Promise<NoteContentWithHash>;
+  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly discardMissingDraft: () => Promise<void>;
+  readonly draftRecoveryStatus: DraftRecoveryStatus;
+  readonly noteState: NoteViewState;
+  readonly notesState: LoadableNotes;
+  readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
+  readonly updateDraftMarkdown: (markdown: string) => void;
+  readonly updateEditorMode: (editorMode: "markdown" | "wysiwyg") => void;
 };
 
-/** Loads notes and selected-note content for the browser UI. */
-export function useNoteBrowser(
-  api: NoteBrowserApi = defaultNoteBrowserApi,
-): NoteBrowserState {
-  const [notesState, setNotesState] = useState<
-    Loadable<readonly NoteSummary[]>
-  >({ status: "loading" });
-  const [noteState, setNoteState] = useState<Loadable<NoteContentWithHash>>({
-    status: "idle",
-  });
-  const [selectedNoteId, setSelectedNoteId] = useState<string | undefined>();
-
-  useEffect(() => loadNotes(api, setNotesState, setSelectedNoteId), [api]);
-  useEffect(
-    () => loadSelectedNote(api, selectedNoteId, setNoteState),
-    [api, selectedNoteId],
+/** Connects React route state to the note browser store. */
+export function useNoteBrowser({
+  navigation,
+  routeNoteId,
+}: UseNoteBrowserInput): NoteBrowserState {
+  const [store] = useState(createNoteBrowserStore);
+  const routeNavigation = useRouteNavigation(navigation);
+  const selectors = useNoteBrowserSelectors(store);
+  const selectNote = usePushSelectingNote(navigation, selectors);
+  const routeEffectInput = useMemo(
+    () => ({
+      routeNavigation,
+      routeNoteId,
+      store,
+    }),
+    [routeNavigation, routeNoteId, store],
   );
+
+  useRouteDrivenNoteLoading(routeEffectInput);
+  useDraftLifecycleFlush(store);
 
   return {
-    noteState,
-    notesState,
-    saveNote: (input) =>
-      saveSelectedNote(api, input, {
-        setNoteState,
-        setNotesState,
-      }),
-    selectNote: setSelectedNoteId,
-    selectedNoteId,
+    discardDraftAndReloadDiskVersion:
+      selectors.discardDraftAndReloadDiskVersion,
+    discardMissingDraft: selectors.discardMissingDraft,
+    draftRecoveryStatus: selectors.draftRecoveryStatus,
+    noteState: selectors.noteState,
+    notesState: selectors.notesState,
+    saveSelectedNote: selectors.saveSelectedNote,
+    selectNote,
+    selectedNoteId: selectors.selectedNoteId,
+    updateDraftMarkdown: selectors.updateDraftMarkdown,
+    updateEditorMode: selectors.updateEditorMode,
   };
 }
 
-function loadNotes(
-  api: NoteBrowserApi,
-  setNotesState: (state: Loadable<readonly NoteSummary[]>) => void,
-  setSelectedNoteId: (
-    selectNote: (current: string | undefined) => string | undefined,
-  ) => void,
-): () => void {
-  let isActive = true;
-  setNotesState({ status: "loading" });
-
-  void api.listNotes().then(
-    (response) => {
-      handleLoadedNotes(response, isActive, {
-        setNotesState,
-        setSelectedNoteId,
-      });
-    },
-    (error: unknown) => {
-      handleLoadError(error, isActive, setNotesState);
-    },
-  );
-
-  return () => {
-    isActive = false;
-  };
-}
-
-function loadSelectedNote(
-  api: NoteBrowserApi,
-  selectedNoteId: string | undefined,
-  setNoteState: NoteStateSetter,
-): () => void {
-  if (selectedNoteId === undefined) {
-    setNoteState({ status: "idle" });
-    return noop;
-  }
-
-  return requestSelectedNote(api, selectedNoteId, setNoteState);
-}
-
-function requestSelectedNote(
-  api: NoteBrowserApi,
-  selectedNoteId: string,
-  setNoteState: NoteStateSetter,
-): () => void {
-  let isActive = true;
-  keepRenderedNoteWhileLoading(setNoteState);
-
-  void api.readNote(selectedNoteId).then(
-    (response) => {
-      handleLoadedNote(response, isActive, setNoteState);
-    },
-    (error: unknown) => {
-      handleLoadError(error, isActive, setNoteState);
-    },
-  );
-
-  return () => {
-    isActive = false;
-  };
-}
-
-function handleLoadedNotes(
-  response: ListNotesResponse,
-  isActive: boolean,
-  actions: LoadNotesActions,
-): void {
-  if (!isActive) {
-    return;
-  }
-
-  actions.setNotesState({ data: response.notes, status: "ready" });
-  actions.setSelectedNoteId(
-    (currentNoteId) => currentNoteId ?? response.notes[0]?.id,
+function useRouteNavigation(navigation: NoteBrowserNavigation) {
+  return useMemo(
+    () => ({ replaceSelectedNote: navigation.replaceSelectedNote }),
+    [navigation.replaceSelectedNote],
   );
 }
 
-function handleLoadedNote(
-  response: ReadNoteResponse,
-  isActive: boolean,
-  setNoteState: NoteStateSetter,
-): void {
-  if (!isActive) {
-    return;
-  }
-
-  setNoteState({ data: response.note, status: "ready" });
-}
-
-async function saveSelectedNote(
-  api: NoteBrowserApi,
-  input: SaveNoteInput,
-  actions: SaveSelectedNoteActions,
-): Promise<NoteContentWithHash> {
-  const response = await api.saveNote(input);
-  updateSavedNote(response.note, actions.setNoteState, actions.setNotesState);
-  return response.note;
-}
-
-function updateSavedNote(
-  note: NoteContentWithHash,
-  setNoteState: NoteStateSetter,
-  setNotesState: NotesStateSetter,
-): void {
-  setNoteState({ data: note, status: "ready" });
-  setNotesState((currentNotesState) =>
-    patchSavedNoteSummary(currentNotesState, note),
-  );
-}
-
-function patchSavedNoteSummary(
-  notesState: Loadable<readonly NoteSummary[]>,
-  note: NoteContentWithHash,
-): Loadable<readonly NoteSummary[]> {
-  if (notesState.status !== "ready") {
-    return notesState;
-  }
-
+function useNoteBrowserSelectors(
+  store: NoteBrowserStoreApi,
+): NoteBrowserSelectors {
   return {
-    data: notesState.data.map((summary) =>
-      summary.id === note.id ? toNoteSummary(note) : summary,
+    discardDraftAndReloadDiskVersion: useStore(
+      store,
+      (state) => state.discardDraftAndReloadDiskVersion,
     ),
-    status: "ready",
+    discardMissingDraft: useStore(store, (state) => state.discardMissingDraft),
+    draftRecoveryStatus: useStore(store, (state) => state.draftRecoveryStatus),
+    noteState: useStore(store, (state) => state.noteState),
+    notesState: useStore(store, (state) => state.notesState),
+    saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
+    selectNoteInStore: useStore(store, (state) => state.selectNote),
+    selectedNoteId: useStore(store, (state) => state.selectedNoteId),
+    updateDraftMarkdown: useStore(store, (state) => state.updateDraftMarkdown),
+    updateEditorMode: useStore(store, (state) => state.updateEditorMode),
   };
 }
 
-function toNoteSummary(note: NoteContentWithHash): NoteSummary {
-  return {
-    fileName: note.fileName,
-    id: note.id,
-    lastModifiedAt: note.lastModifiedAt,
-    relativePath: note.relativePath,
-    sizeBytes: note.sizeBytes,
-    title: note.title,
-  };
-}
+function useRouteDrivenNoteLoading(input: RouteEffectInput): void {
+  const didLoadNotesRef = useRef(false);
+  const loadNotes = useStore(input.store, (state) => state.loadNotes);
+  const syncRouteNote = useStore(input.store, (state) => state.syncRouteNote);
 
-function keepRenderedNoteWhileLoading(setNoteState: NoteStateSetter): void {
-  setNoteState((currentNoteState) => {
-    if (currentNoteState.status === "ready") {
-      return currentNoteState;
+  useEffect(() => {
+    if (didLoadNotesRef.current) {
+      return;
     }
 
-    return { status: "loading" };
-  });
+    didLoadNotesRef.current = true;
+    void loadNotes(input.routeNoteId, input.routeNavigation);
+  }, [didLoadNotesRef, input, loadNotes]);
+
+  useEffect(() => {
+    if (!didLoadNotesRef.current) {
+      return;
+    }
+
+    void syncRouteNote(input.routeNoteId, input.routeNavigation);
+  }, [didLoadNotesRef, input, syncRouteNote]);
 }
 
-function handleLoadError<T>(
-  error: unknown,
-  isActive: boolean,
-  setState: (state: Loadable<T>) => void,
-): void {
-  if (!isActive) {
-    return;
-  }
+function useDraftLifecycleFlush(store: NoteBrowserStoreApi): void {
+  useEffect(() => {
+    const flushDraft = () => {
+      void store.getState().flushPendingDraft();
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") {
+        flushDraft();
+      }
+    };
 
-  setState({ message: getSafeErrorMessage(error), status: "error" });
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    window.addEventListener("pagehide", flushDraft);
+
+    return () => {
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      window.removeEventListener("pagehide", flushDraft);
+    };
+  }, [store]);
 }
 
-function getSafeErrorMessage(error: unknown): string {
-  if (error instanceof WebApiError) {
-    return error.message;
-  }
-
-  return "Something went wrong while loading notes.";
+function usePushSelectingNote(
+  navigation: NoteBrowserNavigation,
+  selectors: NoteBrowserSelectors,
+): (noteId: string) => void {
+  return useCallback(
+    (noteId: string) => {
+      void selectors.selectNoteInStore(noteId).then(() => {
+        if (noteId !== selectors.selectedNoteId) {
+          navigation.pushSelectedNote(noteId);
+        }
+      });
+    },
+    [navigation, selectors],
+  );
 }
-
-function noop(): void {}

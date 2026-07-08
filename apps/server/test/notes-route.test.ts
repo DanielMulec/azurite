@@ -32,7 +32,9 @@ describe("GET /api/notes", () => {
       },
     });
   });
+});
 
+describe("GET /api/notes cluster identity", () => {
   it("returns note summaries for a configured workspace", async () => {
     await withTemporaryWorkspace(async ({ workspacePath }) => {
       await writeFile(path.join(workspacePath, "index.md"), "# Home\n", "utf8");
@@ -45,6 +47,9 @@ describe("GET /api/notes", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
+        clusterIdentity: {
+          status: "ready",
+        },
         notes: [
           {
             fileName: "index.md",
@@ -54,9 +59,46 @@ describe("GET /api/notes", () => {
           },
         ],
       });
+      expect(response.body).not.toContain(workspacePath);
+      await expect(
+        readFile(path.join(workspacePath, ".azurite/cluster.json"), "utf8"),
+      ).resolves.toContain("clusterId");
     });
   });
 
+  it("degrades cluster identity when metadata cannot be created", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      await writeFile(path.join(workspacePath, "index.md"), "# Home\n", "utf8");
+      await writeFile(
+        path.join(workspacePath, ".azurite"),
+        "not a directory",
+        "utf8",
+      );
+
+      const server = createServer({ workspacePath });
+      const response = await server.inject({
+        method: "GET",
+        url: apiRoutes.notes,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        clusterIdentity: {
+          reason: "metadata_unwritable",
+          status: "unavailable",
+        },
+        notes: [
+          {
+            id: "index.md",
+            title: "Home",
+          },
+        ],
+      });
+    });
+  });
+});
+
+describe("GET /api/notes safe errors", () => {
   it("keeps invalid workspace errors safe", async () => {
     await withTemporaryWorkspace(async ({ rootPath, workspacePath }) => {
       const missingWorkspacePath = path.join(workspacePath, "missing-private");
@@ -110,6 +152,9 @@ describe("GET /api/notes/content success", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
+        clusterIdentity: {
+          status: "ready",
+        },
         note: {
           fileName: "azurite.md",
           contentHash: createContentHash(markdown),
@@ -138,6 +183,9 @@ describe("PUT /api/notes/content success", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
+        clusterIdentity: {
+          status: "ready",
+        },
         note: {
           contentHash: createContentHash("# Updated\n"),
           markdown: "# Updated\n",

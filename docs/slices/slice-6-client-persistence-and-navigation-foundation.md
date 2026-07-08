@@ -2,7 +2,33 @@
 
 ## Status
 
-Proposed.
+Implemented on July 8, 2026.
+
+This slice adds durable cluster identity, URL-owned selected-note navigation,
+Zustand-owned note/editor session state, IndexedDB-backed draft persistence,
+draft recovery, missing-note draft protection, stale async guards, note-switch
+draft flushing, and visible degraded draft-recovery state for unavailable
+cluster identity or browser persistence failures.
+
+Verification completed:
+
+- `pnpm validate`
+- desktop browser QA against `/tmp/azurite-slice6-qa-EsCxN9`, not Daniel's
+  real knowledgebase
+- URL startup replace and user note-selection push behavior
+- reload recovery for selected notes
+- markdown source draft recovery
+- real Milkdown/Crepe WYSIWYG draft recovery
+- outgoing-note draft flush on note switch
+- missing-note state without a draft
+- recovered missing-note draft after external deletion
+- disk-change recovered conflict state
+- `Discard draft and reload disk version`
+- successful save clearing the recovered draft
+
+Android Chrome or Edge QA over the stable Tailscale MagicDNS origin still needs
+Daniel's physical phone session; this desktop Codex run cannot operate that
+device directly.
 
 ## Product Decision
 

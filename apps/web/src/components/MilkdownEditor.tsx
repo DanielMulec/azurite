@@ -6,28 +6,83 @@ import type { ReactElement, RefObject } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 type EditorMode = "source" | "wysiwyg";
+type StoredEditorMode = "markdown" | "wysiwyg";
 
 type MilkdownEditorProps = {
+  readonly initialMode: StoredEditorMode;
   readonly initialMarkdown: string;
   readonly noteId: string;
+  readonly onEditorModeChange?: (editorMode: StoredEditorMode) => void;
   readonly onMarkdownChange?: (markdown: string) => void;
   readonly title: string;
 };
 
+type MilkdownEditorControllerInput = {
+  readonly initialMode: StoredEditorMode;
+  readonly initialMarkdown: string;
+  readonly noteId: string;
+  readonly onEditorModeChange: MilkdownEditorProps["onEditorModeChange"];
+  readonly onMarkdownChange: MilkdownEditorProps["onMarkdownChange"];
+};
+
 /** Editable Milkdown and Crepe surface for one selected markdown note. */
 export function MilkdownEditor({
+  initialMode,
   initialMarkdown,
   noteId,
+  onEditorModeChange,
   onMarkdownChange,
   title,
 }: MilkdownEditorProps): ReactElement {
+  const editor = useMilkdownEditorController({
+    initialMarkdown,
+    initialMode,
+    noteId,
+    onEditorModeChange,
+    onMarkdownChange,
+  });
+
+  return (
+    <div className="azurite-editor-surface">
+      <EditorModeToolbar
+        isSourceMode={editor.isSourceMode}
+        onShowSource={editor.showSourceMode}
+        onShowWysiwyg={editor.showWysiwygMode}
+      />
+      <EditorStatus error={editor.editorError} isReady={editor.isEditorReady} />
+      <EditorModeBody
+        isSourceMode={editor.isSourceMode}
+        onSourceChange={editor.updateMarkdown}
+        rootRef={editor.rootRef}
+        sourceInputId={editor.sourceInputId}
+        sourceMarkdown={editor.sourceMarkdown}
+        title={title}
+      />
+    </div>
+  );
+}
+
+function useMilkdownEditorController({
+  initialMode,
+  initialMarkdown,
+  noteId,
+  onEditorModeChange,
+  onMarkdownChange,
+}: MilkdownEditorControllerInput) {
   const rootRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const sourceInputId = useId();
   const [editorError, setEditorError] = useState<string | undefined>();
   const [isEditorReady, setIsEditorReady] = useState(false);
-  const [mode, setMode] = useState<EditorMode>("wysiwyg");
+  const [mode, setMode] = useState<EditorMode>(toLocalEditorMode(initialMode));
   const [sourceMarkdown, setSourceMarkdown] = useState(initialMarkdown);
+  const updateMode = useCallback(
+    (nextMode: EditorMode) => {
+      setMode(nextMode);
+      onEditorModeChange?.(toStoredEditorMode(nextMode));
+    },
+    [onEditorModeChange],
+  );
   const updateMarkdown = useCallback(
     (markdown: string) => {
       setSourceMarkdown(markdown);
@@ -39,41 +94,35 @@ export function MilkdownEditor({
   useEffect(() => {
     return createCrepeEditor({
       initialMarkdown,
+      initialMode: toLocalEditorMode(initialMode),
       onEditorError: setEditorError,
       onMarkdownChange: updateMarkdown,
       onReady: setIsEditorReady,
       root: rootRef.current,
-      setMode,
+      setMode: updateMode,
       target: crepeRef,
     });
-  }, [initialMarkdown, noteId, updateMarkdown]);
+  }, [initialMarkdown, initialMode, noteId, updateMarkdown, updateMode]);
 
   const isSourceMode = mode === "source";
 
-  return (
-    <div className="azurite-editor-surface">
-      <EditorModeToolbar
-        isSourceMode={isSourceMode}
-        onShowSource={() => {
-          updateMarkdown(getCurrentMarkdown(crepeRef.current));
-          setMode("source");
-        }}
-        onShowWysiwyg={() => {
-          applySourceMarkdown(crepeRef.current, sourceMarkdown);
-          setMode("wysiwyg");
-        }}
-      />
-      <EditorStatus error={editorError} isReady={isEditorReady} />
-      <EditorModeBody
-        isSourceMode={isSourceMode}
-        onSourceChange={updateMarkdown}
-        rootRef={rootRef}
-        sourceInputId={sourceInputId}
-        sourceMarkdown={sourceMarkdown}
-        title={title}
-      />
-    </div>
-  );
+  return {
+    editorError,
+    isEditorReady,
+    isSourceMode,
+    rootRef,
+    showSourceMode: () => {
+      updateMarkdown(getCurrentMarkdown(crepeRef.current));
+      updateMode("source");
+    },
+    showWysiwygMode: () => {
+      applySourceMarkdown(crepeRef.current, sourceMarkdown);
+      updateMode("wysiwyg");
+    },
+    sourceInputId,
+    sourceMarkdown,
+    updateMarkdown,
+  };
 }
 
 function EditorModeToolbar({
@@ -223,6 +272,7 @@ function EditorModeButton({
 }
 
 function createCrepeEditor({
+  initialMode,
   initialMarkdown,
   onEditorError,
   onMarkdownChange,
@@ -231,6 +281,7 @@ function createCrepeEditor({
   setMode,
   target,
 }: {
+  readonly initialMode: EditorMode;
   readonly initialMarkdown: string;
   readonly onEditorError: (message: string | undefined) => void;
   readonly onMarkdownChange: (markdown: string) => void;
@@ -243,7 +294,7 @@ function createCrepeEditor({
   onEditorError(undefined);
   onMarkdownChange(initialMarkdown);
   onReady(false);
-  setMode("wysiwyg");
+  setMode(initialMode);
   target.current = null;
   if (root === null) {
     onEditorError("The editor root was not available.");
@@ -321,3 +372,11 @@ function destroyCrepe(crepe: Crepe): void {
 }
 
 function noop(): void {}
+
+function toLocalEditorMode(editorMode: StoredEditorMode): EditorMode {
+  return editorMode === "markdown" ? "source" : "wysiwyg";
+}
+
+function toStoredEditorMode(editorMode: EditorMode): StoredEditorMode {
+  return editorMode === "source" ? "markdown" : "wysiwyg";
+}
