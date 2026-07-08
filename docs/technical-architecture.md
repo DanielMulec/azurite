@@ -206,16 +206,19 @@ Initial behavior:
 ## Persistence Roadmap After Slice 5
 
 After safe manual save exists, the next persistence slices should prioritize
-core note lifecycle actions before autosave.
+mobile-resilient editing sessions and core note lifecycle actions before
+autosave.
 
-- Slice 6: create new markdown notes.
-- Slice 7: recoverable delete or move-to-trash behavior.
+- Slice 6: client persistence and navigation foundation.
+- Slice 7: create new markdown notes.
+- Slice 8: recoverable delete or move-to-trash behavior.
 - Later separate numbered slice: autosave policy.
 
-Create and delete are higher-priority user experience work than autosave
-because they let Azurite become a complete capture and note-management surface.
-Autosave remains valuable, but it is a comfort layer on top of trusted save,
-create, and recoverable delete semantics.
+Mobile session resilience, create, and delete are higher-priority user
+experience work than autosave because they let Azurite become a dependable
+editing, capture, and note-management surface. Autosave remains valuable, but
+it is a comfort layer on top of trusted save, recovery, create, and recoverable
+delete semantics.
 
 ## Frontend Styling
 

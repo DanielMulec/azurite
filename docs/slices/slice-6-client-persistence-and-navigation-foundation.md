@@ -24,6 +24,8 @@ product foundation:
 - Dexie owns durable browser persistence on IndexedDB.
 - Browser persistence is recovery state, preferences, and future cache/outbox
   infrastructure. It is not the source of truth for notes.
+- Cluster identity is real cluster metadata, stored in the cluster, not a hash
+  of the current filesystem location.
 - Slice 5 content-hash protection remains the authority for safe writes.
 
 ## User Story
@@ -41,10 +43,15 @@ Given a selected markdown note, Azurite can:
 - restore the selected note from the URL after reload,
 - preserve unsaved editor drafts across reloads, mobile app switching, tab
   discard, and reconnects,
-- scope browser-persisted state to the current cluster and note ID,
+- create or read a durable cluster identity from `.azurite/cluster.json`,
+- scope browser-persisted state to the durable cluster ID and note ID,
 - detect when a recovered draft started from an older on-disk content hash,
 - show a clear conflict/recovery state instead of silently overwriting or
   discarding content,
+- recover and protect a draft even when the URL note was deleted externally,
+- flush the outgoing note draft before switching notes,
+- surface degraded draft-recovery status when browser persistence or cluster
+  identity is unavailable,
 - let the user discard a recovered/conflicted draft and reload the disk version,
 - clear durable draft state after a successful save,
 - keep all saves flowing through `expectedContentHash`.
@@ -58,6 +65,8 @@ Given a selected markdown note, Azurite can:
 - Do not add search, backlinks, graph behavior, or note index caching.
 - Do not make IndexedDB the canonical note store.
 - Do not expose absolute filesystem paths to the browser.
+- Do not add full cluster management UI.
+- Do not add a "clone as new cluster" or "regenerate cluster ID" command.
 - Do not solve authentication or multi-user access.
 
 ## Terms
@@ -73,6 +82,14 @@ Given a selected markdown note, Azurite can:
 - Recovered draft: a draft restored from browser persistence after reloading.
 - Draft conflict: a recovered draft whose base content hash no longer matches
   the current on-disk note hash.
+- Missing-note draft: a recovered draft whose note ID no longer resolves to a
+  current markdown file.
+- Cluster metadata: app-owned metadata stored in the cluster under
+  `.azurite/`.
+- Cluster ID: a generated durable identifier stored in
+  `.azurite/cluster.json` and reused whenever the same cluster is opened.
+- Workspace location ID: a fingerprint of a filesystem location. This slice
+  deliberately does not use a location fingerprint as the cluster identity.
 
 ## Package Decisions
 
@@ -111,22 +128,106 @@ app state.
 
 Browser-persisted state must be scoped by cluster.
 
-The backend should provide a stable, non-path-leaking `clusterId` derived from
-the configured workspace root. Use a versioned SHA-256 hash of the canonical
-workspace path, such as:
+Use a real durable cluster ID stored in cluster metadata, not a hash of the
+current filesystem path.
+
+Path-derived hashes answer "where is this folder right now?" They do not answer
+"which knowledge cluster is this?" If Daniel moves, syncs, or renames a cluster,
+a path hash changes and browser drafts, preferences, recovered conflicts, and
+future local caches would stop matching the same user knowledge collection.
+
+Create an app-owned metadata file at:
 
 ```text
-sha256("azurite-cluster-id-v1:" + realWorkspacePath)
+.azurite/cluster.json
 ```
+
+Initial schema:
+
+```ts
+type ClusterMetadata = {
+  readonly schemaVersion: 1;
+  readonly clusterId: string;
+  readonly createdAt: string;
+};
+```
+
+Rules:
+
+- Generate `clusterId` once with a random UUID or similarly strong random ID.
+- Store no secrets and no absolute filesystem paths in `cluster.json`.
+- Treat `.azurite/` as Azurite-owned cluster metadata, similar in spirit to
+  how editor tools keep app metadata inside a project or vault.
+- Keep draft bodies in IndexedDB for this slice. `cluster.json` identifies the
+  cluster; it is not the draft store.
+- Use a safe metadata write path: create `.azurite/` if needed, write a
+  temporary file in the same directory, then atomically rename it into place.
+- Make metadata creation race-safe. If two Azurite processes open the same
+  cluster at the same time and `cluster.json` is missing, only one generated ID
+  may win. Never overwrite an existing valid `cluster.json`; if creation
+  collides, re-read and reuse the file that appeared.
+- Validate existing `cluster.json` before trusting it.
+- Do not silently overwrite malformed existing cluster metadata. Surface
+  cluster identity as unavailable so Daniel can fix or inspect the metadata.
+- If a folder is copied, the copy keeps the same cluster identity by default.
+  A future cluster-management slice can add an explicit "make this copy a new
+  cluster" operation that regenerates the ID.
 
 The `clusterId` is not a secret and is not an authorization mechanism. It only
 prevents browser state from one cluster or temporary QA workspace from being
 applied to another cluster on the same origin.
 
+Expose cluster identity as a shared response object, not as a bare string:
+
+```ts
+type ClusterIdentity =
+  | {
+      readonly status: "ready";
+      readonly clusterId: string;
+    }
+  | {
+      readonly status: "unavailable";
+      readonly reason:
+        "metadata_invalid" | "metadata_unwritable" | "metadata_unavailable";
+    };
+```
+
 Add the cluster identity to API responses that initialize or refresh the note
-browser state. Prefer adding it to `GET /api/notes` and `GET /api/notes/content`
-responses so the frontend can scope list state, selected-note state, and drafts
-without exposing absolute paths.
+browser state. Include it in `GET /api/notes`, `GET /api/notes/content`, and
+`PUT /api/notes/content` responses so the frontend can scope list state,
+selected-note state, and drafts without exposing absolute paths.
+
+If cluster identity is unavailable, manual read and save behavior should still
+work when the markdown files themselves are readable/writable. Durable browser
+draft recovery must show degraded/unavailable status and must not pretend the
+user is protected by cross-reload draft recovery.
+
+### Cluster Metadata Questions This Settles
+
+Why a JSON file? It is small, human-inspectable, versionable app metadata. The
+first cluster metadata need is only identity, so a tiny JSON file is more honest
+than introducing a database or hiding identity in browser storage.
+
+Why inside the cluster? The identity belongs to the knowledge collection, not to
+one browser, machine, or path. If the folder moves or syncs to another machine,
+the identity should move with it.
+
+Does this make `.azurite/` the note store? No. Markdown files remain the source
+of truth. `.azurite/cluster.json` identifies the cluster so browser-local
+recovery data can be scoped correctly.
+
+Should `.azurite/cluster.json` be secret? No. It should be safe to sync or back
+up because it contains no content, no absolute paths, and no credentials.
+
+What happens if the cluster is duplicated? The duplicate keeps the same identity
+until a future explicit cluster-management operation regenerates it. That
+preserves move/sync semantics now and leaves intentional clone semantics for a
+dedicated product decision later.
+
+What happens in QA when a temporary workspace is copied? If the copy includes
+`.azurite/cluster.json`, it is intentionally the same cluster identity. If a QA
+workspace should behave as a different cluster, create it without copying
+`.azurite/` or use a future explicit "clone as new cluster" command.
 
 ## URL And Routing Decision
 
@@ -144,13 +245,17 @@ navigation to React components.
 
 Rules:
 
-- Selecting a note updates the URL.
+- User note selection updates the URL with history push.
 - Reloading the page restores the note from the URL.
 - Browser back/forward changes the selected note.
 - If no note appears in the URL, Azurite may select the first note as a startup
-  convenience.
+  convenience and update the URL with history replace.
 - If the URL references a missing note, Azurite shows a missing-note state
   instead of silently selecting the first note.
+- If the URL references a missing note and IndexedDB contains a matching draft,
+  Azurite shows a recovered draft for the missing note. Normal Save is disabled
+  because create/restore behavior is out of scope, but the draft remains
+  visible and protected until Daniel explicitly discards it.
 - The URL should not include absolute paths, cluster IDs, content hashes, or
   draft content.
 
@@ -161,6 +266,7 @@ Introduce a focused Zustand store for browser-session state.
 The store should own:
 
 - current cluster identity,
+- durable browser persistence status,
 - notes list load state,
 - selected note ID from typed router state,
 - selected note load state,
@@ -170,6 +276,7 @@ The store should own:
 - draft recovery state,
 - save state,
 - conflict state,
+- missing-note draft state,
 - editor mode if it affects recovery behavior.
 
 The store should not own:
@@ -183,6 +290,11 @@ The store should not own:
 Keep API access in focused async actions or service functions. Avoid letting UI
 components directly coordinate note loading, draft persistence, and router
 updates.
+
+Async store actions must guard against stale responses. Use request IDs,
+selected-note checks, or both so a slow response for note A cannot overwrite the
+state after Daniel quickly selects note B. This replaces the `useEffect`
+cleanup guard currently used by `use-note-browser`.
 
 ## Durable Browser Database
 
@@ -215,11 +327,35 @@ Draft record ID:
 draft:v1:<clusterId>:<noteId>
 ```
 
-Validate loaded records with Zod before using them. If validation fails, ignore
-the record and delete it when safe.
+Validate loaded records with Zod before using them.
+
+Record handling rules:
+
+- Valid current-version records can be used.
+- Malformed current-version records can be ignored and deleted.
+- Records without a usable schema version can be ignored and deleted.
+- Unknown future `schemaVersion` records must be ignored and preserved. This
+  prevents an older Azurite build from destroying drafts created by a newer
+  build.
 
 Do not store absolute filesystem paths. Do not store full note metadata unless
 a future cache/index slice deliberately introduces it.
+
+IndexedDB failures must not silently degrade. If the database cannot open, an
+upgrade is blocked, quota is exceeded, validation fails, or a draft write fails,
+Azurite must:
+
+- keep manual note reads and manual save usable where the server allows them,
+- show draft recovery as degraded or unavailable,
+- avoid crashing the app,
+- surface failed draft writes clearly enough that Daniel does not believe his
+  unsaved work is protected across reload when it is not.
+
+Dexie drafts are browser-origin local. Drafts saved from `localhost`, the
+MagicDNS hostname, and a raw Tailscale IP live in separate browser stores even
+when they use the same `clusterId`. For phone QA and normal cross-device access,
+use the stable MagicDNS URL as the product URL so recovery behavior is tested
+against the same browser origin Daniel will actually use.
 
 ## Draft Persistence Behavior
 
@@ -235,6 +371,9 @@ Rules:
 - Flush any pending draft write on `visibilitychange` when the document becomes
   hidden.
 - Flush any pending draft write on `pagehide`.
+- Flush the outgoing selected note draft before or during note selection. If
+  Daniel edits note A and immediately selects note B, note A's draft must be
+  persisted before note B replaces the editor session.
 - Do not rely on `unload` for correctness.
 - When the draft matches the saved markdown baseline, delete the durable draft.
 - After successful save, update the saved baseline, update the content hash, and
@@ -252,13 +391,31 @@ When Azurite loads a selected note:
 5. If the draft's `baseContentHash` differs from the server note's
    `contentHash`, restore the draft as a recovered conflict.
 
+When the URL note is missing:
+
+1. Keep the selected note ID from the URL.
+2. Load any durable draft for `clusterId + noteId`.
+3. If no valid draft exists, show the missing-note state.
+4. If a valid draft exists, show a recovered draft for the missing note.
+5. Disable normal Save because note creation and restore are out of scope.
+6. Keep the draft visible and protected until Daniel explicitly discards it.
+
+Editor recovery must use a controlled hydration boundary. The store should load
+the server note and the matching draft before mounting `MilkdownEditor`, then
+mount the editor with the resolved markdown. Do not rely on changing
+`initialMarkdown` after Crepe has already mounted. If a later action
+intentionally replaces the whole editor document, such as discarding a
+recovered draft, remount the editor with a new session key or add a tested
+external replacement API to `MilkdownEditor`.
+
 Recovered conflict behavior:
 
 - Keep the user's draft visible.
 - Show a clear status such as `Recovered draft changed on disk`.
 - Disable normal Save while in recovered conflict state.
-- Offer `Reload disk version` to discard the durable draft and show the current
-  server note.
+- Offer `Discard draft and reload disk version` to delete the durable draft and
+  show the current server note.
+- Confirm the destructive discard when the recovered draft is non-empty.
 - Do not overwrite the file.
 - Do not attempt automatic merge.
 
@@ -267,19 +424,28 @@ Runtime save conflict behavior should use the same recovery path:
 - Keep the user's draft visible.
 - Persist the conflicted draft.
 - Show `Changed on disk`.
-- Offer `Reload disk version`.
+- Offer `Discard draft and reload disk version`.
 
 ## Backend And Shared Contract Plan
 
 ### 1. Add Cluster Identity
 
-In `packages/core`, add a helper that derives `clusterId` from the resolved
-workspace root without exposing the path.
+In `packages/core`, add cluster metadata helpers that:
+
+- resolve the workspace root with the existing workspace root behavior,
+- read `.azurite/cluster.json` when it exists,
+- validate the metadata schema,
+- create `.azurite/cluster.json` when it is missing and the cluster is writable,
+- write metadata through a temporary file plus atomic rename,
+- return a typed unavailable state when metadata is invalid, unavailable, or
+  unwritable,
+- never expose absolute filesystem paths to the frontend.
 
 ### 2. Extend Shared Schemas
 
-In `packages/shared`, add a `clusterSchema` and include cluster identity in note
-list and note content responses.
+In `packages/shared`, add `clusterIdentitySchema` as a discriminated union for
+ready and unavailable cluster identity. Include cluster identity in note list,
+note content, and save responses.
 
 ### 3. Extend Server Responses
 
@@ -291,6 +457,10 @@ In `apps/server`, include the cluster identity in:
 
 Successful save responses should keep the same cluster identity so the frontend
 can update state and clear drafts using the same namespace.
+
+If cluster identity is unavailable, responses should still include that typed
+state. The frontend should continue normal note browsing and manual save where
+possible, while disabling or degrading durable draft recovery.
 
 ## Frontend Plan
 
@@ -320,10 +490,15 @@ The store should expose small actions:
 - `loadSelectedNote`
 - `updateDraftMarkdown`
 - `saveSelectedNote`
-- `reloadDiskVersion`
+- `discardDraftAndReloadDiskVersion`
 - `restoreRecoveredDraft`
 
 Avoid a single giant action that does all browser behavior at once.
+
+`selectNote` must flush any pending draft for the outgoing selected note before
+the new note replaces the editor session. Store async actions must use request
+IDs or selected-note guards to ignore stale list, note, draft, and save
+responses.
 
 ### 4. Create Dexie Persistence Module
 
@@ -334,7 +509,10 @@ Add a dedicated module for:
 - writing drafts,
 - deleting drafts,
 - validating draft records,
-- clearing invalid records.
+- clearing invalid current-version records,
+- preserving unknown future-version records,
+- reporting database, quota, blocked-upgrade, validation, and write failures as
+  typed persistence status.
 
 UI components should not call Dexie directly.
 
@@ -344,24 +522,35 @@ When notes load, use the router's selected note ID when present.
 
 If the URL note exists, select and load it.
 
-If the URL note is missing, show a missing-note state.
+If the URL note is missing, keep the URL note selected and check for a matching
+draft. Show either the missing-note state or the recovered missing-note draft
+state.
 
 If the URL has no note and notes exist, select the first note and update the URL
-so the chosen state becomes addressable.
+with history replace so the chosen state becomes addressable without adding a
+fake entry to the back stack.
+
+Real user note selection should update the URL with history push.
 
 ### 6. Restore Drafts After Note Load
 
-After loading a selected note, ask the persistence module for a matching draft.
+After loading a selected note, ask the persistence module for a matching draft
+before mounting the editor.
 
 Use the reload and recovery behavior rules above to decide whether to show the
-server note, an unsaved draft, or a recovered conflict.
+server note, an unsaved draft, a recovered conflict, or a recovered
+missing-note draft.
+
+Mount `MilkdownEditor` only after the resolved editor markdown is known. Use a
+stable editor session key so discarding a recovered draft or switching notes
+creates a fresh Crepe document with the intended markdown.
 
 ### 7. Persist Drafts During Editing
 
 When Milkdown or source mode reports markdown changes, update Zustand state and
 schedule draft persistence through the persistence module.
 
-Flush pending draft writes on mobile lifecycle events.
+Flush pending draft writes on note switching and mobile lifecycle events.
 
 ### 8. Save And Clear Drafts
 
@@ -371,6 +560,8 @@ On save:
 - keep using the Slice 5 API contract,
 - on success, update baseline/hash and clear the durable draft,
 - on `note_write_conflict`, persist the draft and show conflict state.
+- when persistence is degraded, keep manual save usable but show that draft
+  recovery is not currently protected across reload.
 
 ### 9. Add Recovery UI
 
@@ -380,7 +571,8 @@ turning the editor into a modal.
 Required controls:
 
 - Save for normal dirty drafts.
-- Reload disk version for recovered/runtime conflicts.
+- Discard draft and reload disk version for recovered/runtime conflicts.
+- Discard recovered draft for missing-note drafts.
 
 Optional if small and reliable:
 
@@ -394,8 +586,17 @@ Add focused tests at each boundary.
 
 Shared/core/server tests:
 
-- cluster IDs are deterministic for the same canonical workspace path,
-- cluster IDs do not include the raw workspace path,
+- missing cluster metadata is created in `.azurite/cluster.json`,
+- existing cluster metadata is reused across server calls,
+- concurrent missing-metadata creation never overwrites an existing valid
+  `cluster.json`; a colliding process re-reads and reuses the winning ID,
+- cluster IDs survive moving or renaming the cluster folder because they are
+  read from metadata, not derived from the path,
+- cluster metadata does not include the raw workspace path,
+- malformed cluster metadata returns typed unavailable state and is not silently
+  overwritten,
+- unwritable cluster metadata returns typed unavailable state while preserving
+  normal read/save behavior where possible,
 - note list responses include cluster identity,
 - note content read responses include cluster identity,
 - save responses include cluster identity.
@@ -403,9 +604,11 @@ Shared/core/server tests:
 Router tests:
 
 - selected note is parsed from `?note=...`,
-- selecting a note updates the URL,
+- startup auto-selection updates the URL with replace,
+- user note selection updates the URL with push,
 - back/forward navigation changes selected note state,
-- missing URL note shows a missing-note state.
+- missing URL note shows a missing-note state when no draft exists,
+- missing URL note shows a recovered missing-note draft when a draft exists.
 
 Store tests:
 
@@ -414,22 +617,33 @@ Store tests:
 - editing markdown creates dirty draft state,
 - save success clears dirty state and durable draft state,
 - save conflict preserves the draft and enters conflict state,
-- reload disk version clears the draft and restores server content.
+- discard draft and reload disk version clears the draft and restores server
+  content,
+- note A load resolving after note B is selected cannot overwrite note B,
+- note A draft is flushed when Daniel immediately selects note B.
 
 Persistence tests:
 
 - valid draft records save and load,
-- invalid draft records are rejected,
+- invalid current-version draft records are rejected and cleared,
+- unknown future-version draft records are ignored and preserved,
 - drafts are scoped by `clusterId + noteId`,
 - clearing one draft does not clear another cluster's draft,
-- schema version is required.
+- schema version is required,
+- database open, quota, blocked-upgrade, validation, and write failures produce
+  typed degraded persistence status instead of app crashes.
 
 Component/app tests:
 
 - reload/remount restores selected note from URL,
 - reload/remount restores an unsaved draft,
 - reload/remount detects a changed-on-disk recovered draft,
-- recovered conflict shows the draft and a reload-disk action,
+- missing-note URL recovers a matching draft and disables normal Save,
+- recovered conflict shows the draft and a destructive discard/reload action,
+- persistence-unavailable state keeps manual save usable and shows draft
+  recovery as degraded,
+- rapid note switching flushes the outgoing note draft before the new note
+  replaces the editor session,
 - successful save clears the recovered draft.
 
 ## Browser Verification
@@ -441,31 +655,61 @@ Verify on desktop browser:
 - selecting a note updates the URL,
 - reloading restores the same selected note,
 - unsaved markdown source edits survive reload,
-- unsaved WYSIWYG edits survive reload,
+- unsaved WYSIWYG edits survive reload in real Milkdown/Crepe, not only mocked
+  React tests,
+- recovered drafts mount into Crepe with the recovered markdown visible,
+- editing note A, immediately selecting note B, reloading, and returning to
+  note A by URL restores note A's draft,
 - saving a recovered draft clears it from IndexedDB,
-- missing-note URL shows the missing-note state.
+- missing-note URL shows the missing-note state when no draft exists,
+- missing-note URL shows a recovered missing-note draft when a draft exists,
+- simulated persistence-unavailable mode keeps the app usable and shows degraded
+  draft recovery status.
 
 Verify through Tailscale on Android Chrome or Edge:
 
+- use the stable MagicDNS URL, not raw Tailscale IP, so browser-origin-scoped
+  Dexie drafts are tested in the same origin Daniel will reuse,
 - selected note survives reload,
 - selected note survives app switching when the browser reloads,
 - unsaved edit survives app switching and reload,
 - delayed external disk edit plus recovered draft shows conflict state,
-- `Reload disk version` clears the recovered draft and shows disk content.
+- `Discard draft and reload disk version` clears the recovered draft and shows
+  disk content.
 
 ## Acceptance Criteria
 
 - The selected note is encoded in the URL.
 - Reloading the page restores the same selected note.
-- Missing URL notes show an explicit missing-note state.
+- Startup auto-selection uses history replace.
+- User note selection uses history push.
+- Missing URL notes show an explicit missing-note state when no draft exists.
+- Missing URL notes show a recovered missing-note draft when a draft exists.
+- A durable cluster ID is created in `.azurite/cluster.json` and reused after
+  moving or renaming the cluster folder.
+- Concurrent first-open metadata creation is race-safe and reuses the winning
+  valid `cluster.json`.
+- Copied clusters that include `.azurite/cluster.json` keep the same cluster
+  identity by design.
+- Unavailable cluster identity degrades draft recovery visibly without breaking
+  manual note reads or saves that can otherwise work.
 - Zustand owns the note browser and editor session state.
+- Zustand async actions guard against stale responses.
 - Dexie owns durable browser draft persistence.
+- IndexedDB unavailable, quota, blocked-upgrade, validation, and write failures
+  surface visible degraded draft-recovery state instead of crashing or silently
+  pretending recovery is active.
 - Drafts are scoped by cluster ID and note ID.
+- Draft recovery behavior is verified on the stable MagicDNS browser origin for
+  phone QA and real cross-device access.
+- Unknown future draft schema versions are preserved.
 - Browser storage never exposes absolute filesystem paths.
 - Unsaved markdown and WYSIWYG edits recover after reload.
+- Recovered markdown is verified in real Milkdown/Crepe browser QA.
 - Recovered drafts keep their original base content hash.
 - Disk changes during browser sleep become a recovered conflict, not overwrite.
 - Runtime save conflicts persist the draft and expose a recovery path.
+- Switching notes flushes the outgoing note draft.
 - Successful saves clear durable draft records.
 - `pnpm validate` passes.
 - Browser QA passes on desktop and Android over Tailscale.
