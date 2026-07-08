@@ -1154,6 +1154,41 @@ should never be treated as the only sources to consult.
 - Caveats: For Azurite debug sessions, replay should favor full editor-debugging
   fidelity over masking. Verify replay usefulness, not privacy minimization.
 
+### Sentry React
+
+- URL: https://docs.sentry.io/platforms/javascript/guides/react/
+- Accessed: 2026-07-08
+- Area: Frontend observability
+- Use when: Adding Sentry to Azurite's React/Vite browser app.
+- Notes: Sentry documents the React SDK for client-side React applications,
+  including errors, logs, session replay, tracing, and SDK initialization before
+  the app renders.
+- Caveats: Azurite is a local-first SPA, so avoid framework-specific Sentry
+  setup paths for SSR frameworks unless the frontend stack changes.
+
+### Sentry React Tracing
+
+- URL: https://docs.sentry.io/platforms/javascript/guides/react/tracing/
+- Accessed: 2026-07-08
+- Area: Frontend/backend correlation
+- Use when: Configuring browser tracing, sample rates, and trace propagation
+  targets for Azurite API requests.
+- Notes: Sentry tracing can propagate context from browser requests to backend
+  services when configured with appropriate trace propagation targets.
+- Caveats: Azurite still needs its own request and operation IDs because trace
+  sampling, proxying, or SDK limitations can leave a debugging path incomplete.
+
+### Sentry Vite Source Maps
+
+- URL: https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/
+- Accessed: 2026-07-08
+- Area: Release and source-map observability
+- Use when: Adding production-like source-map uploads for Azurite's Vite build.
+- Notes: Sentry documents a Vite plugin for release/source-map upload and notes
+  that build-time auth token handling needs explicit configuration.
+- Caveats: Source-map upload requires Sentry auth configuration and belongs in a
+  future release-observability slice, not the first local debug setup.
+
 ### Sentry Pricing
 
 - URL: https://sentry.io/pricing/
