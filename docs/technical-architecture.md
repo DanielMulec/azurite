@@ -210,8 +210,10 @@ mobile-resilient editing sessions and core note lifecycle actions before
 autosave.
 
 - Slice 6: client persistence and navigation foundation.
-- Slice 7: create new markdown notes.
-- Slice 8: recoverable delete or move-to-trash behavior.
+- Slice 7: end-to-end Sentry observability foundation for the current browser,
+  API, and filesystem-backed note workflow.
+- Slice 8: create new markdown notes.
+- Slice 9: recoverable delete or move-to-trash behavior.
 - Later separate numbered slice: autosave policy.
 
 Mobile session resilience, create, and delete are higher-priority user

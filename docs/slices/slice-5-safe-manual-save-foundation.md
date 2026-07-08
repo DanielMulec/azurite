@@ -386,13 +386,19 @@ selected-note navigation, durable browser draft persistence, live client state,
 and recovered conflict behavior while still saving through the Slice 5
 content-hash conflict guard.
 
-Slice 7 should add new markdown note creation.
+Slice 7 should add the end-to-end Sentry observability foundation for the
+current browser, API, and filesystem-backed note workflow. Create-new-note
+behavior moves later in the roadmap so Azurite can first debug real editor,
+persistence, and mobile/Tailscale failures from a complete investigation
+surface.
+
+Slice 8 should add new markdown note creation.
 
 It should decide the first creation location, filename validation, duplicate
 filename handling, title behavior, optional folder creation, list refresh, URL
 update, draft initialization, and auto-selection after creation.
 
-Slice 8 should add recoverable delete or move-to-trash behavior.
+Slice 9 should add recoverable delete or move-to-trash behavior.
 
 It should decide whether deletion moves notes to a local trash area, the user's
 system trash, or a workspace-local recovery folder. It should not introduce
