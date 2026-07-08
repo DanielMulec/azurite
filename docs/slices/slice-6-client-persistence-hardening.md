@@ -2,11 +2,106 @@
 
 ## Status
 
-Proposed follow-up hardening for Slice 6.
+Implementation attempted, with open adversarial review findings.
 
 This is not a new product slice. It finishes the acceptance bar for
 `slice-6-client-persistence-and-navigation-foundation.md` before Daniel starts
 desktop QA and Android/Tailscale QA with real notes.
+
+The main hardening implementation has been committed, but this document must
+not be marked implemented until the adversarial review findings below are fixed,
+validated, and verified against the original Slice 6 guardrails.
+
+## Required Implementation Context
+
+Implementers must use this document together with
+`docs/slices/slice-6-client-persistence-and-navigation-foundation.md`.
+
+The adversarial review findings below are not enough by themselves. They name
+the current gaps, but the original Slice 6 foundation document and the
+guardrails in this hardening document define the behavior that must not regress:
+manual save safety, missing-note recovery, stale async guards, durable draft
+preservation, degraded recovery visibility, URL/history behavior, and shared
+note-ID validation.
+
+## Adversarial Review Findings Before Completion
+
+Status: Open.
+
+These findings must be fixed before this hardening document can be marked
+implemented.
+
+### P1: Stale Missing-Note Draft Recovery
+
+A slow missing-note draft lookup can overwrite a newer selected note.
+
+Current risk:
+
+- `applyMissingNoteDraft` awaits draft recovery and then sets `selectedNoteId`
+  and `noteState` without confirming that the missing note is still the current
+  selected route intent.
+- Normal note reads use request/current-note guards, but the missing-note draft
+  path does not currently have the same post-await protection.
+- Reproduction: start route sync to `missing.md`, delay the draft lookup, select
+  `Projects/azurite.md`, then resolve the stale missing-note lookup. The store
+  returns from `Projects/azurite.md` ready state to `missing.md` missing state.
+
+Required fix:
+
+- Give missing-note draft recovery the same stale-request discipline as normal
+  note loads.
+- Start missing-note recovery through a request ID or equivalent current-route
+  guard before awaiting browser draft persistence.
+- After the draft lookup resolves, verify the missing note is still the current
+  selected route intent before setting `missing` or `missing-draft`.
+- Apply the same guarded path to missing notes discovered from an explicit URL
+  route and to `404 note_not_found` responses from selected-note reads.
+- Do not let stale draft read failures degrade the currently selected note
+  session after Daniel has already moved on.
+
+Required tests:
+
+- A slow missing-note draft lookup cannot overwrite a newer selected real note.
+- A missing URL note still shows `Note not found` when no draft exists.
+- A missing URL note with a matching draft still shows `missing-draft`.
+- A stale missing-note draft read failure cannot put the current note into a
+  fake degraded, conflict, failed-save, loading, missing, or missing-draft state.
+
+### P3: Route Decoding Edge Case
+
+Route note decoding can reject valid safe note IDs that contain literal percent
+characters.
+
+Current risk:
+
+- The router parser unconditionally runs `decodeURIComponent` on the note search
+  value it receives.
+- If the router has already normalized the search value, a valid note ID such as
+  `100%.md` can throw during decoding and be dropped even though the shared
+  `noteIdSchema` allows it.
+- The encoded traversal fix must keep rejecting unsafe encoded paths without
+  double-decoding or rejecting safe filenames.
+
+Required fix:
+
+- Keep URL decoding at one canonical route boundary.
+- Validate the decoded note ID with `noteIdSchema` exactly once.
+- Do not call `decodeURIComponent` on arbitrary route strings that may already
+  be decoded.
+- Keep encoded traversal such as `..%2Fsecret.md` invalid.
+- Preserve valid literal percent filenames such as `100%.md`.
+- Preserve filenames that contain encoded-looking text literally, such as a
+  safe note ID whose filename includes `%2F`, without turning it into a path
+  separator.
+
+Required tests:
+
+- `?note=..%2Fsecret.md` is dropped and cannot become a missing-note draft key.
+- `?note=100%25.md` resolves to `100%.md`.
+- A literal encoded-looking filename serialized as `foo%252Fbar.md` stays a
+  literal `foo%2Fbar.md` note ID and does not become `foo/bar.md`.
+- Startup replace, user-selection push, and browser back/forward behavior still
+  pass after the parser change.
 
 ## Product Decision
 
