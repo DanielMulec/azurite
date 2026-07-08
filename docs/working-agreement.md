@@ -51,6 +51,27 @@ A slice is too small when it proves an implementation detail but leaves the user
 story unfinished, knowingly preserves a broken workflow, or creates immediate
 follow-up work that is already required for the behavior to be usable.
 
+## Product-Architecture Framing
+
+When a QA finding, user frustration, or implementation issue points to a broader
+capability, define the slice from the product capability first.
+
+A slice proposal should answer, in this order:
+
+1. What product capability or user story does this establish?
+2. What product decision does it settle?
+3. What future workflows should this architecture support?
+4. What dependencies, state boundaries, storage layers, contracts, and tests are
+   needed to make the capability dependable?
+5. What acceptance criteria prove the user story works?
+
+Do not frame foundational work as a narrow bug fix when the evidence shows that
+Azurite needs a reusable architecture. Prefer durable product foundations over
+patches that would require predictable replacement.
+
+Avoid proposals that solve only the observed symptom while ignoring the product
+capability revealed by that symptom.
+
 ## Implementation Plans
 
 Implementation plans should be decisive, not speculative.
@@ -66,6 +87,12 @@ Implementation plans should be decisive, not speculative.
 - When a reused helper or schema needs to support an additional context, extend
   it intentionally and test every supported context rather than creating a
   parallel near-copy.
+- Dependency decisions should be made from the intended product architecture.
+  Compare categories honestly, such as state stores, routers, IndexedDB
+  wrappers, databases, caches, and validation libraries, before selecting a
+  tool.
+- If a dependency is chosen, document the product role it owns and the kind of
+  future work it should make easier.
 
 ## Quality And Scope
 

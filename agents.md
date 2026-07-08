@@ -32,6 +32,10 @@ intentional project decisions rather than assumptions.
   `docs/working-agreement.md`.
 - Follow the stack, TypeScript, security, and code-quality rules in
   `docs/technical-architecture.md`.
+- For slice proposals, lead with the product decision and user story before
+  listing implementation tasks. Explain why the capability matters for
+  Azurite's future, what architecture it establishes, what user workflows it
+  unlocks, and how it will be verified.
 - Keep code files at 400 lines or fewer. This is a hard project requirement:
   split files by responsibility before they reach 401 lines.
 - Keep code modular and separated by concern, with frontend, server, shared
@@ -87,6 +91,19 @@ intentional project decisions rather than assumptions.
 - When Daniel challenges a slice as underbuilt or too timid, reassess from the
   user story and product outcome first. Identify the real behavior boundary and
   the architecture required to make it dependable.
+- When a bug, UX failure, or QA finding reveals a broader product capability,
+  frame the next slice around that product capability, not around the narrow
+  symptom. Start from the future product behavior Azurite needs, then derive the
+  architecture and implementation layers from that.
+- Before recommending a dependency, state what product capability it supports
+  long-term. Compare dependency categories by their future role in Azurite, not
+  only by what solves the immediate issue.
+- Do not propose "patch now, refactor later" when the need for durable
+  architecture is already visible. If the product direction is clear, recommend
+  the architecture that can carry it.
+- When Daniel says a proposal feels like a band-aid, stop defending the current
+  framing. Reframe from product goals, user stories, future state, and durable
+  architecture before proposing scope again.
 - Prefer decisive implementation plans with clear acceptance criteria. Keep open
   questions separate from committed steps.
 - Do not create artificial prototype routes or throwaway layers when the real

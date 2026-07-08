@@ -70,6 +70,9 @@ desktop and smartphone.
 - The primary interface should be a local web app.
 - It should support installation or app-like use as a PWA.
 - The mobile experience matters because the app will be used from a smartphone.
+- Mobile sessions must tolerate browser reloads, tab discard, app switching,
+  and reconnects without dumping the user back at an arbitrary first note or
+  silently losing an in-progress edit.
 - The desktop experience should feel efficient for deep writing, navigation,
   linking, and knowledge work.
 - The visual and interaction quality should aim for a Notion-level sense of
@@ -121,6 +124,8 @@ Production quality means:
   and broken links.
 - A responsive, accessible, and robust PWA user experience across desktop and
   mobile.
+- Resilient mobile editing behavior that can recover the selected note and warn
+  about unsaved drafts after a browser reload or mobile OS tab discard.
 - Security decisions that assume private knowledge content is sensitive.
 
 ## Open Product Decisions

@@ -245,6 +245,84 @@ should never be treated as the only sources to consult.
 - Caveats: It does not replace browser smoke checks for responsive layout,
   rendered CSS, and real navigation behavior.
 
+### TanStack Router
+
+- URL: https://tanstack.com/router/latest/docs/overview
+- Accessed: 2026-07-08
+- Area: URL-addressable navigation and search-param state
+- Use when: Adding typed route/search-param state to the React app.
+- Notes: TanStack Router documents type-safe navigation, path/search parameter
+  validation, and search-param state management APIs. Azurite should use it
+  when selected-note navigation becomes a durable product contract.
+- Caveats: Do not use router loader caching as the canonical note-content cache
+  without a focused data-cache decision.
+
+### Zustand
+
+- URL: https://zustand.docs.pmnd.rs/
+- Accessed: 2026-07-08
+- Area: Frontend client/session state
+- Use when: Introducing a React client-state boundary for selected note, editor
+  session, save state, conflict state, and UI state.
+- Notes: Zustand is a small hook-based state management library. Its docs also
+  include persist middleware, but Azurite should treat Zustand's main role as
+  live client state, with Dexie owning durable draft persistence.
+- Caveats: Keep persistence decisions explicit. Do not store large note drafts
+  in synchronous web storage just because a state middleware can persist values.
+
+### Dexie
+
+- URL: https://dexie.org/docs
+- Accessed: 2026-07-08
+- Area: IndexedDB-backed browser persistence
+- Use when: Storing durable browser recovery state such as unsaved drafts,
+  recovered conflicts, preferences, pending writes, and future rebuildable
+  caches.
+- Notes: Dexie provides a TypeScript-friendly API over IndexedDB with schema
+  versions, named tables, indexes, and transactions. This fits Azurite's need
+  for a real client persistence layer instead of string-keyed blobs.
+- Caveats: Browser persistence remains recovery/cache state. Canonical markdown
+  content stays on disk.
+
+### MDN Web Storage API
+
+- URL: https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API
+- Accessed: 2026-07-08
+- Area: Browser storage behavior
+- Use when: Comparing localStorage/sessionStorage with IndexedDB for frontend
+  persistence.
+- Notes: MDN documents Web Storage as origin-partitioned key/value storage and
+  notes that localStorage/sessionStorage operations are synchronous. It points
+  to asynchronous alternatives such as IndexedDB for larger data or
+  performance-sensitive cases.
+- Caveats: Web Storage can still be useful for tiny preferences, but it should
+  not own Azurite's note draft bodies.
+
+### MDN pagehide Event
+
+- URL: https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event
+- Accessed: 2026-07-08
+- Area: Browser page lifecycle
+- Use when: Flushing pending draft writes before navigation, page hiding, or
+  browser history transitions.
+- Notes: MDN documents `pagehide` as a page lifecycle event fired when the
+  browser hides the current page. Azurite should use it alongside continuous
+  draft persistence and `visibilitychange`, not as the only save point.
+- Caveats: Mobile browser behavior can still discard pages aggressively, so
+  drafts must be persisted during editing instead of only at unload time.
+
+### Chrome Page Lifecycle API
+
+- URL: https://developer.chrome.com/docs/web-platform/page-lifecycle-api
+- Accessed: 2026-07-08
+- Area: Mobile browser lifecycle and tab discard behavior
+- Use when: Designing resilient PWA behavior for app switching, backgrounding,
+  freezing, and discarding.
+- Notes: Chrome's lifecycle guidance is relevant to Android phone QA, where app
+  switching can reload or discard the current browser tab.
+- Caveats: Keep browser-specific guidance paired with standards-based events and
+  real mobile QA over Tailscale.
+
 ### Playwright
 
 - URL: https://playwright.dev/

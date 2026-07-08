@@ -289,6 +289,78 @@ The local Fastify server should shut down gracefully when the process receives
   can preserve the same clean shutdown behavior.
 - Keep shutdown behavior small and testable through server lifecycle helpers.
 
+## Tailscale Phone Access During Development
+
+When Azurite needs to be tested from Daniel's phone over Tailscale, keep the
+backend bound to localhost whenever the frontend can proxy API requests. Expose
+only the Vite frontend to the tailnet.
+
+Preferred flow:
+
+1. Read the Tailscale device details with `tailscale status --self --json`.
+2. Use `Self.DNSName` as the MagicDNS hostname in the user-facing URL.
+3. Use the first IPv4 address in `TailscaleIPs` as the Vite bind host.
+4. Keep the Fastify server on `127.0.0.1:3000`.
+5. Start Vite on the Tailscale IP at port `5173`.
+
+If Tailscale Serve is enabled, it can proxy `127.0.0.1:5173` to the tailnet. If
+Tailscale Serve is disabled for the tailnet, bind Vite directly to the
+Tailscale interface instead:
+
+```sh
+__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=macbook-air-von-daniel.taila0b671.ts.net \
+  /opt/homebrew/bin/pnpm --filter @azurite/web exec vite \
+  --host 100.123.102.3 \
+  --port 5173
+```
+
+The `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` value matters. Vite 8 rejects
+requests whose `Host` header is not allowed. Without this environment variable,
+the Tailscale IP can work while the MagicDNS URL returns `403`. Add the MagicDNS
+hostname there so Daniel can use:
+
+```text
+http://macbook-air-von-daniel.taila0b671.ts.net:5173/
+```
+
+For longer phone-testing sessions, run the server and web process in a named
+`tmux` session such as `azurite-phone-slice6`. Use `/opt/homebrew/bin/pnpm` so
+the repo runs through the Node 26 toolchain, not Codex's bundled Node 24 pnpm
+wrapper.
+
+## Mobile Session Resilience
+
+Mobile browser testing on July 8, 2026 showed that Android Chrome and Edge can
+reload the Azurite tab while Daniel switches away to another app. The current
+frontend then starts from the first sorted note again because selected-note
+state and draft editor state are only held in React memory.
+
+This is a near-term product requirement, not a cosmetic issue. The mobile app
+must recover from browser reloads, tab discard, app switching, and reconnects in
+a way that preserves user intent.
+
+Implementation direction:
+
+- Persist the selected note ID outside React memory. A URL query parameter or
+  hash is preferred because it makes reloads, sharing, and browser history
+  explicit.
+- Restore the selected note after reload when the note still exists.
+- If the selected note no longer exists, show a clear missing-note state instead
+  of silently jumping to the first note.
+- Add browser storage for unsaved draft recovery before relying on mobile
+  editing for real notes.
+- Scope recovered drafts by workspace/cluster identity and note ID so drafts do
+  not leak across clusters or files.
+- Treat recovered drafts as unsaved UI state, not canonical content. Saving must
+  still go through the Slice 5 content-hash conflict guard.
+- If the file changed while the browser was asleep, show the conflict path
+  rather than overwriting disk content.
+
+Until this exists, mobile QA that requires leaving the browser can reload the
+page before a conflict or save attempt. That is expected current behavior and
+should be treated as evidence for this resilience slice, not as proof that the
+save route failed.
+
 ## Frontend And Commercial Optionality
 
 React plus Vite is the initial app-shell choice because it keeps the local PWA

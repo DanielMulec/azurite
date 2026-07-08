@@ -376,13 +376,23 @@ Verify:
 
 ## Follow-Up Slices
 
-Slice 6 should add new markdown note creation.
+Slice 6 should add the client persistence and navigation foundation described
+in `docs/slices/slice-6-client-persistence-and-navigation-foundation.md`.
+
+Phone QA after Slice 5 showed Android Chrome and Edge can reload Azurite when
+Daniel switches apps, which loses the selected note and unsaved draft because
+both currently live only in React memory. The fix should establish URL-owned
+selected-note navigation, durable browser draft persistence, live client state,
+and recovered conflict behavior while still saving through the Slice 5
+content-hash conflict guard.
+
+Slice 7 should add new markdown note creation.
 
 It should decide the first creation location, filename validation, duplicate
-filename handling, title behavior, optional folder creation, list refresh, and
-auto-selection after creation.
+filename handling, title behavior, optional folder creation, list refresh, URL
+update, draft initialization, and auto-selection after creation.
 
-Slice 7 should add recoverable delete or move-to-trash behavior.
+Slice 8 should add recoverable delete or move-to-trash behavior.
 
 It should decide whether deletion moves notes to a local trash area, the user's
 system trash, or a workspace-local recovery folder. It should not introduce
