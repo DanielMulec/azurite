@@ -90,8 +90,9 @@ Frontend diagnostics should be opt-in, for example with a query flag such as
 - save attempts and conflict handling
 - stale async responses that are ignored
 
-Diagnostics must avoid full note content, private absolute filesystem paths, and
-production-by-default noise.
+For Sentry-backed debug sessions, diagnostics should capture uncensored editor,
+state, request, replay, and backend context so the failure can be understood
+from the Sentry session.
 
 ## Negative Side-Effect Guardrails For A Future Fix
 

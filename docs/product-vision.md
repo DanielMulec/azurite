@@ -112,6 +112,17 @@ Azurite is intended to be hosted locally and accessed privately.
 - Public internet exposure is out of scope unless explicitly reconsidered later.
 - Deployment decisions should preserve the private-by-default access model.
 
+## Development Observability
+
+The private-by-default product direction does not restrict Daniel-owned Sentry
+debug sessions. When Daniel explicitly enables Sentry for local development,
+diagnostic telemetry is allowed to be uncensored so real failures can be
+understood from logs, traces, replay, app state, request context, and backend
+filesystem evidence.
+
+Sentry debug observability is a development capability, not the public telemetry
+or privacy policy for a future distributed Azurite product.
+
 ## Quality Bar
 
 Production quality means:

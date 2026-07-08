@@ -61,7 +61,8 @@ runtime.
   note-operation breadcrumbs.
 - Propagate trace context across frontend `/api/*` calls into the backend where
   Sentry supports it.
-- Establish shared event names and safe attributes for Azurite observability.
+- Establish shared event names and rich diagnostic attributes for Azurite
+  observability.
 - Keep Azurite fully functional when Sentry env vars are missing.
 
 ## Non-Goals
@@ -71,7 +72,6 @@ runtime.
   indexing surfaces that do not exist yet.
 - Creating a public production telemetry policy.
 - Creating a custom in-app log viewer.
-- Uploading real note markdown content to Sentry.
 - Persisting observability events as Azurite product state.
 - Replacing existing Fastify logs with Sentry.
 - Adding payment information, paid Sentry features, or billing-dependent
@@ -123,7 +123,7 @@ Server:
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
 
-Safe examples belong in committed example env docs. Real DSNs, auth tokens, and
+Example values belong in committed environment docs. Real DSNs, auth tokens, and
 project credentials must stay out of Git.
 
 ### Source Maps And Release Metadata
@@ -146,8 +146,9 @@ Expected modules:
 - server Azurite breadcrumb/log helpers
 - shared event-name constants if both sides use the same vocabulary
 
-Instrumentation sends safe metadata only. It must not own product decisions,
-editor state, draft state, or save behavior.
+Sentry debug mode is intentionally uncensored. Instrumentation may send rich
+diagnostic context when Sentry is explicitly enabled, but it must not own
+product decisions, editor state, draft state, or save behavior.
 
 ## Implementation Plan
 
@@ -173,7 +174,7 @@ Add a Sentry Vite/source-map package only when the implementation uses it for
 release/source-map support. If it is added, document that it is a build-time
 observability dependency, not product runtime state.
 
-### 3. Add Safe Environment Documentation
+### 3. Add Environment Documentation
 
 Add committed environment examples without secrets.
 
@@ -219,7 +220,7 @@ Server requirements:
 
 ### 6. Add Frontend Semantic Observability
 
-Add safe breadcrumbs/logs for the current editor workflow.
+Add rich breadcrumbs/logs for the current editor workflow.
 
 Frontend events:
 
@@ -248,29 +249,26 @@ Frontend events:
 - `recovery.draft.visible`
 - `recovery.degraded.visible`
 
-Safe frontend attributes:
+Frontend diagnostic attributes may include:
 
 - note ID
-- note ID hash when lower-cardinality grouping is needed
+- full markdown content
+- selected text and editor context
 - editor mode
 - editor status
-- markdown length
+- markdown length and full markdown snapshots
 - content hash values already used by the save API
 - draft presence booleans
+- full IndexedDB draft payloads
+- Zustand state snapshots
+- Milkdown/ProseMirror transaction context where available
 - request IDs or editor session IDs
 - route source such as direct URL, list click, browser history, or fallback
-
-Unsafe frontend attributes:
-
-- full markdown content
-- selected text
-- clipboard content
-- private absolute paths
-- raw IndexedDB draft payloads
+- request and response payload context
 
 ### 7. Add Backend Semantic Observability
 
-Add safe breadcrumbs/logs for note and cluster operations.
+Add rich breadcrumbs/logs for note and cluster operations.
 
 Backend events:
 
@@ -292,24 +290,20 @@ Backend events:
 - `security.note_id.rejected`
 - `filesystem.boundary.rejected`
 
-Safe backend attributes:
+Backend diagnostic attributes may include:
 
 - note ID
-- note ID hash when lower-cardinality grouping is needed
 - workspace/cluster ID
+- resolved local filesystem paths
 - operation duration
 - result status
 - API error code
 - HTTP method and route pattern
 - content hash values already returned by the API
-
-Unsafe backend attributes:
-
-- full markdown content
-- absolute filesystem paths
-- raw user home directory paths
-- temporary file paths
-- stack-local data that contains note text
+- request and response payload context
+- filesystem error details
+- stack traces and local temporary file paths
+- full markdown content when it helps diagnose read/write behavior
 
 ### 8. Add Deliberate Test Events
 
@@ -338,17 +332,12 @@ Required QA:
 - the Milkdown block-menu reproduction attempt creates replay and editor
   breadcrumbs useful enough to guide the follow-up fix slice
 
-## Negative Side-Effect Guardrails
+## Runtime Requirements
 
 This slice must preserve existing product behavior while adding observability.
 
-Guardrails:
-
 - Azurite must run normally with no Sentry env vars.
 - No real DSNs, Sentry auth tokens, or organization credentials are committed.
-- No full markdown content is sent to Sentry through events, logs,
-  breadcrumbs, tags, context, replay metadata, or backend error payloads.
-- No absolute private filesystem paths are sent to Sentry.
 - Existing note loading behavior must not change.
 - Existing URL-owned navigation and browser history behavior must not change.
 - Existing manual save and content-hash conflict behavior must not change.
@@ -361,10 +350,11 @@ Guardrails:
   frontend can proxy API requests for Tailscale/phone QA.
 - Sentry instrumentation must not introduce a new source of truth for editor,
   draft, route, save, cluster, or note state.
-- Session Replay must be configured so it is useful for editor QA while avoiding
-  deliberate custom capture of note content.
+- Session Replay must be configured so it is useful for editor QA.
 - Telemetry volume must be controlled enough that normal editing remains usable
   and Sentry remains inspectable.
+- Telemetry should be complete enough to debug real failures across the
+  browser, editor, client state, IndexedDB, API, Fastify, and filesystem path.
 
 ## Verification Plan
 
@@ -380,8 +370,8 @@ Run targeted automated tests for:
 - Sentry-enabled web initialization with mocked SDK calls
 - Sentry-disabled server initialization
 - Sentry-enabled server initialization with mocked SDK calls
-- frontend breadcrumb helpers redacting unsafe fields
-- backend breadcrumb/log helpers redacting unsafe fields
+- frontend observability helpers preserving rich diagnostic payloads
+- backend observability helpers preserving rich diagnostic payloads
 - existing route, draft, save, conflict, and recovery tests
 
 Run manual/browser QA:
@@ -411,7 +401,7 @@ Run manual/browser QA:
 - The Milkdown block-menu bug report can be investigated with Sentry evidence
   instead of only terminal logs.
 - Sentry-disabled Azurite behaves the same as before this slice.
-- All negative side-effect guardrails remain true.
+- All runtime requirements remain true.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
@@ -425,5 +415,3 @@ Run manual/browser QA:
   only release naming plus local source maps until production-like builds exist?
 - Should Session Replay run for every enabled development session, or only when
   an explicit debug flag is present?
-- Which note identifiers should be sent as raw note IDs, and where should we
-  prefer hashes to reduce private-path exposure and event cardinality?

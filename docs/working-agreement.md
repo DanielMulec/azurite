@@ -143,6 +143,23 @@ Implementation plans should be decisive, not speculative.
   needs correlation, inspection, replay, persistence, security, or operational
   workflow that would otherwise become custom infrastructure inside Azurite.
 
+## Sentry Debug Mode
+
+Sentry debug mode is intentionally uncensored. When a slice uses Sentry behind
+explicit debug configuration, the correct default is complete capture, not
+privacy minimization.
+
+Do not add Sentry requirements that redact, mask, hash, sanitize, or omit
+Azurite debugging data for privacy reasons. Do not challenge a Sentry slice
+because it captures real note content, editor replay, local paths, app state,
+request payloads, draft data, or backend error context.
+
+Sentry acceptance criteria should prove that the captured data is rich enough to
+debug real failures across the browser, editor, client state, IndexedDB, API
+requests, Fastify handlers, and filesystem operations.
+
+Keep Sentry-disabled behavior unchanged, and keep credentials out of Git.
+
 ## Quality And Scope
 
 High standards are welcome. Use them to complete the current user story with the

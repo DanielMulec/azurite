@@ -1139,20 +1139,20 @@ should never be treated as the only sources to consult.
   correlated error/debugging telemetry for Azurite.
 - Notes: Sentry JavaScript logs support structured attributes, log levels, and a
   console logging integration when logs are enabled.
-- Caveats: Hosted Sentry sends telemetry off-device. Azurite diagnostics must
-  avoid note content, private paths, and production-by-default logging.
+- Caveats: For Daniel-owned Sentry debug mode, logs should be uncensored and
+  diagnostically complete. Do not treat note content, local paths, editor state,
+  or request context as data to redact from Sentry debug telemetry.
 
-### Sentry JavaScript Session Replay Privacy
+### Sentry JavaScript Session Replay
 
 - URL: https://docs.sentry.io/platforms/javascript/session-replay/privacy/
 - Accessed: 2026-07-08
-- Area: Frontend observability and privacy
-- Use when: Evaluating whether browser session replay is acceptable for editor
-  debugging.
+- Area: Frontend observability
+- Use when: Evaluating browser session replay for editor debugging.
 - Notes: Sentry documents default text/input masking and media blocking for
   replay data before upload.
-- Caveats: Masking must be explicitly verified against Azurite's editor DOM
-  before any hosted replay tool is used with real notes.
+- Caveats: For Azurite debug sessions, replay should favor full editor-debugging
+  fidelity over masking. Verify replay usefulness, not privacy minimization.
 
 ### Sentry Pricing
 
@@ -1171,8 +1171,8 @@ should never be treated as the only sources to consult.
 - URL: https://develop.sentry.dev/self-hosted/
 - Accessed: 2026-07-08
 - Area: Self-hosted observability
-- Use when: Comparing hosted Sentry with self-hosted Sentry for private local
-  product diagnostics.
+- Use when: Comparing hosted Sentry with self-hosted Sentry for development
+  observability operations.
 - Notes: Sentry documents self-hosted deployment and source availability.
 - Caveats: Self-hosted Sentry is operationally heavier than Azurite's current
   development needs and uses Sentry's source-available licensing model.
@@ -1197,8 +1197,8 @@ should never be treated as the only sources to consult.
   local Node/Fastify runtime.
 - Notes: Sentry supports structured logs with attributes that can be queried and
   correlated with errors and traces.
-- Caveats: Logs must redact markdown content and absolute filesystem paths, and
-  must not replace the existing local Fastify logging behavior.
+- Caveats: Backend Sentry logs should capture complete debugging context when
+  Sentry debug mode is enabled. Keep local Fastify logging behavior intact.
 
 ### Zustand Devtools Middleware
 
@@ -1209,8 +1209,8 @@ should never be treated as the only sources to consult.
   during editor persistence QA.
 - Notes: Zustand can connect to the Redux DevTools extension, name stores, log
   action types, and disable devtools through configuration.
-- Caveats: Store snapshots can expose note IDs or editor state. Enable only for
-  explicit debug sessions and avoid logging full markdown content.
+- Caveats: For explicit debug sessions, Zustand state capture may include full
+  editor and draft state when that helps diagnose behavior.
 
 ### Dexie Debug And DBCore
 
@@ -1246,20 +1246,20 @@ should never be treated as the only sources to consult.
   network activity, and console evidence.
 - Notes: Playwright traces support visual step-by-step debugging, and
   Playwright's console event API can capture frontend console output.
-- Caveats: Trace artifacts can contain sensitive app state. Keep traces local
-  for real-note QA unless explicitly sanitized.
+- Caveats: Trace artifacts from Daniel-owned QA may contain real app state; that
+  is acceptable when the trace is created for debugging.
 
 ### OpenReplay Session Replay
 
 - URL: https://docs.openreplay.com/en/home/
 - Accessed: 2026-07-08
 - Area: Self-hosted session replay
-- Use when: Evaluating self-hosted replay tooling that keeps browser debugging
-  data under local or controlled infrastructure.
+- Use when: Evaluating a self-hosted replay alternative for browser debugging.
 - Notes: OpenReplay documents an open-source, self-hosted session replay stack
   with tracker SDK setup and plugins.
 - Caveats: A full replay stack is heavier than a focused editor diagnostics
-  slice. Privacy configuration still needs real-note verification.
+  slice. This source is only relevant if Sentry stops satisfying Azurite's
+  debugging needs.
 
 ### OpenReplay Zustand Plugin
 
@@ -1270,8 +1270,8 @@ should never be treated as the only sources to consult.
   Azurite diagnostics.
 - Notes: OpenReplay's Zustand plugin captures mutations and state for replay
   sessions and supports filters/transformers.
-- Caveats: State capture can leak private editor data if not aggressively
-  transformed. Azurite should not send raw note content to replay tooling.
+- Caveats: This source is only relevant if Azurite evaluates an OpenReplay
+  alternative to Sentry's uncensored debug telemetry.
 
 ### rrweb
 
@@ -1282,5 +1282,5 @@ should never be treated as the only sources to consult.
   hosted observability product.
 - Notes: rrweb records and replays DOM state changes and user interactions, and
   underpins several replay products.
-- Caveats: Raw replay capture is powerful but privacy-sensitive and requires
-  storage, masking, export, and review tooling to be useful.
+- Caveats: Raw replay capture requires storage, export, and review tooling to be
+  useful, so it is heavier than using Sentry for the current debug workflow.

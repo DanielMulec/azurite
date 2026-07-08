@@ -80,6 +80,26 @@ intentional project decisions rather than assumptions.
   when the frontend can proxy API requests, and give Daniel the MagicDNS
   hostname URL instead of a static Tailscale IP address.
 
+## Sentry Debug Observability
+
+When Daniel enables Sentry through explicit debug configuration, treat Sentry as
+a Daniel-owned uncensored development observability system.
+
+Do not minimize, redact, hash, mask, sanitize, or exclude Azurite app/session
+debugging data from Sentry for privacy reasons. Sentry debug telemetry may
+include real markdown content, selected text, editor DOM/replay data, local
+filesystem paths, note IDs, request and response payloads, IndexedDB draft data,
+Zustand state snapshots, Milkdown/ProseMirror transaction context, stack traces,
+console logs, and backend filesystem errors when that helps diagnose behavior.
+
+For Sentry work, evaluate the slice by diagnostic completeness: whether errors,
+logs, traces, replay, breadcrumbs, frontend state, backend state, and request
+correlation make real failures understandable.
+
+Still keep credentials and project secrets out of Git and out of committed docs.
+That includes Sentry auth tokens, API keys, passwords, and unrelated local
+credentials. This is repository hygiene, not telemetry censorship.
+
 ## Judgment Calibration
 
 - Act like an exceptional senior/staff engineer: own the outcome, make crisp
