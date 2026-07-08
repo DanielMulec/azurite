@@ -67,6 +67,9 @@ Implementation requirements:
   editor session key or a dedicated editor revision.
 - If Daniel keeps typing while Save is in flight, the returning save response
   must not replace the newer markdown.
+- A successful stale save response should advance the saved baseline and content
+  hash from the server response without replacing the newer current markdown,
+  leaving the editor dirty against the new baseline.
 - A save response for an older editor snapshot must not delete the newer durable
   draft.
 - A save failure for an older editor snapshot must not mark the newer editor
@@ -144,6 +147,35 @@ Required tests:
   edit failed.
 - A save conflict persists the latest current draft for the selected note.
 
+## Negative Side-Effect Guardrails
+
+These fixes must preserve existing Slice 5 and Slice 6 behavior while closing
+the identified gaps.
+
+Implementation requirements:
+
+- Preserve the Slice 5 manual save contract: every disk write still sends
+  `expectedContentHash`, and runtime disk conflicts still return to the existing
+  conflict recovery path.
+- Preserve note-switch draft flushing while changing URL push behavior.
+- Preserve desktop and mobile reload recovery for selected notes, unsaved
+  drafts, recovered conflicts, and missing-note drafts.
+- Preserve unknown future draft schema versions. Validation hardening must not
+  delete records created by a newer Azurite build.
+- Do not delete existing valid current-version drafts when adding shared
+  note-ID validation.
+- Invalid `?note=` values must not create Dexie records, expose absolute paths,
+  or become missing-note draft keys.
+- Successful stale save responses must advance the saved baseline and content
+  hash without replacing newer current markdown or clearing the newer durable
+  draft.
+- Ignored stale save, read, or route responses must not leave the app in a fake
+  conflict, failed-save, or loading state.
+- Moving the degraded recovery banner must not duplicate the banner in ready
+  editor state.
+- Router changes must preserve browser back/forward behavior after startup
+  replace and user-selection push.
+
 ## Verification Plan
 
 Run the full repository validation:
@@ -169,6 +201,8 @@ is complete.
 
 - No stale save response can overwrite newer same-note edits.
 - No stale save response can delete a newer durable draft.
+- Successful stale save responses advance the saved baseline and content hash
+  without replacing newer current markdown.
 - Save failure and save conflict paths are guarded against newer same-note
   editor state.
 - Rapid note clicks cannot desynchronize the URL from the selected note.
@@ -179,5 +213,8 @@ is complete.
 - Router/history behavior has automated coverage for replace, push,
   back/forward, stale route, and stale selection cases.
 - Save-race behavior has automated regression coverage.
+- Existing manual save, conflict recovery, note-switch draft flushing, reload
+  recovery, missing-note draft recovery, and future draft schema preservation
+  still pass.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
