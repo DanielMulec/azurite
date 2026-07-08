@@ -45,7 +45,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("App routing hardening", () => {
+describe("App rapid note selection routing", () => {
   it("does not push a stale URL after rapid note selection", async () => {
     const deferredProject = createDeferredResponse();
     stubJsonFetch({
@@ -93,7 +93,9 @@ describe("App routing hardening", () => {
       "Projects/azurite.md",
     );
   });
+});
 
+describe("App browser history routing", () => {
   it("updates the selected note when browser history moves backward", async () => {
     window.history.replaceState({}, "", "/?note=index.md");
     stubJsonFetch({

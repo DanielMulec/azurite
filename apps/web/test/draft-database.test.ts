@@ -72,7 +72,9 @@ describe("draft database current records", () => {
     });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
+});
 
+describe("draft database note ID validation", () => {
   it("rejects and clears current-version records with unsafe note IDs", async () => {
     const { database, persistence } = createTestPersistence();
     const unsafeNoteId = "../secret.md";

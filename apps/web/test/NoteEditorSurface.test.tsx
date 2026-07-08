@@ -91,12 +91,16 @@ function renderSurface(
       }
       noteState={noteState}
       onDiscardDraftAndReloadDiskVersion={() => Promise.resolve()}
-      onDiscardMissingDraft={
-        options.onDiscardMissingDraft ?? vi.fn(() => Promise.resolve())
-      }
+      onDiscardMissingDraft={getDiscardMissingDraftAction(options)}
       onEditorModeChange={() => {}}
       onMarkdownChange={() => {}}
       onSaveNote={() => Promise.resolve()}
     />,
   );
+}
+
+function getDiscardMissingDraftAction(options: {
+  readonly onDiscardMissingDraft?: () => Promise<void>;
+}): () => Promise<void> {
+  return options.onDiscardMissingDraft ?? vi.fn(() => Promise.resolve());
 }

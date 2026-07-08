@@ -18,7 +18,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("note browser store save race hardening", () => {
+describe("note browser store stale save success hardening", () => {
   it("keeps newer same-note edits dirty after an older save succeeds", async () => {
     const drafts = createMemoryDraftPersistence();
     const saveResponse =
@@ -63,7 +63,9 @@ describe("note browser store save race hardening", () => {
       markdown: "# Home\nNewer edit",
     });
   });
+});
 
+describe("note browser store stale save failure hardening", () => {
   it("does not mark newer same-note edits failed after an older save fails", async () => {
     const drafts = createMemoryDraftPersistence();
     const saveFailure =
@@ -95,7 +97,9 @@ describe("note browser store save race hardening", () => {
       markdown: "# Home\nStill typing",
     });
   });
+});
 
+describe("note browser store stale save conflict hardening", () => {
   it("persists the latest current draft when an older save conflicts", async () => {
     const drafts = createMemoryDraftPersistence();
     const saveConflict =

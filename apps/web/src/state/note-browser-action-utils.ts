@@ -143,7 +143,9 @@ export function hasEditorPatchChange(
   editor: EditorSession,
   patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
 ): boolean {
-  return hasMarkdownPatchChange(editor, patch) || hasModePatchChange(editor, patch);
+  return (
+    hasMarkdownPatchChange(editor, patch) || hasModePatchChange(editor, patch)
+  );
 }
 
 function hasMarkdownPatchChange(
@@ -160,7 +162,9 @@ function hasModePatchChange(
   editor: EditorSession,
   patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
 ): boolean {
-  return patch.editorMode !== undefined && patch.editorMode !== editor.editorMode;
+  return (
+    patch.editorMode !== undefined && patch.editorMode !== editor.editorMode
+  );
 }
 
 /** Marks durable browser draft recovery as degraded for a visible reason. */

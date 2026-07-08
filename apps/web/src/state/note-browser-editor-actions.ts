@@ -50,26 +50,16 @@ function patchCurrentEditorState(
     return state;
   }
 
-  return patchReadyEditorState(state, patch);
+  return createReadyEditorStatePatch(state.noteState.editor, patch) ?? state;
 }
 
-function patchReadyEditorState(
-  state: Extract<NoteBrowserStore, { readonly noteState: unknown }>,
+function createReadyEditorStatePatch(
+  editor: EditorSession,
   patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
 ) {
-  const noteState = state.noteState;
-
-  if (noteState.status !== "ready") {
-    return state;
-  }
-
-  const editor = noteState.editor;
-
   if (!hasEditorPatchChange(editor, patch)) {
-    return state;
+    return undefined;
   }
-
-  const saveStatus = editor.saveStatus === "conflict" ? "conflict" : "idle";
 
   return {
     noteState: {
@@ -77,11 +67,17 @@ function patchReadyEditorState(
         ...editor,
         ...patch,
         revision: editor.revision + 1,
-        saveStatus,
+        saveStatus: getNextPatchSaveStatus(editor),
       },
-      status: "ready",
+      status: "ready" as const,
     },
   };
+}
+
+function getNextPatchSaveStatus(
+  editor: EditorSession,
+): EditorSession["saveStatus"] {
+  return editor.saveStatus === "conflict" ? "conflict" : "idle";
 }
 
 /** Persists or clears the current ready editor draft in IndexedDB. */
