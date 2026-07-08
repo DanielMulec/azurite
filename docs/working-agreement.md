@@ -1,10 +1,16 @@
 # Working Agreement
 
-## High-Fidelity Tiny Increments
+## High-Fidelity Product Slices
 
-Azurite should be built in small, high-quality increments. The goal is not to
-move fast by lowering fidelity. The goal is to keep each task small enough that
-it can be researched, implemented, reviewed, and verified properly.
+Azurite should be built in coherent, high-quality product and engineering
+slices. A slice is a delivery unit that lets the user do something new, do an
+existing thing meaningfully better, or removes a meaningful blocker, risk, or
+architectural limitation.
+
+A good slice can be reviewed and verified, but its boundary is defined by the
+user story, engineering outcome, or product capability it completes.
+Reviewability shapes execution; it does not shrink the slice below the natural
+workflow boundary.
 
 When a feature touches behavior inspired by Obsidian, Notion, markdown tools,
 LSPs, PWAs, or security-sensitive local hosting, fidelity matters. Research
@@ -17,7 +23,7 @@ Research should be scoped, not rushed.
 
 - Do not time-box research in a way that risks shallow or inaccurate behavior.
 - Do not expand one feature into a broad research phase for the entire product.
-- Research the smallest useful behavior deeply enough to make a strong
+- Research the selected delivery unit deeply enough to make a strong
   implementation decision.
 - Convert research into one or more concrete outputs: code, tests, a short
   decision note, a source entry, or a clearly documented follow-up.
@@ -26,18 +32,24 @@ Research should be scoped, not rushed.
 
 ## Slice Selection
 
-Prefer slices that produce visible or testable product progress.
+Prefer slices that produce visible, testable, or enabling product progress.
 
-Good slices are narrow and concrete, for example:
+A slice should complete at least one real user story or product capability. Some
+slices are user-facing features; others are refactors, foundations, tooling, or
+quality improvements that unlock user-facing work or remove current product
+pain.
 
-- Detect and index one markdown link format correctly.
-- Render one supported markdown structure in the frontend.
-- Save one edited markdown note without losing formatting.
-- Show backlinks for one note from a rebuildable index.
-- Bind the local server in a way that supports private Tailscale access.
+A slice may span any product layer required to complete the user story honestly:
+frontend UI, client state, URL state, browser storage, IndexedDB, backend
+routes, shared contracts, filesystem behavior, databases, tests, documentation,
+tooling, and development workflow.
 
-Avoid slices that quietly turn into broad platform research before a working
-behavior exists.
+Do not split a slice just because part of it can be implemented separately.
+Split only when each side is a stable, useful delivery unit.
+
+A slice is too small when it proves an implementation detail but leaves the user
+story unfinished, knowingly preserves a broken workflow, or creates immediate
+follow-up work that is already required for the behavior to be usable.
 
 ## Implementation Plans
 
@@ -55,23 +67,24 @@ Implementation plans should be decisive, not speculative.
   it intentionally and test every supported context rather than creating a
   parallel near-copy.
 
-## Quality And Perfectionism
+## Quality And Scope
 
-High standards are welcome. Use them to make the current slice excellent rather
-than to continually widen the slice.
+High standards are welcome. Use them to complete the current user story with the
+architecture and verification it needs.
 
-Before expanding scope, ask whether the current behavior can be made complete,
-tested, and useful first. If the answer is yes, finish the slice and record the
-next improvement separately.
+If implementation reveals required work that belongs to the same user story,
+include it in the slice. If work belongs in a separate slice, explain the stable
+value boundary that makes the split healthy.
 
 ## Implementation Loop
 
 Use this loop for meaningful product work:
 
-1. Choose a small behavior or outcome.
-2. Research only the domain needed for that behavior, deeply enough to preserve
-   fidelity.
+1. Choose a coherent user story, product capability, refactor, foundation, or
+   quality improvement.
+2. Research only the domain needed for that delivery unit, deeply enough to
+   preserve fidelity.
 3. Record important sources, constraints, and decisions.
-4. Implement the slice.
+4. Implement the slice across every layer required to complete it honestly.
 5. Verify it with tests, manual checks, or a local demo.
-6. Summarize what changed and identify the next narrow slice.
+6. Summarize what changed and identify the next valuable delivery unit.

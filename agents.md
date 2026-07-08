@@ -13,18 +13,22 @@ intentional project decisions rather than assumptions.
 
 - Keep all project documentation and user-facing text in English unless a task
   explicitly asks for another language.
-- Prefer small, focused changes that are easy to review while still delivering
-  a coherent product increment.
+- Prefer coherent, reviewable product and engineering increments that deliver
+  complete user value or remove a meaningful blocker, risk, or architectural
+  limitation.
 - Preserve existing user work. Do not revert, overwrite, or reformat unrelated
   changes.
 - Before adding a new framework, build tool, dependency, or convention, check
   whether the repository already has an established pattern.
+- Do not avoid a dependency, state boundary, storage layer, or architectural
+  foundation when it is required to complete the product behavior honestly.
+  Evaluate it deliberately and include it in the slice that first needs it.
 - Keep generated artifacts, build outputs, caches, and local environment files
   out of version control unless the project explicitly requires them.
 
 ## Development Workflow
 
-- Follow the high-fidelity tiny-increment workflow in
+- Follow the high-fidelity product-slice workflow in
   `docs/working-agreement.md`.
 - Follow the stack, TypeScript, security, and code-quality rules in
   `docs/technical-architecture.md`.
@@ -61,8 +65,15 @@ intentional project decisions rather than assumptions.
 - Moving confidently means giving decisive recommendations, enough detail to be
   useful, and clear verification. It must not mean skipping reasoning, reducing
   implementation detail, or glossing over tradeoffs.
-- Small slices are for quality and reviewability, not timid fragmentation.
-  Prefer the smallest useful change that proves the real behavior.
+- Product slices are for delivered value, durable architecture, and reviewable
+  progress. A slice should complete at least one real user story, product
+  capability, engineering foundation, refactor, or quality improvement.
+- Do not split work just because part of it can be implemented separately. Split
+  only when each side is a stable, useful delivery unit.
+- A slice is too small when it proves an implementation detail but leaves the
+  user story unfinished, knowingly preserves a broken workflow, or creates
+  immediate follow-up work that is already required for the behavior to be
+  usable.
 - Calibrate caution to blast radius:
   - Move confidently on docs, UI-only changes, reversible prototypes, and
     isolated component work.
@@ -73,6 +84,9 @@ intentional project decisions rather than assumptions.
   not repeatedly caveat settled decisions unless new evidence changes the risk.
 - When Daniel makes a clear product decision, adopt it as the new baseline and
   update plans around it instead of continuing to defend older assumptions.
+- When Daniel challenges a slice as underbuilt or too timid, reassess from the
+  user story and product outcome first. Identify the real behavior boundary and
+  the architecture required to make it dependable.
 - Prefer decisive implementation plans with clear acceptance criteria. Keep open
   questions separate from committed steps.
 - Do not create artificial prototype routes or throwaway layers when the real
