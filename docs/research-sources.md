@@ -1177,6 +1177,29 @@ should never be treated as the only sources to consult.
 - Caveats: Self-hosted Sentry is operationally heavier than Azurite's current
   development needs and uses Sentry's source-available licensing model.
 
+### Sentry Fastify
+
+- URL: https://docs.sentry.io/platforms/javascript/guides/fastify/
+- Accessed: 2026-07-08
+- Area: Backend observability
+- Use when: Adding Sentry to Azurite's local Fastify API server.
+- Notes: Sentry documents an official Fastify setup path for capturing backend
+  errors and telemetry.
+- Caveats: Verify against Azurite's current Fastify version and existing error
+  response contracts before implementation.
+
+### Sentry Node Logs
+
+- URL: https://docs.sentry.io/platforms/javascript/guides/node/logs/
+- Accessed: 2026-07-08
+- Area: Backend structured logs
+- Use when: Sending searchable structured backend logs to Sentry from Azurite's
+  local Node/Fastify runtime.
+- Notes: Sentry supports structured logs with attributes that can be queried and
+  correlated with errors and traces.
+- Caveats: Logs must redact markdown content and absolute filesystem paths, and
+  must not replace the existing local Fastify logging behavior.
+
 ### Zustand Devtools Middleware
 
 - URL: https://github.com/pmndrs/zustand#redux-devtools
