@@ -35,7 +35,6 @@ type SelectedNoteRequest = {
 
 /** Loads note summaries and synchronizes the selected note from the URL. */
 export async function loadNotesAction(
-  routeNoteId: string | undefined,
   navigation: RouteNavigation,
   context: StoreContext,
 ): Promise<void> {
@@ -51,7 +50,11 @@ export async function loadNotesAction(
 
     applyClusterIdentity(response.clusterIdentity, context);
     context.set({ notesState: { data: response.notes, status: "ready" } });
-    await syncRouteNoteAction(routeNoteId, navigation, context);
+    await syncRouteNoteAction(
+      context.getLatestRouteNoteId(),
+      navigation,
+      context,
+    );
   } catch (error) {
     context.set({
       notesState: { message: getErrorMessage(error), status: "error" },

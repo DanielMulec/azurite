@@ -32,6 +32,7 @@ export function NoteEditorSurface({
 }: NoteEditorSurfaceProps): ReactElement {
   return (
     <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
+      <DraftRecoveryBanner draftRecoveryStatus={draftRecoveryStatus} />
       {renderNoteState({
         draftRecoveryStatus,
         noteState,
@@ -63,7 +64,6 @@ function renderNoteState(props: NoteEditorSurfaceProps): ReactElement {
 }
 
 function SelectedNote({
-  draftRecoveryStatus,
   editor,
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
@@ -86,7 +86,6 @@ function SelectedNote({
         </h2>
       </header>
       <SaveableNoteEditor
-        draftRecoveryStatus={draftRecoveryStatus}
         editor={editor}
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
         onEditorModeChange={onEditorModeChange}
@@ -94,6 +93,22 @@ function SelectedNote({
         onSaveNote={onSaveNote}
       />
     </article>
+  );
+}
+
+function DraftRecoveryBanner({
+  draftRecoveryStatus,
+}: {
+  readonly draftRecoveryStatus: DraftRecoveryStatus;
+}): ReactElement | null {
+  if (draftRecoveryStatus.status !== "degraded") {
+    return null;
+  }
+
+  return (
+    <p className="mx-auto mb-4 max-w-3xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      {draftRecoveryStatus.message}
+    </p>
   );
 }
 

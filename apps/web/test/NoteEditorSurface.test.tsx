@@ -13,6 +13,27 @@ afterEach(() => {
 });
 
 describe("NoteEditorSurface", () => {
+  it("shows degraded draft recovery outside the ready editor", () => {
+    renderSurface(
+      {
+        noteId: "deleted.md",
+        status: "missing",
+      },
+      {
+        draftRecoveryStatus: {
+          message: "Draft recovery is unavailable for this cluster.",
+          reason: "cluster_identity_unavailable",
+          status: "degraded",
+        },
+      },
+    );
+
+    expect(screen.getByText("Note not found")).toBeInTheDocument();
+    expect(
+      screen.getByText("Draft recovery is unavailable for this cluster."),
+    ).toBeInTheDocument();
+  });
+
   it("shows and protects a recovered draft for a missing note", () => {
     const onDiscardMissingDraft = vi.fn(() => Promise.resolve());
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -27,7 +48,7 @@ describe("NoteEditorSurface", () => {
         noteId: "deleted.md",
         status: "missing-draft",
       },
-      onDiscardMissingDraft,
+      { onDiscardMissingDraft },
     );
 
     expect(
@@ -56,14 +77,21 @@ describe("NoteEditorSurface", () => {
 
 function renderSurface(
   noteState: NoteViewState,
-  onDiscardMissingDraft = vi.fn(() => Promise.resolve()),
+  options: {
+    readonly draftRecoveryStatus?: Parameters<
+      typeof NoteEditorSurface
+    >[0]["draftRecoveryStatus"];
+    readonly onDiscardMissingDraft?: () => Promise<void>;
+  } = {},
 ): void {
   render(
     <NoteEditorSurface
-      draftRecoveryStatus={{ status: "available" }}
+      draftRecoveryStatus={options.draftRecoveryStatus ?? { status: "available" }}
       noteState={noteState}
       onDiscardDraftAndReloadDiskVersion={() => Promise.resolve()}
-      onDiscardMissingDraft={onDiscardMissingDraft}
+      onDiscardMissingDraft={
+        options.onDiscardMissingDraft ?? vi.fn(() => Promise.resolve())
+      }
       onEditorModeChange={() => {}}
       onMarkdownChange={() => {}}
       onSaveNote={() => Promise.resolve()}

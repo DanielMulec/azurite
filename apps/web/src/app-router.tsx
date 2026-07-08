@@ -4,6 +4,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
+import { noteIdSchema } from "@azurite/shared";
 import type { ReactElement } from "react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -36,7 +37,9 @@ export function parseAppSearch(search: Record<string, unknown>): AppSearch {
     return {};
   }
 
-  return { note: search.note };
+  const parsedNote = noteIdSchema.safeParse(search.note);
+
+  return parsedNote.success ? { note: parsedNote.data } : {};
 }
 
 type AzuriteRouter = ReturnType<typeof createAzuriteRouter>;

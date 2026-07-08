@@ -72,6 +72,30 @@ describe("draft database current records", () => {
     });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
+
+  it("rejects and clears current-version records with unsafe note IDs", async () => {
+    const { database, persistence } = createTestPersistence();
+    const unsafeNoteId = "../secret.md";
+    const draftId = createDraftRecordId(clusterId, unsafeNoteId);
+    await putRawDraft(database, {
+      baseContentHash: "sha256-base",
+      clusterId,
+      editorMode: "wysiwyg",
+      id: draftId,
+      markdown: "# Unsafe",
+      noteId: unsafeNoteId,
+      schemaVersion: 1,
+      updatedAt: "2026-07-08T10:00:00.000Z",
+    });
+
+    await expect(persistence.readDraft(clusterId, unsafeNoteId)).resolves.toEqual(
+      {
+        reason: "validation_failed",
+        status: "unavailable",
+      },
+    );
+    await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
+  });
 });
 
 describe("draft database future records", () => {

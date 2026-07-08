@@ -43,6 +43,7 @@ export type EditorSession = {
   readonly editorMode: EditorMode;
   readonly note: NoteContentWithHash;
   readonly recovery: DraftRecoveryKind;
+  readonly revision: number;
   readonly savedMarkdown: string;
   readonly saveStatus: SaveStatus;
   readonly sessionKey: string;

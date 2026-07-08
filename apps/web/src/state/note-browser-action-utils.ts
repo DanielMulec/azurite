@@ -52,6 +52,7 @@ export function createEditorSession(
     editorMode: getEditorMode(draft),
     note,
     recovery,
+    revision: 0,
     savedMarkdown: note.markdown,
     saveStatus: getInitialSaveStatus(recovery),
     sessionKey: context.nextEditorSessionKey(note.id, note.contentHash),
@@ -110,6 +111,43 @@ export function isSelectedNoteReady(
   noteState: NoteViewState,
 ): boolean {
   return noteState.status === "ready" && noteState.editor.note.id === noteId;
+}
+
+/** Returns the current ready editor for the requested note, if still active. */
+export function getCurrentEditorForNote(
+  noteId: string,
+  context: Pick<StoreContext, "get">,
+): EditorSession | undefined {
+  const noteState = context.get().noteState;
+
+  if (noteState.status !== "ready") {
+    return undefined;
+  }
+
+  return noteState.editor.note.id === noteId ? noteState.editor : undefined;
+}
+
+/** Returns whether a save response still targets the exact editor snapshot. */
+export function isSameSaveSnapshot(
+  currentEditor: EditorSession,
+  editor: EditorSession,
+): boolean {
+  return (
+    currentEditor.sessionKey === editor.sessionKey &&
+    currentEditor.revision === editor.revision
+  );
+}
+
+/** Returns whether an editor patch changes user-visible editor state. */
+export function hasEditorPatchChange(
+  editor: EditorSession,
+  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
+): boolean {
+  return (
+    (patch.currentMarkdown !== undefined &&
+      patch.currentMarkdown !== editor.currentMarkdown) ||
+    (patch.editorMode !== undefined && patch.editorMode !== editor.editorMode)
+  );
 }
 
 /** Marks durable browser draft recovery as degraded for a visible reason. */

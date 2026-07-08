@@ -7,6 +7,7 @@ import {
   noteContentSchema,
   noteContentWithHashSchema,
   noteIdInputSchema,
+  noteIdSchema,
   noteSummarySchema,
   readNoteResponseSchema,
   saveNoteInputSchema,
@@ -74,6 +75,12 @@ describe("noteSummarySchema", () => {
 });
 
 describe("noteIdInputSchema", () => {
+  it("reuses the shared safe note ID schema", () => {
+    expect(noteIdSchema.parse("Projects/azurite.md")).toBe(
+      "Projects/azurite.md",
+    );
+  });
+
   it("accepts relative markdown note IDs", () => {
     expect(noteIdInputSchema.parse({ noteId: "index.md" })).toEqual({
       noteId: "index.md",

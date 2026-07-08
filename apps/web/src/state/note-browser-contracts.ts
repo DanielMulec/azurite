@@ -46,6 +46,7 @@ export type StoreContext = {
   readonly api: NoteBrowserApi;
   readonly draftPersistence: DraftPersistence;
   readonly get: () => NoteBrowserStore;
+  readonly getLatestRouteNoteId: () => string | undefined;
   readonly isCurrentNoteRequest: (requestId: number, noteId: string) => boolean;
   readonly isCurrentNotesRequest: (requestId: number) => boolean;
   readonly nextEditorSessionKey: (

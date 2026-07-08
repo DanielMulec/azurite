@@ -33,9 +33,12 @@ export const workspacePathInputSchema = z.object({
 /** TypeScript view of a workspace path API input payload. */
 export type WorkspacePathInput = z.infer<typeof workspacePathInputSchema>;
 
+/** Runtime contract for one safe workspace-relative markdown note ID. */
+export const noteIdSchema = z.string().min(1).refine(isValidNoteId);
+
 /** API input for reading one markdown note by workspace-relative ID. */
 export const noteIdInputSchema = z.object({
-  noteId: z.string().min(1).refine(isValidNoteId),
+  noteId: noteIdSchema,
 });
 
 /** TypeScript view of a note-content API input payload. */
@@ -92,7 +95,7 @@ export type ReadNoteResponse = z.infer<typeof readNoteResponseSchema>;
 export const saveNoteInputSchema = z.object({
   expectedContentHash: z.string().min(1),
   markdown: z.string(),
-  noteId: z.string().min(1).refine(isValidNoteId),
+  noteId: noteIdSchema,
 });
 
 /** TypeScript view of a save-note request payload. */

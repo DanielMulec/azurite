@@ -39,6 +39,7 @@ type NoteBrowserRuntime = {
   readonly draftWriteDelayMs: number;
   editorSessionVersion: number;
   hasPendingDraftWrite: boolean;
+  latestRouteNoteId: string | undefined;
   noteRequestId: number;
   notesRequestId: number;
   pendingDraftTimer: ReturnType<typeof setTimeout> | undefined;
@@ -71,6 +72,7 @@ function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
     draftWriteDelayMs: getDraftWriteDelayMs(options),
     editorSessionVersion: 0,
     hasPendingDraftWrite: false,
+    latestRouteNoteId: undefined,
     noteRequestId: 0,
     notesRequestId: 0,
     pendingDraftTimer: undefined,
@@ -92,7 +94,7 @@ function createInitialState(
     draftRecoveryStatus: { status: "available" },
     flushPendingDraft: () => flushPendingDraft(runtime),
     loadNotes: (routeNoteId, navigation) =>
-      loadNotesAction(routeNoteId, navigation, runtime.context),
+      loadNotes(routeNoteId, navigation, runtime),
     noteState: { status: "idle" },
     notesState: { status: "idle" },
     saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
@@ -132,6 +134,7 @@ function configureContext(
     api: runtime.api,
     draftPersistence: runtime.draftPersistence,
     get,
+    getLatestRouteNoteId: () => runtime.latestRouteNoteId,
     isCurrentNoteRequest: (requestId: number, noteId: string) =>
       requestId === runtime.noteRequestId && get().selectedNoteId === noteId,
     isCurrentNotesRequest: (requestId: number) =>
@@ -142,6 +145,15 @@ function configureContext(
     nextNotesRequestId: () => incrementNotesRequest(runtime),
     set,
   } satisfies StoreContext);
+}
+
+async function loadNotes(
+  routeNoteId: string | undefined,
+  navigation: Parameters<NoteBrowserStore["loadNotes"]>[1],
+  runtime: NoteBrowserRuntime,
+): Promise<void> {
+  setLatestRouteNoteId(routeNoteId, runtime);
+  await loadNotesAction(navigation, runtime.context);
 }
 
 async function flushPendingDraft(runtime: NoteBrowserRuntime): Promise<void> {
@@ -176,8 +188,16 @@ async function flushThenSyncRouteNote(
   navigation: Parameters<NoteBrowserStore["syncRouteNote"]>[1],
   runtime: NoteBrowserRuntime,
 ): Promise<void> {
+  setLatestRouteNoteId(routeNoteId, runtime);
   await flushPendingDraft(runtime);
   await syncRouteNoteAction(routeNoteId, navigation, runtime.context);
+}
+
+function setLatestRouteNoteId(
+  routeNoteId: string | undefined,
+  runtime: NoteBrowserRuntime,
+): void {
+  runtime.latestRouteNoteId = routeNoteId;
 }
 
 function updateDraftMarkdown(

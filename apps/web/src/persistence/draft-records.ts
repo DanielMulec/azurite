@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { noteIdSchema } from "@azurite/shared";
 
 /** Current browser draft schema version stored in IndexedDB. */
 export const draftSchemaVersion = 1;
@@ -13,7 +14,7 @@ export const draftRecordSchema = z.object({
   editorMode: editorModeSchema,
   id: z.string().min(1),
   markdown: z.string(),
-  noteId: z.string().min(1),
+  noteId: noteIdSchema,
   schemaVersion: z.literal(draftSchemaVersion),
   updatedAt: z.iso.datetime(),
 });

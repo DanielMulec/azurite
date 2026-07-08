@@ -55,7 +55,11 @@ export function useNoteBrowser({
   const [store] = useState(createNoteBrowserStore);
   const routeNavigation = useRouteNavigation(navigation);
   const selectors = useNoteBrowserSelectors(store);
-  const selectNote = usePushSelectingNote(navigation, selectors);
+  const selectNote = usePushSelectingNote(
+    navigation,
+    store,
+    selectors.selectNoteInStore,
+  );
   const routeEffectInput = useMemo(
     () => ({
       routeNavigation,
@@ -156,16 +160,24 @@ function useDraftLifecycleFlush(store: NoteBrowserStoreApi): void {
 
 function usePushSelectingNote(
   navigation: NoteBrowserNavigation,
-  selectors: NoteBrowserSelectors,
+  store: NoteBrowserStoreApi,
+  selectNoteInStore: NoteBrowserStore["selectNote"],
 ): (noteId: string) => void {
   return useCallback(
     (noteId: string) => {
-      void selectors.selectNoteInStore(noteId).then(() => {
-        if (noteId !== selectors.selectedNoteId) {
+      const previousSelectedNoteId = store.getState().selectedNoteId;
+
+      void selectNoteInStore(noteId).then(() => {
+        const currentSelectedNoteId = store.getState().selectedNoteId;
+
+        if (
+          currentSelectedNoteId === noteId &&
+          previousSelectedNoteId !== noteId
+        ) {
           navigation.pushSelectedNote(noteId);
         }
       });
     },
-    [navigation, selectors],
+    [navigation, selectNoteInStore, store],
   );
 }

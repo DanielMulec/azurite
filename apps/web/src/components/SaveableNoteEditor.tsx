@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 
 import type {
-  DraftRecoveryStatus,
   EditorSession,
 } from "../state/note-browser-types.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
@@ -12,7 +11,6 @@ const blockedSaveStatuses: readonly EditorSession["saveStatus"][] = [
 ];
 
 type SaveableNoteEditorProps = {
-  readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly editor: EditorSession;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
@@ -22,7 +20,6 @@ type SaveableNoteEditorProps = {
 
 /** Editable note surface with store-owned save and recovery state. */
 export function SaveableNoteEditor({
-  draftRecoveryStatus,
   editor,
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
@@ -34,7 +31,6 @@ export function SaveableNoteEditor({
   return (
     <>
       <SaveToolbar
-        draftRecoveryStatus={draftRecoveryStatus}
         editor={editor}
         isDirty={isDirty}
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
@@ -54,13 +50,11 @@ export function SaveableNoteEditor({
 }
 
 function SaveToolbar({
-  draftRecoveryStatus,
   editor,
   isDirty,
   onDiscardDraftAndReloadDiskVersion,
   onSave,
 }: {
-  readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly editor: EditorSession;
   readonly isDirty: boolean;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
@@ -100,11 +94,6 @@ function SaveToolbar({
           </button>
         </div>
       </div>
-      {draftRecoveryStatus.status === "degraded" ? (
-        <p className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {draftRecoveryStatus.message}
-        </p>
-      ) : null}
     </div>
   );
 }

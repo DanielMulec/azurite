@@ -7,9 +7,12 @@ import {
   canSaveEditor,
   createEditorSession,
   degradeDraftRecovery,
+  getCurrentEditorForNote,
   getReadyClusterId,
+  hasEditorPatchChange,
   hasDirtyMarkdown,
   isNoteWriteConflictError,
+  isSameSaveSnapshot,
   patchSavedNoteSummary,
 } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
@@ -38,12 +41,22 @@ export function updateCurrentEditor(
       return state;
     }
 
-    const saveStatus =
-      state.noteState.editor.saveStatus === "conflict" ? "conflict" : "idle";
+    const editor = state.noteState.editor;
+
+    if (!hasEditorPatchChange(editor, patch)) {
+      return state;
+    }
+
+    const saveStatus = editor.saveStatus === "conflict" ? "conflict" : "idle";
 
     return {
       noteState: {
-        editor: { ...state.noteState.editor, ...patch, saveStatus },
+        editor: {
+          ...editor,
+          ...patch,
+          revision: editor.revision + 1,
+          saveStatus,
+        },
         status: "ready",
       },
     };
@@ -200,13 +213,25 @@ async function saveEditor(
 }
 
 async function applySaveResponse(input: SaveResponseInput): Promise<void> {
-  if (!isStillSelected(input.editor, input.context)) {
+  const currentEditor = getCurrentEditorForNote(
+    input.editor.note.id,
+    input.context,
+  );
+
+  if (currentEditor === undefined) {
     return;
   }
 
   applyClusterIdentity(input.clusterIdentity, input.context);
-  await clearDraftForNote(input.editor.note.id, input.context);
-  applySavedNote(input.note, input.context);
+
+  if (isSameSaveSnapshot(currentEditor, input.editor)) {
+    await clearDraftForNote(input.editor.note.id, input.context);
+    applySavedNote(input.note, input.context);
+    return;
+  }
+
+  applyStaleSavedBaseline(input.note, input.context);
+  await persistCurrentDraft(input.context);
 }
 
 async function applySaveFailure(
@@ -214,11 +239,18 @@ async function applySaveFailure(
   editor: EditorSession,
   context: StoreContext,
 ): Promise<void> {
-  if (!isStillSelected(editor, context)) {
+  const currentEditor = getCurrentEditorForNote(editor.note.id, context);
+
+  if (currentEditor === undefined) {
     return;
   }
 
-  await applyCurrentSaveFailure(error, editor, context);
+  if (!isSameSaveSnapshot(currentEditor, editor)) {
+    await applyStaleSaveFailure(error, context);
+    return;
+  }
+
+  await applyCurrentSaveFailure(error, currentEditor, context);
 }
 
 async function applyCurrentSaveFailure(
@@ -233,6 +265,15 @@ async function applyCurrentSaveFailure(
   }
 
   applySaveFailureState(editor, context);
+}
+
+async function applyStaleSaveFailure(
+  error: unknown,
+  context: StoreContext,
+): Promise<void> {
+  if (isNoteWriteConflictError(error)) {
+    await persistCurrentDraft(context);
+  }
 }
 
 function applySaveConflict(editor: EditorSession, context: StoreContext): void {
@@ -256,13 +297,6 @@ function applySaveFailureState(
   });
 }
 
-function isStillSelected(
-  editor: EditorSession,
-  context: StoreContext,
-): boolean {
-  return context.get().selectedNoteId === editor.note.id;
-}
-
 async function discardMissingNoteDraftState(
   noteId: string,
   context: StoreContext,
@@ -282,6 +316,35 @@ function applySavedNote(
     },
     notesState: patchSavedNoteSummary(state.notesState, note),
   }));
+}
+
+function applyStaleSavedBaseline(
+  note: NoteContentWithHash,
+  context: StoreContext,
+): void {
+  context.set((state) => {
+    if (
+      state.noteState.status !== "ready" ||
+      state.noteState.editor.note.id !== note.id
+    ) {
+      return state;
+    }
+
+    return {
+      noteState: {
+        editor: {
+          ...state.noteState.editor,
+          baseContentHash: note.contentHash,
+          note,
+          recovery: "none",
+          savedMarkdown: note.markdown,
+          saveStatus: "idle",
+        },
+        status: "ready",
+      },
+      notesState: patchSavedNoteSummary(state.notesState, note),
+    };
+  });
 }
 
 async function clearDraftForNote(

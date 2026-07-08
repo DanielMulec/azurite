@@ -5,10 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SaveableNoteEditor } from "../src/components/SaveableNoteEditor.js";
-import type {
-  DraftRecoveryStatus,
-  EditorSession,
-} from "../src/state/note-browser-types.js";
+import type { EditorSession } from "../src/state/note-browser-types.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
@@ -51,7 +48,6 @@ afterEach(() => {
 });
 
 type RenderEditorOptions = {
-  readonly draftRecoveryStatus?: DraftRecoveryStatus;
   readonly editor?: EditorSession;
   readonly onDiscardDraftAndReloadDiskVersion?: () => Promise<void>;
   readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
@@ -127,28 +123,11 @@ describe("SaveableNoteEditor recovery state", () => {
     );
     expect(onDiscardDraftAndReloadDiskVersion).toHaveBeenCalledTimes(1);
   });
-
-  it("shows degraded draft recovery without disabling manual save", () => {
-    renderEditor({
-      draftRecoveryStatus: {
-        message: "Draft recovery is degraded. Manual save still works.",
-        reason: "write_failed",
-        status: "degraded",
-      },
-      editor: createEditor({ currentMarkdown: "# Home\nDirty" }),
-    });
-
-    expect(
-      screen.getByText("Draft recovery is degraded. Manual save still works."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-  });
 });
 
 function renderEditor(options: RenderEditorOptions = {}): void {
   render(
     <SaveableNoteEditor
-      draftRecoveryStatus={getDraftRecoveryStatus(options)}
       editor={getEditor(options)}
       onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
       onEditorModeChange={getEditorModeAction(options)}
@@ -156,12 +135,6 @@ function renderEditor(options: RenderEditorOptions = {}): void {
       onSaveNote={getSaveAction(options)}
     />,
   );
-}
-
-function getDraftRecoveryStatus(
-  options: RenderEditorOptions,
-): DraftRecoveryStatus {
-  return options.draftRecoveryStatus ?? { status: "available" };
 }
 
 function getEditor(options: RenderEditorOptions): EditorSession {
@@ -210,6 +183,7 @@ function createEditor(patch: Partial<EditorSession> = {}): EditorSession {
       title: "Home",
     },
     recovery: "none",
+    revision: 0,
     savedMarkdown,
     saveStatus: "idle",
     sessionKey: "index.md:sha256-home:1",

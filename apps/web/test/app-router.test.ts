@@ -15,4 +15,11 @@ describe("app router search parsing", () => {
     expect(parseAppSearch({ note: 42 })).toEqual({});
     expect(parseAppSearch({})).toEqual({});
   });
+
+  it.each(["", "../secret.md", "/tmp/secret.md", ".azurite/cache.md"])(
+    "drops unsafe selected note search state %s",
+    (note) => {
+      expect(parseAppSearch({ note })).toEqual({});
+    },
+  );
 });

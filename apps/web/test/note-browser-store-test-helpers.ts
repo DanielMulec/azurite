@@ -179,14 +179,17 @@ export function toSummary(note: NoteContentWithHash) {
 
 export function createDeferred<T>(): {
   readonly promise: Promise<Awaited<T>>;
+  readonly reject: (error: unknown) => void;
   readonly resolve: (value: Awaited<T>) => void;
 } {
+  let rejectDeferred: (error: unknown) => void = () => {};
   let resolveDeferred: (value: Awaited<T>) => void = () => {};
-  const promise = new Promise<Awaited<T>>((resolve) => {
+  const promise = new Promise<Awaited<T>>((resolve, reject) => {
+    rejectDeferred = reject;
     resolveDeferred = resolve;
   });
 
-  return { promise, resolve: resolveDeferred };
+  return { promise, reject: rejectDeferred, resolve: resolveDeferred };
 }
 
 function getLoadedNote(options: LoadedStoreOptions): NoteContentWithHash {
@@ -219,6 +222,7 @@ function createReadyEditor(
     editorMode: "wysiwyg",
     note,
     recovery,
+    revision: 0,
     savedMarkdown: getSavedMarkdown(note, recovery),
     saveStatus: getSaveStatus(recovery),
     sessionKey: "index.md:sha256-home:1",
