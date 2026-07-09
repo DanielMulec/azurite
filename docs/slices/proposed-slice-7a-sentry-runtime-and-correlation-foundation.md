@@ -21,6 +21,8 @@ Slice 7A settles the runtime platform decision:
 - `azurite-server` receives backend/runtime telemetry from the Fastify API.
 - Web and server Sentry configuration is typed, local-debug gated, and safe when
   missing.
+- Sentry-disabled startup avoids importing or initializing Sentry SDK and Replay
+  runtime code; the current web and server entrypoints must gate those imports.
 - Frontend API calls and backend route outcomes are joined by stable Azurite
   request IDs and note operation IDs.
 - Session Replay, structured logs, and frontend-to-backend tracing are proven as
@@ -189,6 +191,8 @@ correlation.
 - Keep typed web/server config parsing independent of the local value source.
 - Keep Sentry disabled unless the enabled flag is the literal string `true` and
   a DSN is present.
+- Keep Sentry-disabled startup free of Sentry SDK and Replay imports by gating
+  those imports at the current web and server entrypoints.
 - Initialize backend Sentry before Fastify is imported.
 - Preserve Fastify/Pino logging and graceful shutdown behavior.
 - Add bounded backend Sentry flushing or closing on shutdown when enabled.
@@ -197,8 +201,11 @@ correlation.
   request context.
 - Add route-level runtime evidence for note list/read/save/conflict outcomes.
 - Add explicit development-only, env-gated test telemetry triggers.
-- Prove desktop and mobile/Tailscale Session Replay delivery, while leaving
-  editor-specific replay usefulness to Slice 7B.
+- Configure Session Replay for uncensored local debug capture and prove desktop
+  and mobile/Tailscale delivery, while leaving editor-specific replay usefulness
+  to Slice 7B.
+- Capture browser console warnings/errors in Sentry so third-party editor and
+  runtime warnings are available before Slice 7B adds semantic editor events.
 - Require Sentry SDK versions that support structured JavaScript logs through
   `enableLogs` and `Sentry.logger` or the installed SDK's current equivalent.
 - Prove backend tracing uses the parsed server trace sample rate and can join
@@ -297,12 +304,18 @@ Exact loading mechanism:
   code.
 - `apps/web/src/config/sentry-config.ts` parses `import.meta.env` into a typed
   web Sentry config.
+- The web entrypoint checks the parsed config before importing Sentry browser
+  SDK and Replay runtime modules. Sentry-disabled startup must not import
+  `@sentry/react`, configure Replay, or initialize Sentry.
 - The server ESM preload path loads the root `.env.local` before Sentry
   initialization by using Node 26's built-in environment-file support from a
   small server-local env module.
 - Missing `.env.local` keeps normal Sentry-disabled startup working.
 - `apps/server/src/config/sentry-config.ts` parses `process.env` into a typed
   server Sentry config.
+- The server preload checks parsed server config before importing Sentry runtime
+  modules. Sentry-disabled startup must not import `@sentry/node`, initialize
+  Sentry, or await Sentry shutdown work.
 - Enabled flags use the literal string `true`. Missing, empty, or invalid flags
   are disabled.
 - Sample-rate values must parse to numbers in the inclusive `0..1` range.
@@ -346,11 +359,14 @@ Accepted behavior:
 
 - Sentry-enabled server startup initializes Sentry before `fastify` is loaded.
 - Sentry-disabled server startup does not require a DSN and preserves current
-  startup behavior.
+  startup behavior without importing `@sentry/node`.
 - Existing graceful shutdown behavior remains intact.
 - Existing Fastify/Pino logging remains intact.
 - Automated startup tests prove the real `tsx` dev/start path loads the preload
   before `apps/server/src/app.ts` imports Fastify.
+- Automated disabled-mode startup tests prove the preload returns before Sentry
+  SDK import or initialization when `SENTRY_ENABLED` is not `true` or the DSN is
+  missing.
 - The required `.mjs` preload file is the only `.mjs` exception introduced by
   this slice and is documented where the file or package script is defined.
 
@@ -445,6 +461,12 @@ Implementation requirements:
 - Sentry browser tracing uses trace propagation targets that include the current
   same-origin `/api/*` path and local/Tailscale development API paths used by
   Azurite.
+- Tests or browser QA prove Sentry's distributed-tracing headers
+  `sentry-trace` and `baggage` are emitted on eligible frontend API requests and
+  reach the Fastify request boundary through the Vite proxy. If implementation
+  adds any direct cross-origin API path for local or Tailscale development, that
+  path must document and verify the required CORS/header allowlist instead of
+  relying on request IDs alone.
 - Backend tracing uses the parsed `SENTRY_TRACE_SAMPLE_RATE` and participates in
   sampled Fastify route traces.
 - Manual and automated verification prove that a sampled frontend `/api/*` call
@@ -475,9 +497,19 @@ Zustand debugging.
 Accepted replay behavior:
 
 - Replay initializes only when web Sentry is explicitly enabled with a DSN.
+- Replay SDK imports are skipped when web Sentry is disabled.
 - The default debug replay sample rates in `.env.example` make replay delivery
   visible for local Sentry-enabled sessions unless Daniel lowers them.
 - The Replay integration is configured through TypeScript-supported SDK options.
+- Slice 7A configures uncensored debug Replay defaults through the installed
+  SDK's supported options, such as `maskAllText: false`,
+  `maskAllInputs: false`, and `blockAllMedia: false` or the current equivalent.
+  This is a runtime configuration responsibility, not a 7B retrofit.
+- Tests prove the parsed Replay configuration uses the uncensored debug defaults
+  when Sentry is explicitly enabled.
+- Runtime replay QA confirms a simple development diagnostics marker is visible
+  in replay without default text masking. Slice 7B proves Milkdown-specific
+  editor text, textarea text, selection, and block-menu usefulness.
 - Runtime replay QA confirms one desktop replay and one mobile/Tailscale replay
   arrive in `azurite-web`.
 - Slice 7A does not need to prove that editor text, textarea text, selection
@@ -492,6 +524,15 @@ Accepted logs and tracing behavior:
 - Runtime lifecycle/result events use `Sentry.logger` or the current SDK
   equivalent as the primary structured log carrier.
 - Frontend production code does not use `console.log` as the primary event path.
+- Browser console warnings and errors are captured as Sentry breadcrumbs, logs,
+  or SDK-supported console integration evidence so incidental third-party and
+  browser runtime warnings are available in Sentry. This does not make
+  `console.log` the primary Azurite event carrier.
+- If the selected Sentry SDK only attaches scope attributes to logs in a newer
+  version than the minimum structured-log version, the implementation either
+  selects that version or passes required attributes directly on every
+  `Sentry.logger` call. Request and note correlation must not depend on untested
+  scoped-log behavior.
 - Backend Sentry logs are additive and do not replace or weaken Fastify/Pino
   logs.
 - Browser and backend tracing both use explicit parsed sample rates.
@@ -502,7 +543,8 @@ Runtime mapping:
 
 - Logs are the primary carrier for runtime lifecycle/result events.
 - Breadcrumbs are the lightweight chronological trail for route changes, note
-  load/save intent, API request outcomes, and dev test triggers.
+  load/save intent, API request outcomes, browser console warnings/errors, and
+  dev test triggers.
 - Spans measure frontend API calls, note load/save actions, backend request
   handling, and server route-boundary work.
 - Tags carry low-cardinality filter dimensions such as `app.surface`,
@@ -531,6 +573,14 @@ Required modules:
 
 The shared event vocabulary is mandatory. Put reusable event names and shared
 attribute names in `packages/shared` so frontend and backend cannot drift.
+
+The 7A observability helpers must expose a typed runtime event/context surface
+that Slice 7B can extend with semantic editor, draft, payload, and snapshot
+attributes without importing Sentry from feature code or forking the 7A event
+shape. This means helper call signatures accept shared event names, common
+correlation context, and additional serializable attributes in a controlled way.
+Slice 7A does not need to implement the `azurite.debug_payload` carrier, but it
+must not hard-code helper shapes that would force Slice 7B to bypass them.
 
 Sentry debug mode is intentionally uncensored. Runtime instrumentation may send
 diagnostic context when Sentry is explicitly enabled, but it must not own
@@ -657,6 +707,10 @@ compatible SDK changes the public logging API, record that implementation
 decision in the slice notes and keep structured Sentry logs as the primary
 runtime event carrier.
 
+The selected web SDK support must also cover the replay configuration and console
+warning/error capture used by this slice. Do not rely on browser console output
+as evidence unless the selected SDK sends that evidence to Sentry.
+
 Do not add `@sentry/vite-plugin` in this slice. Source-map upload belongs to a
 future release-observability slice that can safely introduce Sentry auth token
 handling.
@@ -676,6 +730,9 @@ Implementation requirements:
 - Document how to enable and disable Sentry locally.
 - Document which variables are required for web telemetry and server telemetry.
 - Document how replay and trace sample rates affect local debug sessions.
+- Document that local debug Replay is intentionally uncensored when Sentry is
+  explicitly enabled, and that disabled mode skips Sentry SDK/Replay imports at
+  the current web and server entrypoints.
 - Document how to enable deliberate web and server test events.
 - Document that Azurite remains runnable and fully functional without Sentry
   values.
@@ -715,13 +772,19 @@ Implementation requirements:
 - Enable JavaScript logs through `enableLogs` and `Sentry.logger` or the current
   installed SDK equivalent.
 - Enable Session Replay for explicitly enabled debug sessions.
-- Configure Replay using the installed SDK's TypeScript options so Slice 7B can
-  verify unmasked editor/debug content without replacing the runtime setup.
+- Configure Replay using the installed SDK's TypeScript options with uncensored
+  debug defaults, including unmasked text/input and unblocked media options where
+  supported, so Slice 7B can verify editor/debug usefulness without replacing the
+  runtime setup.
 - Set default debug replay sample rates in `.env.example` so a Sentry-enabled
   local session produces replay delivery unless Daniel lowers the values.
 - Enable browser tracing with env-configurable sampling.
 - Configure trace propagation targets for same-origin `/api/*`, localhost, and
   Tailscale/MagicDNS Azurite API paths used during development.
+- Capture browser console warnings/errors through the SDK-supported console
+  integration, breadcrumb integration, log integration, or current equivalent.
+- Use dynamic imports or an equivalent entrypoint split so Sentry-disabled web
+  startup skips Sentry SDK and Replay runtime imports.
 - Keep raw env reads inside `apps/web/src/config/sentry-config.ts` and Sentry
   initialization code.
 - Add a React error boundary around the app shell or editor surface without
@@ -738,6 +801,8 @@ Implementation requirements:
 - Load the root `.env.local` before instrumentation in local development.
 - Initialize only from the parsed server Sentry config when
   `SENTRY_ENABLED=true` and `SENTRY_DSN` is present.
+- Return from the preload before importing Sentry runtime modules when server
+  Sentry is disabled.
 - Tag events with `app.surface = server`.
 - Set `environment` and `release` from env/config.
 - Use Sentry's Fastify integration.
@@ -757,6 +822,8 @@ Implementation requirements:
   initial timeout no longer than `1000ms`.
 - Keep graceful shutdown behavior intact when Sentry is disabled.
 - Verify that Sentry-disabled startup still works without a DSN.
+- Verify that Sentry-disabled startup does not import or initialize
+  `@sentry/node`.
 - Verify that the Sentry-enabled real `tsx` startup path initializes Sentry
   before Fastify is imported.
 
@@ -783,6 +850,9 @@ Implementation requirements:
 - Frontend and backend observability helpers attach shared
   release/environment, request ID, operation ID, note ID, cluster ID, route,
   method, result status, and API error code where applicable.
+- Frontend and backend observability helpers accept controlled additional
+  serializable attributes so Slice 7B can extend runtime events without adding
+  direct Sentry calls to feature code.
 - Observability helpers isolate or clear Sentry scopes after request/note
   operations so correlation metadata cannot leak into unrelated events.
 - Tests prove fetch headers, backend request context, observability calls, and
@@ -845,6 +915,8 @@ Implementation requirements:
   marked `azurite.test_event = true` attribute.
 - Test events exercise the same runtime logs/breadcrumbs/spans/tags/context
   carrier mapping used by real Slice 7A observability events.
+- Web test events include a simple visible diagnostics marker that manual replay
+  QA can use to confirm runtime Replay text is not masked in local debug mode.
 - Test events do not implement the full Slice 7B under-limit and over-limit
   debug payload contract.
 
@@ -922,6 +994,9 @@ Validation, security, and filesystem boundaries that must not weaken:
   out of Git
 - root `.env.local` stays untracked and root `.env.example` contains
   placeholders only
+- Sentry-disabled startup does not import or initialize Sentry SDK modules, Replay
+  runtime modules, or Sentry shutdown work because the current web and server
+  entrypoints gate those imports
 - development test telemetry triggers remain explicit, env-gated, dev-only, and
   non-mutating
 - Sentry SDK versions support the structured log API used by the implementation
@@ -978,16 +1053,22 @@ Run targeted automated tests for:
 - root `.env.local` loading path and missing-file behavior
 - web Sentry config parsing from `import.meta.env`
 - server Sentry config parsing from `process.env`
-- Sentry-disabled web initialization
+- Sentry-disabled web initialization without importing `@sentry/react` or Replay
+  runtime modules
 - Sentry-enabled web initialization with mocked SDK calls
 - web Replay config using the installed SDK's supported option names
+- web Replay config using uncensored debug defaults when explicitly enabled
 - web Replay sample-rate defaults that produce replay delivery in explicitly
   enabled local debug sessions unless Daniel lowers them
+- browser console warning/error capture through the selected SDK integration or
+  equivalent Sentry evidence path
 - web trace propagation targets including `/api/*`
+- eligible frontend API requests carrying `sentry-trace` and `baggage` headers
+  through the Vite proxy to the Fastify request boundary
 - web API request IDs and note operation IDs in headers without API response
   body changes
 - local UI stale-response sequence IDs remaining separate from API request IDs
-- Sentry-disabled server initialization
+- Sentry-disabled server initialization without importing `@sentry/node`
 - Sentry-enabled real `tsx` server startup using the ESM `--import` preload
   before Fastify import
 - server graceful shutdown flushes/closes Sentry with a bounded timeout when
@@ -1001,6 +1082,11 @@ Run targeted automated tests for:
   context, and errors
 - web and server structured log helpers using `Sentry.logger` or the current SDK
   equivalent, not `console.log`, as the primary event path
+- structured log helpers attaching required request/note attributes directly or
+  through tested SDK scope-log support
+- web and server runtime observability helpers accepting controlled additional
+  serializable attributes so Slice 7B can extend events without direct Sentry
+  calls from feature code
 - development test-event triggers being unavailable when env flags are missing
   and available only in development when explicitly enabled
 - router parsing and preserving `azurite-dev=sentry-test` during startup note
@@ -1024,6 +1110,10 @@ Run manual/browser QA:
   between notes and confirm the `azurite-dev` search param is preserved.
 - Trigger the explicit web development test event and confirm it reaches
   `azurite-web` with `azurite.test_event = true`.
+- Confirm the diagnostics marker text is visible in the resulting replay without
+  default text masking.
+- Trigger or observe a browser console warning/error and confirm it appears in
+  Sentry as SDK-supported console evidence.
 - Trigger the explicit server development test event with the confirmation
   header and confirm it reaches `azurite-server` with
   `azurite.test_event = true`.
@@ -1032,6 +1122,9 @@ Run manual/browser QA:
 - Confirm a desktop Session Replay appears in `azurite-web`.
 - Confirm a sampled frontend `/api/*` call can be inspected as a
   frontend-to-backend trace where the installed SDK supports it.
+- Confirm eligible frontend API requests include `sentry-trace` and `baggage`
+  headers and the headers reach the Fastify request boundary through the Vite
+  proxy.
 - Confirm the same request ID appears in frontend and backend evidence for a
   note read.
 - Confirm the same note operation ID appears in frontend load/save events, fetch
@@ -1060,8 +1153,13 @@ Run manual/browser QA:
   and Sentry-disabled startup behavior.
 - Web and server Sentry config parsing is centralized behind typed config
   modules and Sentry stays disabled unless enabled flags and DSNs are present.
+- Sentry-disabled web startup does not import `@sentry/react` or Replay runtime
+  modules, and Sentry-disabled server startup does not import `@sentry/node`.
 - Web and server Sentry package versions support structured logs through
   `enableLogs` and `Sentry.logger` or the current SDK equivalent.
+- Structured log helpers attach required request/note attributes directly or
+  through tested SDK scope-log support; correlation does not depend on untested
+  scoped-log behavior.
 - Server Sentry initialization uses the official ESM `--import` preload under
   the real `tsx` dev/start path and initializes before Fastify imports.
 - The `.mjs` preload file is documented as the required external-tooling
@@ -1072,6 +1170,10 @@ Run manual/browser QA:
 - Frontend and backend events include shared release/environment metadata.
 - Desktop and mobile/Tailscale Session Replay delivery is proven in
   `azurite-web`; Slice 7B owns proving editor-specific replay usefulness.
+- Replay uses uncensored local debug defaults when explicitly enabled, and a
+  diagnostics marker is visible without default text masking.
+- Browser console warnings/errors are captured in Sentry so incidental editor or
+  runtime warnings are available to Slice 7B.
 - Runtime lifecycle/result events use structured Sentry logs as the primary
   event carrier instead of frontend `console.log`.
 - Frontend API calls and backend requests are trace-correlatable through Sentry
@@ -1079,6 +1181,10 @@ Run manual/browser QA:
 - Backend tracing uses the parsed server trace sample rate, and sampled
   frontend `/api/*` calls can be joined to Fastify route work where the installed
   SDK supports it.
+- Eligible frontend API requests emit `sentry-trace` and `baggage` headers and
+  those headers reach the Fastify boundary through the Vite proxy. Any direct
+  cross-origin local/Tailscale API path documents and verifies the required
+  CORS/header allowlist.
 - Frontend API calls and backend requests are semantically correlatable through
   `azurite.request_id` even when Sentry trace propagation is incomplete.
 - Note load and save workflows are correlatable through
@@ -1087,6 +1193,10 @@ Run manual/browser QA:
   distinct and are transported or scoped only where intended.
 - Sentry scopes isolate or clear request/note context so correlation metadata
   cannot leak into unrelated events.
+- Web and server observability helpers expose a typed runtime event/context
+  surface that accepts controlled additional serializable attributes, so Slice 7B
+  can add semantic editor, draft, payload, and snapshot diagnostics without
+  direct Sentry imports or event-shape forks.
 - Correlation headers are validated; invalid, oversized, duplicated, and absent
   headers do not change API response bodies or pollute canonical IDs.
 - Development test telemetry triggers are dev-only, env-gated, impossible to
@@ -1113,14 +1223,22 @@ Run manual/browser QA:
 Slice 7B may begin only after Slice 7A proves:
 
 - Sentry-enabled and Sentry-disabled startup both work.
+- Sentry-disabled startup skips Sentry SDK and Replay runtime imports at the
+  current web and server entrypoints.
 - Web and server Sentry projects receive real events.
 - Desktop and mobile/Tailscale web sessions are visible in Sentry.
 - Desktop and mobile/Tailscale Session Replay delivery is visible in Sentry.
+- Replay debug defaults are uncensored at the runtime configuration layer, with
+  editor-specific usefulness left to 7B.
+- Browser console warning/error capture is visible in Sentry.
 - Structured Sentry logs and sampled frontend-to-backend tracing work as runtime
   carriers.
+- `sentry-trace` and `baggage` propagation is verified through the Vite proxy and
+  Fastify request boundary.
 - Note read/save/conflict workflows are correlated by request ID and note
   operation ID.
 - Request/note Sentry scope context is isolated or cleared between operations.
 - Shared event and attribute constants exist.
 - Direct Sentry calls are contained behind web/server observability helpers.
+- Those helpers expose a typed extension surface for 7B semantic attributes.
 - The existing note, save, draft, recovery, and routing behavior remains intact.
