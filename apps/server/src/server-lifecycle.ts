@@ -21,6 +21,8 @@ export const disabledShutdownFallbackMs = 500;
 export const enabledShutdownFallbackMs = 1_500;
 /** Maximum SDK flush budget after Fastify has closed. */
 export const sentryShutdownFlushTimeoutMs = 1_000;
+/** Follow-up budget that delivers the result recorded after the initial flush. */
+export const sentryShutdownResultFlushTimeoutMs = 400;
 
 /** Observable shutdown operations supplied by the enabled preload runtime. */
 export type ShutdownObservability = {
@@ -176,24 +178,48 @@ async function flushEnabledSentry(
     const flushSucceeded = await observability.flush(
       sentryShutdownFlushTimeoutMs,
     );
-    observability.recordEvent(
-      createShutdownEvent(
-        runtimeObservabilityEventNames.shutdownFlushed,
-        context,
-        { [runtimeObservabilityAttributeNames.flushResult]: flushSucceeded },
-      ),
-    );
-
-    if (!flushSucceeded) {
-      recordShutdownFailure(
-        new Error("Sentry telemetry did not flush within its shutdown budget."),
-        context,
-      );
-    }
-
-    return flushSucceeded;
+    return await recordAndDeliverFlushResult(context, flushSucceeded);
   } catch (error) {
     recordShutdownFailure(error, context);
+    await deliverShutdownResult(context);
+    return false;
+  }
+}
+
+async function recordAndDeliverFlushResult(
+  context: ShutdownEventContext,
+  flushSucceeded: boolean,
+): Promise<boolean> {
+  const { observability } = context;
+  observability.recordEvent(
+    createShutdownEvent(
+      runtimeObservabilityEventNames.shutdownFlushed,
+      context,
+      {
+        [runtimeObservabilityAttributeNames.flushResult]: flushSucceeded,
+      },
+    ),
+  );
+
+  if (!flushSucceeded) {
+    recordShutdownFailure(
+      new Error("Sentry telemetry did not flush within its shutdown budget."),
+      context,
+    );
+  }
+
+  const resultDelivered = await deliverShutdownResult(context);
+  return flushSucceeded && resultDelivered;
+}
+
+async function deliverShutdownResult(
+  context: ShutdownEventContext,
+): Promise<boolean> {
+  try {
+    return await context.observability.flush(
+      sentryShutdownResultFlushTimeoutMs,
+    );
+  } catch {
     return false;
   }
 }

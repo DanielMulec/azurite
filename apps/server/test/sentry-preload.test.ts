@@ -38,6 +38,7 @@ describe("custom server Sentry preload", () => {
 
     expect(state).toEqual({
       fastifyIntegrationConfigured: false,
+      runtimeContextConfigured: false,
       sdkImported: false,
       sentryEnabled: false,
     });
@@ -52,6 +53,7 @@ describe("custom server Sentry preload", () => {
 
     expect(state).toEqual({
       fastifyIntegrationConfigured: true,
+      runtimeContextConfigured: true,
       sdkImported: true,
       sentryEnabled: true,
     });

@@ -2,7 +2,21 @@
 
 ## Status
 
-Active.
+Completed on 2026-07-09.
+
+## Completion Scope Amendment
+
+Daniel explicitly deferred physical-phone QA to a separate, optional session
+when he is in front of the development laptop. Physical mobile-session and
+mobile-Replay proof are therefore not Slice 7A completion gates and are not
+claimed in this archive record.
+
+The implementation still delivers and verifies the Tailscale foundation:
+Fastify remains bound to `127.0.0.1`, Vite can bind only to the current
+Tailscale IPv4 interface, MagicDNS host allowlisting works, API traffic remains
+proxied to localhost, and direct tailnet access to Fastify is rejected. Any
+earlier mobile-proof requirements retained below describe the original plan and
+are superseded by this amendment.
 
 Slice 7A implements only the runtime delivery foundation. Slice 7B adds request
 correlation and note route evidence on top of this runtime. Slice 7C then adds
@@ -878,7 +892,9 @@ Run manual/browser QA:
 ## Acceptance Criteria
 
 - `azurite-web` receives real telemetry from desktop Azurite.
-- `azurite-web` receives real telemetry from mobile/Tailscale Azurite.
+- Tailscale runtime support is implemented and network-boundary verified;
+  physical-phone telemetry proof is deferred under the completion scope
+  amendment.
 - `azurite-server` receives real telemetry from the local Fastify API.
 - Root `.env.example` documents the local Sentry workflow and root `.env.local`
   remains untracked.
@@ -902,8 +918,8 @@ Run manual/browser QA:
   normal flush.
 - Sentry-disabled shutdown behavior remains unchanged.
 - Frontend and backend events include shared release/environment metadata.
-- Desktop and mobile/Tailscale Session Replay delivery is proven in
-  `azurite-web`; Slice 7C owns proving editor-specific Replay usefulness.
+- Desktop Session Replay delivery is proven in `azurite-web`; physical-phone
+  Replay proof is deferred, and Slice 7C owns editor-specific Replay usefulness.
 - Replay uses uncensored local debug defaults when explicitly enabled, and a
   diagnostics marker is visible without default text masking.
 - Browser console warnings/errors are captured in Sentry so incidental editor or
@@ -939,6 +955,67 @@ Run manual/browser QA:
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
+## Completion Evidence
+
+Slice 7A delivered the Sentry runtime foundation on `main` in implementation
+commit `f347a85` plus the final review corrections recorded in this close-out:
+
+- `@sentry/react` and `@sentry/node` 10.64.0 are owned by the web and server
+  workspaces respectively. Current official React, Replay, logs, tracing,
+  Node/Fastify, and initialization guidance plus installed types/exports were
+  verified before implementation.
+- Root `.env.example`, typed web/server config modules, optional root
+  `.env.local` loading, and tests prove that only literal `true` plus a non-empty
+  DSN enables each runtime. The real `.env.local` remained ignored and no DSN or
+  credential was committed.
+- Disabled web initialization returns before the dynamic browser runtime import.
+  The custom Azurite ESM preload returns before `@sentry/node` import when
+  disabled and initializes Sentry's supported Fastify 5 diagnostics-channel
+  integration before Fastify when enabled. Real `tsx --import` probes cover both
+  paths.
+- Enabled server initialization sets global `app.surface = server` and runtime
+  context so automatic Fastify and unhandled-error events carry the same surface
+  identity as helper-emitted events.
+- Web Replay uses `maskAllText: false`, `maskAllInputs: false`, and
+  `blockAllMedia: false`. Structured logs, warning/error console capture,
+  browser tracing, Fastify tracing, error capture, and explicit release,
+  environment, and surface metadata are configured through runtime adapters.
+- Shared Sentry-free event/attribute/route contracts and typed web/server helper
+  surfaces accept controlled extra scalar attributes. The fake Slice 7B fixture
+  compiles and runs without importing Sentry from feature code.
+- The URL-gated diagnostics panel and confirmed development-only server route
+  are env-gated and non-mutating. Router tests prove `azurite-dev=sentry-test`
+  survives startup replacement, list navigation, and browser history.
+- Graceful shutdown closes Fastify before a `1000ms` enabled Sentry flush, then
+  uses a bounded `400ms` follow-up flush to deliver the recorded result. The
+  `1500ms` enabled fallback remains longer than both budgets together; disabled
+  shutdown preserves its `500ms` fallback. Tests cover clean, failed, and hung
+  flush behavior plus result-delivery ordering.
+- `/opt/homebrew/bin/pnpm validate` passed formatting, the 400-line gate, lint,
+  script/workspace typechecks, and 192 tests: shared 38, core 40, web 82, and
+  server 32. `/opt/homebrew/bin/pnpm build` and `git diff --check` also passed.
+- Enabled desktop browser QA delivered deliberate web and server issues,
+  structured web/server logs, the console warning, an unmasked Replay marker,
+  `sentry-trace` and `baggage` at Fastify, and one joined browser-to-Fastify
+  trace. Sentry's intentional new-issue email independently confirmed the
+  backend event and configured local-debug metadata.
+- Disabled desktop QA preserved note listing, reading, URL navigation, source
+  editing, and manual save in a disposable cluster; the diagnostics panel was
+  absent and the development route returned `404`.
+- Tailscale support passed the Vite allowlist integration test and a live
+  current-session network-boundary check: Vite served the MagicDNS origin from
+  only the selected tailnet interface, proxied `/api/notes`, Fastify listened
+  only on `127.0.0.1:3000`, and its tailnet address was unreachable directly.
+- `packages/core` remains Sentry-free. Fastify/Pino and the existing note,
+  routing, save, conflict, draft, recovery, filesystem, and lifecycle suites all
+  remain green.
+- Physical-phone session and mobile Replay verification were not performed and
+  are intentionally deferred under the completion scope amendment above.
+
+Slice 7B remains planned and unpromoted. Daniel will complete the separate
+physical-phone QA before any work begins on 7B, and 7B must then be refreshed
+against the implemented helper and runtime contracts before promotion.
+
 ## Handoff To Slice 7B
 
 Slice 7B may begin only after Slice 7A proves:
@@ -947,8 +1024,9 @@ Slice 7B may begin only after Slice 7A proves:
 - Sentry-disabled startup skips Sentry SDK and Replay runtime imports at the
   current web and server entrypoints.
 - Web and server Sentry projects receive real events.
-- Desktop and mobile/Tailscale web sessions are visible in Sentry.
-- Desktop and mobile/Tailscale Session Replay delivery is visible in Sentry.
+- The desktop web session and Session Replay are visible in Sentry. Physical
+  phone-session and mobile-Replay proof remain deferred until Daniel's separate
+  QA session.
 - Replay debug defaults are uncensored at the runtime configuration layer, with
   editor-specific usefulness left to 7C.
 - Browser console warning/error capture is visible in Sentry.
@@ -959,8 +1037,9 @@ Slice 7B may begin only after Slice 7A proves:
 - The custom server preload initializes Sentry before Fastify only when enabled
   and imports no Sentry SDK when disabled.
 - Sentry-enabled shutdown has a coherent flush/fallback budget.
-- The Tailscale/MagicDNS phone QA path is documented and verified with the
-  backend local-only behind the Vite proxy.
+- The Tailscale/MagicDNS path is documented and its network boundary is verified
+  with the backend local-only behind the Vite proxy. Physical-phone proof is
+  deferred.
 - Shared route constants and base runtime observability types exist.
 - Direct Sentry calls are contained behind web/server observability helpers.
 - Those helpers expose a typed extension surface for 7B request and note

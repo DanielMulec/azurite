@@ -211,9 +211,10 @@ diagnostics-channel integration; Pino remains the local server log.
 Enabled browser debug sessions use uncensored Replay defaults, explicit trace
 sampling, and warning/error console capture. Relative browser API requests are
 trace-propagated through Vite to local-only Fastify. Enabled backend shutdown
-closes Fastify first, flushes Sentry for up to `1000ms`, and retains a `1500ms`
-fallback. Disabled shutdown retains the original `500ms` fallback and performs
-no Sentry work.
+closes Fastify first, flushes Sentry for up to `1000ms`, records the result, and
+uses a bounded `400ms` follow-up flush to deliver that result. Its `1500ms`
+fallback remains longer than both budgets together. Disabled shutdown retains
+the original `500ms` fallback and performs no Sentry work.
 
 Typed helpers in `packages/shared`, `apps/web`, and `apps/server` form the
 extension seam for planned correlation and semantic diagnostics. Direct Sentry

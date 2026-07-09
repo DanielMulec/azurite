@@ -8,6 +8,7 @@ const { readServerSentryConfig } = await import("./config/sentry-config.js");
 const sentryConfig = readServerSentryConfig();
 const preloadState = {
   fastifyIntegrationConfigured: false,
+  runtimeContextConfigured: false,
   sdkImported: false,
   sentryEnabled: sentryConfig.enabled,
 };
@@ -33,6 +34,14 @@ if (sentryConfig.enabled) {
     tracesSampleRate: sentryConfig.traceSampleRate,
   });
   preloadState.fastifyIntegrationConfigured = true;
+
+  Sentry.setTag("app.surface", "server");
+  Sentry.setContext("azurite.runtime", {
+    environment: sentryConfig.environment,
+    release: sentryConfig.release,
+    surface: "server",
+  });
+  preloadState.runtimeContextConfigured = true;
 
   const { installServerSentryRuntime } =
     await import("./observability/server-runtime-observability.js");

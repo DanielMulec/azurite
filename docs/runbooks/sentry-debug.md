@@ -177,8 +177,10 @@ cross-origin CORS configuration is needed for the current architecture.
 On enabled `SIGINT` or `SIGTERM`, Azurite:
 
 1. closes Fastify;
-2. flushes Sentry with a `1000ms` SDK timeout;
-3. keeps a `1500ms` process fallback so a normal flush can finish first.
+2. performs the initial Sentry flush with a `1000ms` SDK timeout;
+3. records the flush result and gives that result a bounded `400ms` follow-up
+   flush;
+4. keeps a `1500ms` process fallback, longer than both flush budgets together.
 
 A hung flush cannot keep the backend alive indefinitely. Disabled shutdown
 closes only Fastify and retains its `500ms` fallback.

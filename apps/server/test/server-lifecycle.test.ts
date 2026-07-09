@@ -7,6 +7,7 @@ import {
   disabledShutdownFallbackMs,
   enabledShutdownFallbackMs,
   sentryShutdownFlushTimeoutMs,
+  sentryShutdownResultFlushTimeoutMs,
   type ShutdownObservability,
 } from "../src/server-lifecycle.js";
 
@@ -40,6 +41,9 @@ describe("closeServerAfterSignal", () => {
       order.push(`sentry.flush:${String(timeoutMs)}`);
       return Promise.resolve(true);
     });
+    vi.mocked(observability.recordEvent).mockImplementation((event) => {
+      order.push(`event:${event.name}`);
+    });
 
     const exitCode = await closeServerAfterSignal(
       server,
@@ -49,8 +53,11 @@ describe("closeServerAfterSignal", () => {
 
     expect(exitCode).toBe(0);
     expect(order).toEqual([
+      "event:telemetry.runtime.shutdown.started",
       "fastify.close",
       `sentry.flush:${String(sentryShutdownFlushTimeoutMs)}`,
+      "event:telemetry.runtime.shutdown.flushed",
+      `sentry.flush:${String(sentryShutdownResultFlushTimeoutMs)}`,
     ]);
     expect(observability.recordEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -76,6 +83,14 @@ describe("closeServerAfterSignal failures", () => {
 
     expect(exitCode).toBe(1);
     expectFlushTimeoutEvidence(observability);
+    expect(observability.flush).toHaveBeenNthCalledWith(
+      1,
+      sentryShutdownFlushTimeoutMs,
+    );
+    expect(observability.flush).toHaveBeenNthCalledWith(
+      2,
+      sentryShutdownResultFlushTimeoutMs,
+    );
   });
 });
 

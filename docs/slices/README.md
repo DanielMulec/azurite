@@ -16,8 +16,10 @@ truth.
 
 ## Current Sequence
 
-1. Active: Slice 7A, Sentry runtime delivery foundation.
-2. Planned: Slice 7B, request correlation and note-route evidence.
+1. Completed: Slice 7A, Sentry runtime delivery foundation.
+2. Planned: Slice 7B, request correlation and note-route evidence. Do not begin
+   it until Daniel completes the deferred physical-phone QA; then refresh it
+   against the implemented 7A runtime contracts before promotion.
 3. Planned: Slice 7C, semantic editor and persistence diagnostics.
 
 When a slice is completed, add concise completion evidence to its document and
