@@ -8,14 +8,15 @@
   },
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
-    "dev": "tsx src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx --import ./src/sentry-preload.mjs src/index.ts",
+    "start": "tsx --import ./src/sentry-preload.mjs src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@azurite/core": "workspace:*",
     "@azurite/shared": "workspace:*",
+    "@sentry/node": "^10.64.0",
     "fastify": "^5.10.0"
   },
   "devDependencies": {

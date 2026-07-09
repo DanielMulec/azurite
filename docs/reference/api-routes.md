@@ -11,12 +11,19 @@ The source of truth in code is `apiRoutes` and `apiQueryParameters` in
 
 ## Current Routes
 
-| Route constant          | Method | Path                 | Purpose                                                     |
-| ----------------------- | ------ | -------------------- | ----------------------------------------------------------- |
-| `apiRoutes.health`      | `GET`  | `/health`            | Reports local server health and version metadata.           |
-| `apiRoutes.notes`       | `GET`  | `/api/notes`         | Lists markdown note summaries for the configured workspace. |
-| `apiRoutes.noteContent` | `GET`  | `/api/notes/content` | Reads one markdown note by workspace-relative note ID.      |
-| `apiRoutes.noteContent` | `PUT`  | `/api/notes/content` | Saves one existing markdown note by workspace-relative ID.  |
+| Route constant                 | Method | Path                               | Purpose                                                                         |
+| ------------------------------ | ------ | ---------------------------------- | ------------------------------------------------------------------------------- |
+| `apiRoutes.health`             | `GET`  | `/health`                          | Reports local server health and version metadata.                               |
+| `apiRoutes.notes`              | `GET`  | `/api/notes`                       | Lists markdown note summaries for the configured workspace.                     |
+| `apiRoutes.noteContent`        | `GET`  | `/api/notes/content`               | Reads one markdown note by workspace-relative note ID.                          |
+| `apiRoutes.noteContent`        | `PUT`  | `/api/notes/content`               | Saves one existing markdown note by workspace-relative ID.                      |
+| `apiRoutes.devSentryTestEvent` | `POST` | `/__azurite/dev/sentry-test-event` | Emits an explicit non-mutating Sentry test event in gated development sessions. |
+
+The Sentry test route is not registered in production or when
+`SENTRY_TEST_EVENTS_ENABLED` is not the literal string `true`. A request must
+also include the shared confirmation header
+`x-azurite-dev-test-event: sentry`; otherwise the route returns `403` without
+emitting test evidence.
 
 ## Query Parameters
 

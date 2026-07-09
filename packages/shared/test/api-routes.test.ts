@@ -5,11 +5,14 @@ import {
   apiRoutes,
   createNoteContentRoute,
   createSaveNoteRoute,
+  developmentRequestHeaders,
+  developmentRequestHeaderValues,
 } from "../src/index.js";
 
 describe("apiRoutes", () => {
   it("defines stable API route paths", () => {
     expect(apiRoutes).toEqual({
+      devSentryTestEvent: "/__azurite/dev/sentry-test-event",
       health: "/health",
       noteContent: "/api/notes/content",
       notes: "/api/notes",
@@ -19,6 +22,15 @@ describe("apiRoutes", () => {
   it("defines stable API query parameter names", () => {
     expect(apiQueryParameters).toEqual({
       noteId: "noteId",
+    });
+  });
+
+  it("defines the explicit development diagnostics confirmation contract", () => {
+    expect(developmentRequestHeaders).toEqual({
+      sentryTestEventConfirmation: "x-azurite-dev-test-event",
+    });
+    expect(developmentRequestHeaderValues).toEqual({
+      sentryTestEventConfirmation: "sentry",
     });
   });
 });

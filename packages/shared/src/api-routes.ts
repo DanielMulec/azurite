@@ -1,8 +1,19 @@
 /** Stable API route paths shared by server handlers, clients, and tests. */
 export const apiRoutes = {
+  devSentryTestEvent: "/__azurite/dev/sentry-test-event",
   health: "/health",
   noteContent: "/api/notes/content",
   notes: "/api/notes",
+} as const;
+
+/** Development-only request headers shared by diagnostics clients and routes. */
+export const developmentRequestHeaders = {
+  sentryTestEventConfirmation: "x-azurite-dev-test-event",
+} as const;
+
+/** Explicit confirmation values required by development-only diagnostics routes. */
+export const developmentRequestHeaderValues = {
+  sentryTestEventConfirmation: "sentry",
 } as const;
 
 /** Stable API query parameter names shared by server handlers, clients, and tests. */

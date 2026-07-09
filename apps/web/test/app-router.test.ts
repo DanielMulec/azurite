@@ -17,6 +17,18 @@ describe("app router search parsing", () => {
     });
   });
 
+  it("parses only the supported development diagnostics state", () => {
+    expect(
+      parseAppLocationSearch("?note=index.md&azurite-dev=sentry-test"),
+    ).toEqual({
+      "azurite-dev": "sentry-test",
+      note: "index.md",
+    });
+    expect(
+      parseAppLocationSearch("?note=index.md&azurite-dev=unsupported"),
+    ).toEqual({ note: "index.md" });
+  });
+
   it("preserves safe percent-containing note IDs", () => {
     expect(parseAppSearch({ note: "100%.md" })).toEqual({
       note: "100%.md",

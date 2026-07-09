@@ -49,6 +49,10 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   prettier,
   {
+    ...tseslint.configs.disableTypeChecked,
+    files: ["**/*.{cjs,js,jsx,mjs}"],
+  },
+  {
     files: ["**/*.{cjs,js,jsx,mjs,ts,tsx}"],
     rules: {
       "max-lines": [

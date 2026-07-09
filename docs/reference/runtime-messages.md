@@ -13,6 +13,8 @@ feel and make local debugging easier.
 | `Shutting down local server.`                     | The process receives `SIGINT` or `SIGTERM`.           | Includes the signal in structured log metadata.         |
 | `Azurite vein sealed. Backend shut down cleanly.` | Fastify closes successfully during graceful shutdown. | This is intentional product tone, not placeholder text. |
 | `Failed to shut down local server.`               | Fastify fails during graceful shutdown.               | Includes error and signal metadata in server logs.      |
+| `Sentry telemetry did not flush in time.`         | Enabled Sentry flush exceeds or rejects its budget.   | Shutdown remains bounded by the process fallback.       |
+| `Emitted deliberate server Sentry test event.`    | The confirmed development-only test route runs.       | Includes only the public test marker in Pino metadata.  |
 
 ## Current Web Dev Server Lifecycle Messages
 

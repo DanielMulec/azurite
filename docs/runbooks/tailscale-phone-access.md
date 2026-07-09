@@ -85,3 +85,18 @@ stop the processes intentionally.
 - Fastify remains unreachable directly from the tailnet.
 - Reloads continue on the same MagicDNS origin.
 - Stopping both processes produces the documented clean shutdown behavior.
+
+## Sentry Debug Sessions
+
+When the current QA session also verifies Sentry, enable the root `.env.local`
+workflow from `docs/runbooks/sentry-debug.md` before starting either runtime.
+Use the diagnostics URL on the same MagicDNS origin:
+
+```text
+http://<magicdns-hostname>:5173/?note=index.md&azurite-dev=sentry-test
+```
+
+Send both deliberate test events from the phone, confirm the response reports
+`sentry-trace=true` and `baggage=true`, and verify a distinct mobile web session
+and Replay in `azurite-web`. The Replay marker must remain readable. Fastify
+must still listen only on `127.0.0.1:3000`.

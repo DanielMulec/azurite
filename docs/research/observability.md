@@ -6,12 +6,13 @@ the entry template live in `docs/research-sources.md`.
 ### Sentry JavaScript Logs
 
 - URL: https://docs.sentry.io/platforms/javascript/logs/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Frontend observability
 - Use when: Evaluating hosted structured logs, console-log capture, and
   correlated error/debugging telemetry for Azurite.
-- Notes: Sentry JavaScript logs support structured attributes, log levels, and a
-  console logging integration when logs are enabled.
+- Notes: Sentry JavaScript logs support structured attributes and log levels
+  through `enableLogs` and `Sentry.logger`. The installed 10.64.0 SDK also
+  exports `consoleLoggingIntegration` for selected console levels.
 - Caveats: For Daniel-owned Sentry debug mode, logs should be uncensored and
   diagnostically complete. Do not treat note content, local paths, editor state,
   or request context as data to redact from Sentry debug telemetry.
@@ -19,42 +20,45 @@ the entry template live in `docs/research-sources.md`.
 ### Sentry JavaScript Session Replay
 
 - URL: https://docs.sentry.io/platforms/javascript/session-replay/privacy/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Frontend observability
 - Use when: Evaluating browser session replay for editor debugging.
-- Notes: Sentry documents default text/input masking and media blocking for
-  replay data before upload.
+- Notes: Sentry documents default text/input masking and media blocking before
+  upload. The installed React SDK types accept `maskAllText`, `maskAllInputs`,
+  and `blockAllMedia` on `replayIntegration`.
 - Caveats: For Azurite debug sessions, replay should favor full editor-debugging
   fidelity over masking. Verify replay usefulness, not privacy minimization.
 
 ### Sentry React
 
 - URL: https://docs.sentry.io/platforms/javascript/guides/react/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Frontend observability
 - Use when: Adding Sentry to Azurite's React/Vite browser app.
-- Notes: Sentry documents the React SDK for client-side React applications,
-  including errors, logs, session replay, tracing, and SDK initialization before
-  the app renders.
+- Notes: Sentry documents initialization before the app renders. The installed
+  10.64.0 React SDK exports `init`, `replayIntegration`,
+  `browserTracingIntegration`, `consoleLoggingIntegration`, `logger`, and
+  tracing/error APIs used by Azurite's enabled-only runtime module.
 - Caveats: Azurite is a local-first SPA, so avoid framework-specific Sentry
   setup paths for SSR frameworks unless the frontend stack changes.
 
 ### Sentry React Tracing
 
 - URL: https://docs.sentry.io/platforms/javascript/guides/react/tracing/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Frontend/backend correlation
 - Use when: Configuring browser tracing, sample rates, and trace propagation
   targets for Azurite API requests.
 - Notes: Sentry tracing can propagate context from browser requests to backend
-  services when configured with appropriate trace propagation targets.
+  services when configured with appropriate trace propagation targets. Azurite
+  verified `sentry-trace` and `baggage` across its relative Vite proxy path.
 - Caveats: Azurite still needs its own request and operation IDs because trace
   sampling, proxying, or SDK limitations can leave a debugging path incomplete.
 
 ### Sentry Vite Source Maps
 
 - URL: https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Release and source-map observability
 - Use when: Adding production-like source-map uploads for Azurite's Vite build.
 - Notes: Sentry documents a Vite plugin for release/source-map upload and notes
@@ -91,20 +95,25 @@ the entry template live in `docs/research-sources.md`.
 - Accessed: 2026-07-08
 - Area: Backend observability
 - Use when: Adding Sentry to Azurite's local Fastify API server.
-- Notes: Sentry documents an official Fastify setup path for capturing backend
-  errors and telemetry.
-- Caveats: Verify against Azurite's current Fastify version and existing error
-  response contracts before implementation.
+- Notes: Sentry documents Node initialization before Fastify import. The
+  installed 10.64.0 Node SDK exports `fastifyIntegration`; Fastify 5 is
+  supported through diagnostics channels and was verified under Azurite's
+  custom conditional ESM preload.
+- Caveats: The installed SDK documentation and source identify
+  `setupFastifyErrorHandler` as the Fastify 3/4 path and warn that it duplicates
+  Fastify 5 error capture, so Azurite does not install it.
 
 ### Sentry Node Logs
 
 - URL: https://docs.sentry.io/platforms/javascript/guides/node/logs/
-- Accessed: 2026-07-08
+- Accessed: 2026-07-09
 - Area: Backend structured logs
 - Use when: Sending searchable structured backend logs to Sentry from Azurite's
   local Node/Fastify runtime.
 - Notes: Sentry supports structured logs with attributes that can be queried and
-  correlated with errors and traces.
+  correlated with errors and traces. The installed Node SDK exposes
+  `enableLogs`, `logger`, `consoleLoggingIntegration`, and `flush` used by the
+  runtime and bounded shutdown path.
 - Caveats: Backend Sentry logs should capture complete debugging context when
   Sentry debug mode is enabled. Keep local Fastify logging behavior intact.
 

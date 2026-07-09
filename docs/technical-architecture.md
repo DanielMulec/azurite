@@ -29,6 +29,8 @@ guide, or operational runbook.
 - Live client state: Zustand.
 - URL state: TanStack Router.
 - Durable browser recovery: Dexie over IndexedDB.
+- Development observability: Sentry JavaScript SDK 10.x, split into React web
+  and Fastify server projects behind explicit local-debug configuration.
 - Testing: Vitest for unit and integration coverage; browser tooling for rendered
   and end-to-end QA.
 - Linting and formatting: ESLint 9.x and Prettier 3.x.
@@ -191,15 +193,32 @@ Authentication, packaged-service hosting, and any broader network exposure
 remain explicit future architecture decisions. Public internet exposure is not
 part of the current product boundary.
 
-## Observability Direction
+## Development Observability
 
-The active observability slice is
-`docs/slices/active/slice-7a-sentry-runtime-delivery-foundation.md`.
+Sentry owns Daniel-enabled development error capture, structured logs, tracing,
+and browser Session Replay. Azurite owns typed configuration, shared event
+contracts, and small runtime adapters; observability does not become product
+state, and `packages/core` remains free of Sentry imports.
 
-Sentry is intended to own Daniel-enabled development error capture, logs,
-tracing, and browser replay. Azurite owns typed configuration, semantic product
-events, and correlation metadata. Observability does not become product state,
-and `packages/core` remains free of Sentry imports.
+The browser runtime uses `@sentry/react` and the backend uses `@sentry/node`.
+Both are disabled unless the matching enabled flag is the literal `true` and a
+DSN is present. The web entrypoint dynamically loads its SDK runtime before
+React render only when enabled. The server starts through Azurite's custom ESM
+preload, which loads the optional root `.env.local` and dynamically imports the
+Node SDK before Fastify only when enabled. Fastify 5 uses Sentry's supported
+diagnostics-channel integration; Pino remains the local server log.
+
+Enabled browser debug sessions use uncensored Replay defaults, explicit trace
+sampling, and warning/error console capture. Relative browser API requests are
+trace-propagated through Vite to local-only Fastify. Enabled backend shutdown
+closes Fastify first, flushes Sentry for up to `1000ms`, and retains a `1500ms`
+fallback. Disabled shutdown retains the original `500ms` fallback and performs
+no Sentry work.
+
+Typed helpers in `packages/shared`, `apps/web`, and `apps/server` form the
+extension seam for planned correlation and semantic diagnostics. Direct Sentry
+calls stay inside runtime adapter modules. Operational configuration and proof
+steps live in `docs/runbooks/sentry-debug.md`.
 
 Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from

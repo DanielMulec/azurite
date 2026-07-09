@@ -10,7 +10,9 @@ import { useCallback, useMemo, useState } from "react";
 
 import { App } from "./App.js";
 
-type AppSearch = {
+/** Typed URL search state owned by Azurite's root route. */
+export type AppSearch = {
+  readonly "azurite-dev"?: "sentry-test";
   readonly note?: string;
 };
 
@@ -33,16 +35,21 @@ export function createAzuriteRouter() {
 
 /** Parses the URL-owned note selection search state. */
 export function parseAppSearch(search: Record<string, unknown>): AppSearch {
-  if (typeof search.note !== "string") {
-    return {};
+  const parsedNote =
+    typeof search.note === "string" ? parseSafeRouteNote(search.note) : {};
+
+  if (search["azurite-dev"] === "sentry-test") {
+    return { ...parsedNote, "azurite-dev": "sentry-test" };
   }
 
-  return parseSafeRouteNote(search.note);
+  return parsedNote;
 }
 
 /** Parses browser URL search text through one URL-decoding boundary. */
 export function parseAppLocationSearch(locationSearch: string): AppSearch {
   return parseAppSearch({
+    "azurite-dev":
+      new URLSearchParams(locationSearch).get("azurite-dev") ?? undefined,
     note: new URLSearchParams(locationSearch).get("note") ?? undefined,
   });
 }
@@ -71,31 +78,56 @@ export function AzuriteRouterProvider(): ReactElement {
 function AppRoute(): ReactElement {
   const search = appRoute.useSearch();
   const navigate = appRoute.useNavigate();
-  const routeNoteId = getRouteNoteId(search);
+  const currentSearch = getCurrentSearch(search);
+  const routeNoteId = currentSearch.note;
   const replaceSelectedNote = useCallback(
     (noteId: string) => {
-      void navigate({ replace: true, search: { note: noteId }, to: "/" });
+      void navigate({
+        replace: true,
+        search: createNoteNavigationSearch(search, noteId),
+        to: "/",
+      });
     },
-    [navigate],
+    [navigate, search],
   );
   const pushSelectedNote = useCallback(
     (noteId: string) => {
-      void navigate({ search: { note: noteId }, to: "/" });
+      void navigate({
+        search: createNoteNavigationSearch(search, noteId),
+        to: "/",
+      });
     },
-    [navigate],
+    [navigate, search],
   );
   const navigation = useMemo(
     () => ({ pushSelectedNote, replaceSelectedNote }),
     [pushSelectedNote, replaceSelectedNote],
   );
 
-  return <App navigation={navigation} routeNoteId={routeNoteId} />;
+  return (
+    <App
+      devDiagnostics={currentSearch["azurite-dev"]}
+      navigation={navigation}
+      routeNoteId={routeNoteId}
+    />
+  );
 }
 
-function getRouteNoteId(search: AppSearch): string | undefined {
+function getCurrentSearch(search: AppSearch): AppSearch {
   if (typeof window === "undefined") {
-    return parseAppSearch(search).note;
+    return parseAppSearch(search);
   }
 
-  return parseAppLocationSearch(window.location.search).note;
+  return parseAppLocationSearch(window.location.search);
+}
+
+function createNoteNavigationSearch(
+  search: AppSearch,
+  noteId: string,
+): AppSearch {
+  if (search["azurite-dev"] === "sentry-test") {
+    return { "azurite-dev": "sentry-test", note: noteId };
+  }
+
+  return { note: noteId };
 }
