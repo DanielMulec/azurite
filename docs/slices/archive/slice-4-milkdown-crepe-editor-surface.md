@@ -276,7 +276,7 @@ Verified in the in-app Browser at `http://127.0.0.1:5173/`:
 Slice 5 should focus on safe manual markdown persistence.
 
 The next slice is planned in
-`docs/slices/slice-5-safe-manual-save-foundation.md`. It adds an explicit Save
+`docs/slices/archive/slice-5-safe-manual-save-foundation.md`. It adds an explicit Save
 action, content-hash conflict protection, atomic file writes, line-ending
 handling, save-state UI, and note metadata refresh after save. Autosave remains
 a follow-up policy slice so it can reuse the proven write path.

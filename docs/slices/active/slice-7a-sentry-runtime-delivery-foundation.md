@@ -1,16 +1,8 @@
-# Proposed Slice 7A: Sentry Runtime Delivery Foundation
+# Slice 7A: Sentry Runtime Delivery Foundation
 
 ## Status
 
-Proposed.
-
-This slice is split from the master observability plan in
-`docs/slices/proposed-end-to-end-sentry-observability-foundation.md`.
-
-The previous two-slice draft of 7A is preserved at
-`docs/slices/proposed-slice-7a-sentry-runtime-and-correlation-foundation.pre-7abc-split-backup.md`.
-The master document remains the complete product architecture for Sentry
-observability.
+Active.
 
 Slice 7A implements only the runtime delivery foundation. Slice 7B adds request
 correlation and note route evidence on top of this runtime. Slice 7C then adds
@@ -74,127 +66,13 @@ of debugging Sentry setup while also debugging Azurite product instrumentation.
 
 ## Future Workflow Boundary
 
-### Current Workflow
-
-This slice covers the current local runtime workflow:
-
-1. Daniel starts the local Fastify API and Vite web app.
-2. The web app may be opened on desktop Chrome or from a phone over the
-   Tailscale MagicDNS URL while the backend stays local-only behind the Vite
-   proxy.
-3. Sentry remains disabled when the required enabled flag or DSN is missing.
-4. In disabled mode, the web entrypoint does not import `@sentry/react` or
-   Replay runtime modules, and the server preload does not import `@sentry/node`.
-5. When Sentry is explicitly enabled, the web runtime initializes before React
-   renders.
-6. When Sentry is explicitly enabled, the custom Azurite server preload loads the
-   root `.env.local`, parses server Sentry config, dynamically imports
-   `@sentry/node`, initializes Sentry, and only then allows Fastify app modules
-   to load.
-7. Sentry-enabled web and server test triggers send deliberate runtime events
-   without reading or writing notes, drafts, cluster metadata, route state, or
-   filesystem content.
-8. Browser console warning/error capture is visible in Sentry.
-9. Session Replay is delivered for one desktop web session and one
-   mobile/Tailscale web session with uncensored local debug defaults.
-10. Eligible frontend requests emit `sentry-trace` and `baggage` headers that
-    reach the Fastify request boundary through the Vite proxy.
-11. Sentry-enabled backend shutdown gives queued telemetry a bounded chance to
-    flush or close after Fastify stops accepting work.
-12. Sentry-disabled shutdown preserves the current Fastify/Pino lifecycle.
-
-The user story is complete only when the runtime is proven in Sentry and
-Sentry-disabled behavior is proven unchanged. Note read/save/conflict
-correlation is intentionally owned by Slice 7B.
-
-### Future Workflows This Foundation Must Support
-
-The runtime and helper contract must be durable enough for:
-
-- Slice 7B request correlation and note route evidence.
-- Slice 7C semantic editor and persistence diagnostics.
-- create new markdown notes.
-- recoverable delete or move-to-trash behavior.
-- autosave policy and conflict resolution.
-- file watching and external-edit detection.
-- derived indexing, search, backlinks, and graph behavior.
-- multi-cluster selection and cluster identity changes.
-- PWA installability, service worker behavior, offline/degraded states, and
-  mobile tab discard recovery.
-- authentication and local/Tailscale hosting hardening.
-- production-like release builds with source-map upload.
-
-Future workflows should reuse the same Sentry projects, release/environment
-metadata, runtime helper surface, app surface attribute, structured log carrier,
-Replay configuration boundary, trace setup, and dev-only test-event gates instead
-of creating parallel observability runtimes.
-
-### Product Layers Participating Now
-
-Slice 7A touches these current layers:
-
-- repository docs and environment examples
-- root `.env.example` and `.gitignore`
-- `apps/web/vite.config.ts` root env loading, Tailscale/MagicDNS allowed-host
-  support, and local proxy behavior
-- `apps/web` Sentry config and initialization
-- React app shell and error boundary
-- TanStack Router search state only for the dev diagnostics trigger
-- web runtime observability helpers and test-event UI
-- browser console warning/error capture setup
-- Vite dev server Tailscale/MagicDNS access path
-- `packages/shared` route constants and base runtime observability types
-- `apps/server` Sentry config, custom preload, startup scripts, lifecycle,
-  shutdown behavior, and Pino-preserving runtime behavior
-- development-only backend test-event route
-- Vitest unit/integration tests
-- manual desktop, mobile/Tailscale, and Sentry UI verification
-
-### Product Layers Predictably Needed Soon
-
-Slice 7A leaves explicit seams for:
-
-- Slice 7B shared request ID and note operation ID schemas.
-- Slice 7B note lifecycle events and route-boundary evidence.
-- Slice 7C editor session IDs, payload helpers, state snapshots, and coalescing.
-- file-watch and external-change events.
-- derived index/search worker or backend service instrumentation.
-- PWA/service-worker telemetry once that runtime exists.
-- release/source-map upload for production-like builds.
-- future auth and local-hosting decision telemetry.
-
-### Deliberately Excluded Layers
-
-These layers are excluded from Slice 7A:
-
-- Azurite request ID headers.
-- note operation IDs.
-- note read/save/conflict correlation.
-- note route outcome observability beyond the development-only test-event route.
-- Milkdown/Crepe focus, selection, transaction, and block-menu instrumentation.
-- Dexie draft read/write/delete semantic telemetry.
-- Zustand state snapshots.
-- full markdown and draft payload carrier machinery.
-- under-limit and over-limit `azurite.debug_payload` proof.
-- editor-update coalescing and rate limiting.
-- several-minute large-note responsiveness QA with rich editor telemetry.
-- fixing the Milkdown block-menu bug itself.
-- mobile-native and desktop-native apps.
-- service workers, sync workers, indexing workers, and background jobs that do
-  not exist yet.
-- public production telemetry policy.
-- custom in-app log viewer.
-- Sentry self-hosting or billing work.
-- source-map upload automation that requires Sentry auth tokens.
-- direct `packages/core` observability hooks, observer interfaces, or Sentry
-  imports.
-
-The exclusions are stable because Slice 7A delivers a complete runtime
-foundation: Sentry-enabled sessions exist, development test events reach both
-Sentry projects, tracing headers are observable through the proxy, Replay and
-console capture work, the server starts in the right order, shutdown is bounded,
-and disabled mode is clean. Slice 7B can then focus on Azurite request and note
-correlation without also proving SDK wiring.
+| Boundary               | Decision                                                                                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current workflow       | Start the local web and API runtimes with Sentry explicitly enabled or cleanly disabled; prove web/server events, Replay, console capture, tracing headers through the Vite proxy, and bounded backend shutdown on desktop and Tailscale mobile access. |
+| Predictable extensions | Slice 7B adds request and note-operation correlation; Slice 7C adds editor, draft, payload, and recovery diagnostics.                                                                                                                                   |
+| Participating layers   | Root environment examples, Vite config, web initialization and error boundary, shared runtime contracts, server preload and lifecycle, development-only test triggers, automated tests, and desktop/mobile runtime QA.                                  |
+| Near-term seams        | Typed runtime helpers accept controlled serializable attributes; shared route and event contracts allow 7B/7C to extend telemetry without another SDK setup path.                                                                                       |
+| Exclusions             | Note workflow correlation, editor/Dexie/Zustand diagnostics, payload capture, source-map upload, workers, public telemetry policy, and `packages/core` instrumentation wait because the runtime can be proven independently.                            |
 
 ## Goals
 
@@ -612,17 +490,16 @@ to Slice 7B.
 
 ## Implementation Plan
 
-### 1. Preserve The Original Planning Context
+### 1. Confirm The Canonical Slice Boundary
 
-Keep the master Sentry plan and pre-split backups available.
+Confirm this is the only active product slice before implementation begins.
 
 Implementation requirements:
 
-- Do not modify `docs/slices/proposed-end-to-end-sentry-observability-foundation.md`
-  as part of this split.
-- Preserve the pre-split 7A backup file.
-- Preserve the pre-split 7B backup file.
 - Keep this active 7A proposal focused on runtime delivery only.
+- Treat the 7B and 7C documents in `docs/slices/planned/` as future handoffs,
+  not concurrent implementation authority.
+- Use Git history for superseded Sentry drafts instead of restoring backup files.
 
 ### 2. Create The Backend Sentry Project
 
@@ -656,7 +533,7 @@ Do not add `@sentry/vite-plugin` in this slice. Source-map upload belongs to a
 future release-observability slice that can safely introduce Sentry auth token
 handling.
 
-### 4. Add Environment Documentation And Config Parsing
+### 4. Add Environment Documentation, Runbook, And Config Parsing
 
 Add committed environment examples and typed config parsing without secrets.
 
@@ -665,7 +542,9 @@ Implementation requirements:
 - Create or update root `.gitignore` rules so `.env.local` remains untracked.
 - Create root `.env.example` with placeholder values for every supported web and
   server Sentry variable.
-- Document the preferred root `.env.local` workflow.
+- Create a `sentry-debug.md` runbook in `docs/runbooks/` as the operator-facing
+  source for the implemented local debug workflow.
+- Document the preferred root `.env.local` workflow in that runbook.
 - Document that future non-local deployments can inject the same variables
   through their environment or secret system without using `.env.local`.
 - Document how to enable and disable Sentry locally.
@@ -675,13 +554,17 @@ Implementation requirements:
   explicitly enabled, and that disabled mode skips Sentry SDK/Replay imports at
   the current web and server entrypoints.
 - Document how to enable deliberate web and server test events.
-- Document the mobile/Tailscale Sentry QA boot path.
+- Link to `docs/runbooks/tailscale-phone-access.md` and document only the
+  additional Sentry verification required on that path.
 - Document that Azurite remains runnable and fully functional without Sentry
   values.
 - Add web and server Sentry config modules with typed parsing and tests.
 - Use literal `true` as the only enabled value for Sentry and test events.
 - Default Sentry to disabled whenever DSN or enabled flag is missing.
-- Keep real DSNs, auth tokens, and unrelated local credentials out of Git.
+- Apply the credential-containment rules from
+  `docs/reference/product-guardrails.md`; product data may be uncensored in
+  explicit debug mode, but credentials and secret values must not be
+  deliberately captured or committed.
 
 ### 5. Add Shared Runtime Constants And Helper Types
 
@@ -885,85 +768,23 @@ Required QA:
 
 ## Negative Side-Effect Guardrails
 
-Slice 7A must preserve existing product behavior while adding the Sentry runtime
-foundation.
+Baseline: `docs/reference/product-guardrails.md`.
 
-Existing workflows that must keep working:
+Slice-specific guardrails:
 
-- note list loading
-- selected-note URL navigation and browser history
-- note read through the current shared API contracts
-- Milkdown editor mount and mode switching
-- manual save through the content-hash conflict contract
-- Dexie draft persistence and recovery
-- missing-note and degraded recovery states
-- desktop local development
-- mobile/Tailscale development with the backend local-only behind the Vite proxy
-
-Persistence and recovery guarantees that must not regress:
-
-- markdown files remain the canonical content source
-- Sentry must not persist product state
-- draft state remains browser-local and scoped by cluster ID and note ID
-- save still requires the expected content hash
-- conflict responses still prevent overwriting changed disk content
-- failed draft persistence still produces visible degraded recovery state
-
-Validation, security, and filesystem boundaries that must not weaken:
-
-- note ID validation remains shared and enforced
-- path traversal remains rejected
-- filesystem boundary protections remain in core/server behavior
-- `packages/core` remains free of Sentry imports, observer contracts, and
-  telemetry-specific state
-- existing API error codes and response body shapes remain stable unless tests
-  and reference docs explicitly cover a deliberate change
-- Sentry credentials, auth tokens, DSNs, and unrelated local credentials stay
-  out of Git
-- root `.env.local` stays untracked and root `.env.example` contains
-  placeholders only
-- Sentry-disabled startup does not import or initialize Sentry SDK modules,
-  Replay runtime modules, or Sentry shutdown work because the current web and
-  server entrypoints gate those imports
-- development test telemetry triggers remain explicit, env-gated, dev-only, and
-  non-mutating
-- Sentry SDK versions support the structured log API used by the implementation
-  instead of silently falling back to console output as the primary event path
-
-URL, state, cache, and storage behavior that must stay coherent:
-
-- URL-owned selected-note state remains the route source of truth
-- browser history behavior does not change
-- `azurite-dev=sentry-test` remains a typed dev diagnostics search param and is
-  preserved during startup note selection, note-list navigation, and
-  browser-history navigation
-- Zustand remains the note browser state owner
-- Dexie remains the draft persistence owner
-- Sentry does not become a cache, source of truth, or recovery mechanism
-- the backend development test route is registered only when the explicit
-  test-event env gate is enabled
-
-Degraded, error, and recovery states that must remain visible:
-
-- API unreachable
-- invalid workspace
-- invalid note ID
-- note not found
-- stale note load ignored
-- save conflict
-- save failed
-- draft database unavailable
-- draft validation failed
-- Milkdown creation failure
-
-QA flows that must still pass:
-
-- existing route, draft, save, conflict, and recovery tests
-- Sentry-disabled app startup and note workflow
-- Sentry-enabled runtime startup and test events
-- desktop browser smoke test
-- mobile/Tailscale smoke test
-- `/opt/homebrew/bin/pnpm validate`
+- Sentry-disabled startup must not import or initialize Sentry SDK, Replay, or
+  shutdown work at the current web and server entrypoints.
+- The custom server preload must initialize Sentry before Fastify only when
+  enabled; failure must not create a second server startup path.
+- The Sentry flush timeout must remain shorter than the enabled-mode fallback
+  exit budget so normal shutdown can complete.
+- Development test triggers must remain explicit, environment-gated,
+  development-only, and non-mutating.
+- The typed `azurite-dev=sentry-test` search parameter must survive existing
+  note navigation and browser-history transitions without becoming product
+  state.
+- Tailscale QA must keep the backend on localhost and expose only the Vite
+  frontend through the required tailnet interface.
 
 ## Verification Plan
 
@@ -1061,9 +882,10 @@ Run manual/browser QA:
 - `azurite-server` receives real telemetry from the local Fastify API.
 - Root `.env.example` documents the local Sentry workflow and root `.env.local`
   remains untracked.
-- Local Sentry documentation covers enable/disable behavior, required web and
+- The Sentry debug runbook covers enable/disable behavior, required web and
   server variables, Replay and trace sample rates, deliberate test-event flags,
-  the Tailscale boot path, and Sentry-disabled startup behavior.
+  Tailscale verification, credential containment, and Sentry-disabled startup
+  behavior.
 - Web and server Sentry config parsing is centralized behind typed config
   modules and Sentry stays disabled unless enabled flags and DSNs are present.
 - Sentry-disabled web startup does not import `@sentry/react` or Replay runtime

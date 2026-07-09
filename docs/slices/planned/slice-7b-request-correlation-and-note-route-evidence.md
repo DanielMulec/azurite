@@ -1,22 +1,16 @@
-# Proposed Slice 7B: Request Correlation And Note Route Evidence
+# Slice 7B: Request Correlation And Note Route Evidence
 
 ## Status
 
-Proposed.
-
-This slice is split from the master observability plan in
-`docs/slices/proposed-end-to-end-sentry-observability-foundation.md` and from the
-pre-split 7A draft preserved at
-`docs/slices/proposed-slice-7a-sentry-runtime-and-correlation-foundation.pre-7abc-split-backup.md`.
+Planned. Promote this document to `docs/slices/active/` only after Slice 7A is
+implemented and its runtime contracts are reflected here.
 
 Slice 7B depends on Slice 7A: Sentry Runtime Delivery Foundation. It adds
 Azurite request correlation and note route evidence on top of the proven runtime.
 Slice 7C then adds semantic editor and persistence diagnostics.
 
-The previous two-slice semantic diagnostics draft is preserved at
-`docs/slices/proposed-slice-7b-semantic-editor-and-persistence-diagnostics.pre-7abc-split-backup.md`.
-The active semantic diagnostics proposal now lives at
-`docs/slices/proposed-slice-7c-semantic-editor-and-persistence-diagnostics.md`.
+Slice 7C remains planned in
+`docs/slices/planned/slice-7c-semantic-editor-and-persistence-diagnostics.md`.
 
 ## Product Decision
 

@@ -64,16 +64,27 @@ A slice proposal should answer, in this order:
 
 1. What product capability or user story does this establish?
 2. What product decision does it settle?
-3. What is the `Future Workflow Boundary`?
-   - What current workflow must work end to end?
-   - What future workflows should this architecture support?
-   - Which product layers participate in that workflow now?
-   - Which product layers are predictably needed soon?
-   - Which layers are deliberately excluded, and why is that exclusion stable?
+3. For a cross-cutting foundation, what is the compact
+   `Future Workflow Boundary`?
 4. What dependencies, state boundaries, storage layers, contracts, services, and
    tests are needed to make the capability dependable?
-5. What negative side-effect guardrails protect existing behavior?
+5. Which slice-specific negative side effects require protection beyond the
+   shared product guardrails?
 6. What acceptance criteria prove both the new capability and preserved behavior?
+
+Use this table for a `Future Workflow Boundary`:
+
+| Boundary               | Required content                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| Current workflow       | The end-to-end user workflow this slice must make dependable.                                 |
+| Predictable extensions | Near-term workflows that materially shape today's architecture.                               |
+| Participating layers   | Product layers that own behavior in the current workflow.                                     |
+| Near-term seams        | Interfaces required now so the predictable extensions do not need a replacement architecture. |
+| Exclusions             | Deliberately excluded layers and the stable reason they can wait.                             |
+
+Keep the table compact. It is a decision boundary, not a speculative catalog of
+every feature Azurite may eventually gain. Omit it for isolated, reversible work
+whose correct boundary is already obvious.
 
 Do not frame foundational work as a narrow bug fix when the evidence shows that
 Azurite needs a reusable architecture. Prefer durable product foundations over
@@ -94,22 +105,15 @@ states, weaker validation, duplicated sources of truth, broken browser history,
 performance cliffs, confusing UI copy, and tests that pass while real product
 behavior fails.
 
-Slice proposals should include a `Negative Side-Effect Guardrails` section when
-the work touches existing behavior, persistence, routing, state, storage,
-security, recovery, performance, or user-facing workflows.
+Azurite's universal preservation guarantees live in
+`docs/reference/product-guardrails.md`. Meaningful slice proposals must link to
+that baseline instead of copying it.
 
-That section should name:
-
-- Existing user workflows that must keep working.
-- Existing persistence, save, recovery, deletion, or migration guarantees that
-  must not regress.
-- Existing validation, security, privacy, and filesystem boundaries that must
-  not weaken.
-- Existing URL, browser history, client state, cache, or storage behavior that
-  must stay coherent.
-- Existing degraded, error, and recovery states that must remain visible.
-- Existing tests, manual QA flows, browser checks, or device checks that must
-  still pass after the change.
+Add a `Negative Side-Effect Guardrails` section when the slice introduces risks
+that are specific to its changed behavior. Name only concrete failure modes the
+shared baseline does not express precisely enough, such as a new migration
+rollback, a new route transition, a new cache invalidation rule, or a new
+external-service degraded state.
 
 The implementation and verification plan should cover both the new behavior and
 these preservation guarantees. Do not accept a slice as complete when it adds
@@ -158,7 +162,8 @@ Sentry acceptance criteria should prove that the captured data is rich enough to
 debug real failures across the browser, editor, client state, IndexedDB, API
 requests, Fastify handlers, and filesystem operations.
 
-Keep Sentry-disabled behavior unchanged, and keep credentials out of Git.
+Keep Sentry-disabled behavior unchanged. Apply the credential-containment rules
+in `docs/reference/product-guardrails.md` without censoring Azurite product data.
 
 ## Quality And Scope
 
@@ -178,8 +183,8 @@ Use this loop for meaningful product work:
 2. Research only the domain needed for that delivery unit, deeply enough to
    preserve fidelity.
 3. Record important sources, constraints, and decisions.
-4. Define negative side-effect guardrails for existing behavior the slice
-   touches.
+4. Link the shared product guardrails and define only slice-specific regression
+   risks.
 5. Implement the slice across every layer required to complete it honestly.
 6. Verify both the new behavior and the preserved guardrail behavior with tests,
    manual checks, or a local demo.

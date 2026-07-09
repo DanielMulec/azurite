@@ -11,6 +11,7 @@ Current reference pages:
 
 - `api-errors.md`
 - `api-routes.md`
+- `product-guardrails.md`
 - `runtime-messages.md`
 - `workspace-rules.md`
 

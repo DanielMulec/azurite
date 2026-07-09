@@ -1,21 +1,23 @@
-# Proposed Slice 7B: Semantic Editor And Persistence Diagnostics
+# Slice 7C: Semantic Editor And Persistence Diagnostics
 
 ## Status
 
-Proposed.
+Planned. Promote this document to `docs/slices/active/` only after Slices 7A and
+7B are implemented and their actual runtime and correlation contracts are
+reflected here.
 
-This slice is split from the master observability plan in
-`docs/slices/proposed-end-to-end-sentry-observability-foundation.md`. It depends
-on Slice 7A: Sentry Runtime And Correlation Foundation.
+This slice depends on Slice 7A: Sentry Runtime Delivery Foundation and Slice 7B:
+Request Correlation And Note Route Evidence.
 
-Slice 7B completes the full semantic observability promise for the current
-editor and persistence workflow after Slice 7A proves Sentry runtime delivery,
-disabled-mode safety, and frontend/backend request correlation.
+Slice 7C completes the full semantic observability promise for the current
+editor and persistence workflow after Slice 7A proves Sentry runtime delivery and
+disabled-mode safety, and Slice 7B proves frontend/backend request correlation
+and note route evidence.
 
 ## Product Decision
 
 Azurite builds rich editor and persistence diagnostics on top of the Slice 7A
-Sentry runtime foundation.
+Sentry runtime foundation and the Slice 7B request-correlation foundation.
 
 Sentry remains the durable observability platform: event capture, structured
 logs, session replay, error grouping, trace correlation, and investigation UI.
@@ -50,13 +52,14 @@ actual session in Sentry and understand the editor and persistence path:
 - Dexie draft persistence and recovery evidence
 - bounded full markdown, draft, or state payload context only where it explains
   a failure or meaningful state transition
-- the same request ID and note operation ID established by Slice 7A
+- the same request ID and note operation ID established by Slice 7B
 
 ## Why This Matters
 
-Slice 7A proves that Azurite can send web/server telemetry and correlate
-requests. That is necessary, but it does not yet answer the hardest current
-questions:
+Slice 7A proves that Azurite can send web/server telemetry. Slice 7B proves that
+note reads, saves, and conflicts can be correlated across frontend and backend
+route evidence. That is necessary, but it does not yet answer the hardest
+current questions:
 
 - Did Milkdown mount correctly?
 - Did focus or selection move before the block menu appeared?
@@ -67,7 +70,7 @@ questions:
 - Did Zustand preserve the right conflict/recovery state?
 - Did debug telemetry itself make editing a large note feel worse?
 
-Slice 7B makes those questions answerable without creating a parallel product
+Slice 7C makes those questions answerable without creating a parallel product
 state system or weakening the file-over-app persistence model.
 
 ## Future Workflow Boundary
@@ -75,7 +78,7 @@ state system or weakening the file-over-app persistence model.
 ### Current Workflow
 
 This slice covers the semantic editor and persistence workflow on top of the
-Slice 7A runtime foundation:
+Slice 7A runtime foundation and Slice 7B correlation foundation:
 
 1. Daniel starts the local Fastify API and Vite web app with Sentry explicitly
    enabled through local debug configuration.
@@ -83,7 +86,7 @@ Slice 7A runtime foundation:
    Tailscale MagicDNS URL while the backend stays local-only behind the Vite
    proxy.
 3. URL-owned route state selects a note.
-4. The frontend reads that note through the Slice 7A correlated API boundary.
+4. The frontend reads that note through the Slice 7B correlated API boundary.
 5. The Milkdown editor mounts, switches modes, observes focus/selection and
    transaction context, emits markdown updates, and exposes Crepe block-menu
    context where available.
@@ -123,10 +126,10 @@ attributes instead of creating parallel telemetry shapes.
 
 ### Product Layers Participating Now
 
-Slice 7B touches these current layers:
+Slice 7C touches these current layers:
 
 - repository docs and slice notes
-- Slice 7A shared observability constants extended for semantic editor and
+- Slice 7B shared observability constants extended for semantic editor and
   persistence events
 - `apps/web` observability helpers
 - TanStack Router selected-note and dev diagnostics state where it affects
@@ -145,7 +148,7 @@ Slice 7B touches these current layers:
 
 ### Product Layers Predictably Needed Soon
 
-Slice 7B leaves explicit seams for:
+Slice 7C leaves explicit seams for:
 
 - create/delete editor and route actions.
 - autosave and future outbox diagnostics.
@@ -157,12 +160,16 @@ Slice 7B leaves explicit seams for:
 
 ### Deliberately Excluded Layers
 
-These layers are excluded from Slice 7B:
+These layers are excluded from Slice 7C:
 
 - creating Sentry projects, adding SDK dependencies, or redoing runtime
   configuration already completed by Slice 7A
-- replacing the Slice 7A Fastify preload, startup, shutdown, or config boundary
-  unless Slice 7B discovers a correctness bug in that foundation
+- replacing the Slice 7A Fastify preload, startup, shutdown, config, Replay, or
+  console-capture boundary unless Slice 7C discovers a correctness bug in that
+  foundation
+- replacing the Slice 7B request ID, note operation ID, request hook, route
+  evidence, or scope-isolation boundary unless Slice 7C discovers a correctness
+  bug in that foundation
 - fixing the Milkdown block-menu bug itself
 - adding new note creation, delete, autosave, search, backlinks, graph, sync, or
   file-watch behavior
@@ -176,7 +183,7 @@ These layers are excluded from Slice 7B:
 - direct `packages/core` observability hooks, observer interfaces, or Sentry
   imports
 
-The exclusions are stable because Slice 7B's current value is diagnostic
+The exclusions are stable because Slice 7C's current value is diagnostic
 completeness for the existing browser editor, client state, draft persistence,
 API, and server route-boundary workflow. It completes the current observability
 promise without smuggling in new note lifecycle product behavior.
@@ -185,7 +192,7 @@ promise without smuggling in new note lifecycle product behavior.
 
 - Instrument the current editor workflow with semantic Sentry logs,
   breadcrumbs, spans, tags, context, and errors.
-- Reuse Slice 7A request IDs, note operation IDs, release, environment, surface,
+- Reuse Slice 7B request IDs, note operation IDs, release, environment, surface,
   route, cluster, note, result, and API error attributes.
 - Reuse or deliberately wrap the existing editor session identity instead of
   creating a parallel editor identity.
@@ -212,6 +219,8 @@ promise without smuggling in new note lifecycle product behavior.
 
 - Do not recreate the Sentry projects, dependency decisions, env loading, or
   runtime startup foundation from Slice 7A.
+- Do not recreate the request ID, note operation ID, API metadata, backend
+  request hook, or route-evidence foundation from Slice 7B.
 - Do not fix the Milkdown block-menu bug in this slice.
 - Do not add create, delete, autosave, file watching, search, backlinks, graph,
   sync, or offline write queue behavior.
@@ -224,31 +233,39 @@ promise without smuggling in new note lifecycle product behavior.
 - Do not add direct Sentry instrumentation, observer hooks, or telemetry
   contracts to `packages/core`.
 
-## Dependency On Slice 7A
+## Dependency On Slices 7A And 7B
 
-Slice 7B assumes Slice 7A has already delivered:
+Slice 7C assumes Slice 7A has already delivered:
 
 - `@sentry/react` and `@sentry/node` installed in the owning workspaces.
 - Web and server Sentry initialization behind typed config modules.
 - Root `.env.example` and untracked root `.env.local` workflow.
 - Sentry-disabled startup and note workflows verified.
 - `azurite-web` and `azurite-server` receiving real events.
+- Desktop and mobile/Tailscale Replay delivery.
+- Browser console warning/error capture.
+- Custom server preload and bounded Sentry-enabled shutdown.
+- Direct Sentry calls contained behind web/server observability helpers.
+
+Slice 7C assumes Slice 7B has already delivered:
+
 - Request ID and note operation ID propagation through frontend API calls and
   backend request context.
 - Shared observability constants and route constants in `packages/shared`.
-- Direct Sentry calls contained behind web/server observability helpers.
 - Basic note read/save/conflict route-boundary evidence.
+- Scope isolation for request and note context.
+- Overlapping note-read and stale-response tests.
 
-If any of those foundations are missing, Slice 7B should stop and repair the 7A
-foundation before adding deeper semantic instrumentation.
+If any of those foundations are missing, Slice 7C should stop and repair the 7A
+or 7B foundation before adding deeper semantic instrumentation.
 
 ## Architecture
 
 ### Semantic Event Contract
 
-Slice 7B extends the shared event vocabulary established in Slice 7A. Event
-names remain lower-case dot-separated product vocabulary. Event names describe
-Azurite behavior, not Sentry mechanics.
+Slice 7C extends the shared event vocabulary established by Slice 7B on top of
+the Slice 7A runtime helper surface. Event names remain lower-case dot-separated
+product vocabulary. Event names describe Azurite behavior, not Sentry mechanics.
 
 Every started event has a matching succeeded, failed, stale, conflict, invalid,
 or visible result when that lifecycle exists. Event attributes use shared
@@ -279,26 +296,26 @@ Frontend semantic events:
 | `recovery.draft.visible`               | note ID, cluster ID, draft updated time                        |
 | `recovery.degraded.visible`            | note ID when known, persistence unavailable reason             |
 
-Slice 7B may enrich Slice 7A note load/save/conflict events with payload context
-where the volume contract allows it. It must not rename the Slice 7A events or
+Slice 7C may enrich Slice 7B note load/save/conflict events with payload context
+where the volume contract allows it. It must not rename the Slice 7B events or
 fork their attribute shapes.
 
 Backend semantic events:
 
 | Event                             | Required attributes                                                   |
 | --------------------------------- | --------------------------------------------------------------------- |
-| `note.read.succeeded`             | 7A attributes plus eligible markdown payload summary                  |
-| `note.read.failed`                | 7A attributes plus caught core error context                          |
-| `note.save.started`               | 7A attributes plus eligible markdown payload summary                  |
-| `note.save.conflicted`            | 7A attributes plus expected hash, API error code, payload summary     |
-| `note.save.failed`                | 7A attributes plus caught error context and payload summary when used |
-| `cluster.metadata.failed`         | 7A attributes plus local filesystem path and error details            |
+| `note.read.succeeded`             | 7B attributes plus eligible markdown payload summary                  |
+| `note.read.failed`                | 7B attributes plus caught core error context                          |
+| `note.save.started`               | 7B attributes plus eligible markdown payload summary                  |
+| `note.save.conflicted`            | 7B attributes plus expected hash, API error code, payload summary     |
+| `note.save.failed`                | 7B attributes plus caught error context and payload summary when used |
+| `cluster.metadata.failed`         | 7B attributes plus local filesystem path and error details            |
 | `telemetry.server.test.triggered` | request ID, release, environment, surface, payload test state         |
 
 ### Replay Configuration Boundary
 
 Session Replay runs for explicitly enabled local debug sessions. Slice 7A
-installs the runtime Replay configuration. Slice 7B verifies and adjusts the
+installs the runtime Replay configuration. Slice 7C verifies and adjusts the
 current SDK options, through TypeScript types, so replay is useful for editor
 debugging.
 
@@ -374,7 +391,7 @@ deliberate test events, and real failure/conflict/recovery evidence.
 
 ### Telemetry Volume Contract
 
-Uncensored does not mean noisy enough to become useless. Slice 7B defines when
+Uncensored does not mean noisy enough to become useless. Slice 7C defines when
 full payloads are sent.
 
 Volume requirements:
@@ -457,7 +474,7 @@ Implementation requirements:
 
 `packages/core` remains Sentry-free in this slice.
 
-Server routes may enrich Slice 7A route-level evidence from core calls and
+Server routes may enrich Slice 7B route-level evidence from core calls and
 caught core errors:
 
 - request ID
@@ -479,7 +496,7 @@ to `packages/core` in this slice.
 ### File-Line And Refactor Boundary
 
 Several implementation targets are already near the 400-line hard limit. Slice
-7B must split files before adding semantic instrumentation where needed.
+7C must split files before adding semantic instrumentation where needed.
 
 Known pressure points:
 
@@ -494,10 +511,10 @@ payload enrichment instead of appending logs to already-large modules.
 
 ## Implementation Plan
 
-### 1. Confirm The Slice 7A Baseline
+### 1. Confirm The Slice 7A And 7B Baseline
 
-Before adding semantic instrumentation, confirm the Slice 7A foundation is
-present.
+Before adding semantic instrumentation, confirm the Slice 7A runtime foundation
+and Slice 7B correlation foundation are present.
 
 Implementation requirements:
 
@@ -506,6 +523,7 @@ Implementation requirements:
 - Verify request ID and note operation ID propagation tests exist.
 - Verify Sentry-disabled startup and note workflow tests exist.
 - Verify runtime note read/save/conflict observability helpers exist.
+- Verify overlapping note-read and stale-response scope-isolation tests exist.
 - Do not proceed by creating a parallel Sentry setup path.
 
 ### 2. Extend Shared Semantic Constants
@@ -524,7 +542,7 @@ Implementation requirements:
 - Add shared result statuses only when they are reusable across web/server
   events.
 - Add beginner-readable TSDoc for exported constants.
-- Add tests proving semantic event names do not drift from this Slice 7B
+- Add tests proving semantic event names do not drift from this Slice 7C
   contract.
 
 ### 3. Add Bounded Payload Helpers
@@ -553,7 +571,7 @@ diagnostics.
 Implementation requirements:
 
 - Keep direct Sentry calls inside web observability modules.
-- Reuse Slice 7A release, environment, surface, request ID, operation ID, note
+- Reuse Slice 7B release, environment, surface, request ID, operation ID, note
   ID, cluster ID, route, result, and API error attributes.
 - Provide helper APIs that feature code can call without importing Sentry.
 - Provide no-op behavior when Sentry is disabled.
@@ -622,7 +640,7 @@ Add rich diagnostics to the existing save and recovery workflow.
 
 Implementation requirements:
 
-- Enrich Slice 7A save started/succeeded/conflicted/failed events with editor
+- Enrich Slice 7B save started/succeeded/conflicted/failed events with editor
   session ID and payload summary attributes.
 - Attach full markdown only to eligible save start, save conflict, save failure,
   and deliberate test events according to the volume contract.
@@ -642,7 +660,7 @@ error context improves the current workflow.
 
 Implementation requirements:
 
-- Reuse Slice 7A backend route events and correlation context.
+- Reuse Slice 7B backend route events and correlation context.
 - Add bounded markdown payload summaries for note read/save/conflict/failure
   events where the volume contract allows it.
 - Add caught error context for route-boundary failures: error name, code,
@@ -706,7 +724,7 @@ Required QA:
 - Load the note from the Milkdown block-menu bug report.
 - Confirm Sentry captures the browser session, console warnings/logs, API
   request path, request ID, note operation ID, note-load evidence, and backend
-  note-read evidence inherited from Slice 7A.
+  note-read evidence inherited from Slice 7B.
 - Confirm replay shows unmasked editor text, markdown textarea text, relevant
   DOM state, focus context, selection context, and block-menu context where
   available.
@@ -732,7 +750,7 @@ Required QA:
 
 ## Negative Side-Effect Guardrails
 
-Slice 7B must preserve existing product behavior while adding semantic
+Slice 7C must preserve existing product behavior while adding semantic
 diagnostics.
 
 Existing workflows that must keep working:
@@ -747,7 +765,7 @@ Existing workflows that must keep working:
 - desktop local development
 - mobile/Tailscale development with the backend local-only behind the Vite proxy
 - Slice 7A Sentry-disabled and Sentry-enabled runtime behavior
-- Slice 7A request ID and note operation ID correlation
+- Slice 7B request ID and note operation ID correlation
 
 Persistence and recovery guarantees that must not regress:
 
@@ -810,7 +828,8 @@ Degraded, error, and recovery states that must remain visible:
 QA flows that must still pass:
 
 - existing route, draft, save, conflict, and recovery tests
-- Slice 7A runtime and correlation tests
+- Slice 7A runtime tests
+- Slice 7B correlation tests
 - Sentry-disabled app startup and note workflow
 - Sentry-enabled app startup and note workflow
 - desktop browser smoke test
@@ -854,7 +873,8 @@ Run targeted automated tests for:
   without adding Sentry imports or observer hooks to `packages/core`
 - development test events proving under-limit and over-limit payload behavior
 - existing route, draft, save, conflict, and recovery tests
-- Slice 7A runtime and correlation tests
+- Slice 7A runtime tests
+- Slice 7B correlation tests
 
 Run manual/browser QA:
 
@@ -891,7 +911,8 @@ Run manual/browser QA:
 
 ## Acceptance Criteria
 
-- Slice 7A runtime startup, config, disabled-mode, and correlation behavior
+- Slice 7A runtime startup, config, and disabled-mode behavior, plus Slice 7B
+  correlation behavior
   remains intact.
 - The Milkdown block-menu bug report can be investigated with Sentry evidence
   instead of only terminal logs.
@@ -916,16 +937,17 @@ Run manual/browser QA:
   coalescing buffers keep normal editing responsive and Sentry inspectable.
 - Backend observability enriches route-level evidence from core outcomes/errors,
   and `packages/core` remains Sentry-free with no new observer contract.
-- Sentry-disabled Azurite behaves the same as before Slice 7A and Slice 7B.
+- Sentry-disabled Azurite behaves the same as before Slice 7A, Slice 7B, and
+  Slice 7C.
 - All negative side-effect guardrails remain true.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
 ## Completion Note
 
-When Slice 7B is complete, the original end-to-end Sentry observability master
-plan is functionally delivered for the current browser, API, editor, client
-state, IndexedDB draft, and filesystem-backed note workflow. Future
+When Slice 7C is complete, Sentry observability is functionally delivered for
+the current browser, API, editor, client state, IndexedDB draft, and
+filesystem-backed note workflow. Future
 observability work should be framed around the next product capability it
 serves, such as create/delete, autosave, file watching, indexing/search,
 PWA/service-worker behavior, hosting hardening, or release/source-map upload.

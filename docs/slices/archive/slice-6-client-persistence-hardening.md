@@ -16,7 +16,7 @@ before moving to the next slice.
 ## Required Implementation Context
 
 Implementers must use this document together with
-`docs/slices/slice-6-client-persistence-and-navigation-foundation.md`.
+`docs/slices/archive/slice-6-client-persistence-and-navigation-foundation.md`.
 
 The adversarial review findings below are not enough by themselves. They name
 the current gaps, but the original Slice 6 foundation document and the

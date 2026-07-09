@@ -377,7 +377,7 @@ Verify:
 ## Follow-Up Slices
 
 Slice 6 should add the client persistence and navigation foundation described
-in `docs/slices/slice-6-client-persistence-and-navigation-foundation.md`.
+in `docs/slices/archive/slice-6-client-persistence-and-navigation-foundation.md`.
 
 Phone QA after Slice 5 showed Android Chrome and Edge can reload Azurite when
 Daniel switches apps, which loses the selected note and unsaved draft because

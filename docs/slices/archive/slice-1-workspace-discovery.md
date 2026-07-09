@@ -367,7 +367,7 @@ Manually verified:
 ## Next Slice After This
 
 After this slice, continue with
-`docs/slices/slice-2-safe-note-reading.md`.
+`docs/slices/archive/slice-2-safe-note-reading.md`.
 
 Slice 2 reads one note by ID and safely returns its raw markdown plus metadata.
 Rendering the selected note in the web UI follows as a separate slice with the

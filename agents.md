@@ -2,12 +2,14 @@
 
 ## Project Status
 
-This repository is currently a clean starting point. Product direction is
-documented in `docs/product-vision.md`, technical architecture is documented in
-`docs/technical-architecture.md`, the working style is documented in
-`docs/working-agreement.md`, and reusable research sources are tracked in
-`docs/research-sources.md`. Treat new structure, tooling, and conventions as
-intentional project decisions rather than assumptions.
+Azurite currently has a working markdown discovery, reading, editing, manual
+save, URL navigation, and browser draft-recovery baseline. Product direction is
+documented in `docs/product-vision.md`, current architecture in
+`docs/technical-architecture.md`, engineering rules in
+`docs/engineering-standards.md`, and the product-slice workflow in
+`docs/working-agreement.md`. Active, planned, and completed slices are indexed in
+`docs/slices/README.md`; reusable research sources are indexed in
+`docs/research-sources.md`.
 
 ## Working Guidelines
 
@@ -30,26 +32,19 @@ intentional project decisions rather than assumptions.
 
 - Follow the high-fidelity product-slice workflow in
   `docs/working-agreement.md`.
-- Follow the stack, TypeScript, security, and code-quality rules in
-  `docs/technical-architecture.md`.
+- Follow current system boundaries in `docs/technical-architecture.md` and the
+  TypeScript, security, and code-quality rules in
+  `docs/engineering-standards.md`.
 - For slice proposals, lead with the product decision and user story before
   listing implementation tasks. Explain why the capability matters for
   Azurite's future, what architecture it establishes, what user workflows it
   unlocks, and how it will be verified.
-- Before narrowing any meaningful slice to an implementation surface, define a
-  `Future Workflow Boundary`. This is mandatory when the work touches a
-  foundation such as observability, persistence, routing, editor integration,
-  authentication, search, indexing, sync, local hosting, storage, or telemetry.
-  The boundary must name the current user workflow, predictable future
-  workflows, every product layer that participates now, every layer that is
-  predictably needed soon, and any deliberately excluded layer with the stable
-  reason it can wait. Do not propose a symptom-shaped slice until this boundary
-  is explicit.
-- For every meaningful slice proposal, include a section named
-  `Negative Side-Effect Guardrails`. It should name existing behavior,
-  persistence guarantees, validation/security boundaries, URL/state behavior,
-  degraded states, and QA flows that must not regress while the slice adds new
-  capability.
+- For cross-cutting foundations, include the compact `Future Workflow Boundary`
+  defined in `docs/working-agreement.md`. Name the end-to-end workflow and
+  participating layers without reproducing an exhaustive future roadmap.
+- Every meaningful slice links to `docs/reference/product-guardrails.md` and
+  lists only the additional slice-specific negative side effects it must
+  prevent.
 - Keep code files at 400 lines or fewer. This is a hard project requirement:
   split files by responsibility before they reach 401 lines.
 - Keep code modular and separated by concern, with frontend, server, shared
@@ -96,9 +91,10 @@ For Sentry work, evaluate the slice by diagnostic completeness: whether errors,
 logs, traces, replay, breadcrumbs, frontend state, backend state, and request
 correlation make real failures understandable.
 
-Still keep credentials and project secrets out of Git and out of committed docs.
-That includes Sentry auth tokens, API keys, passwords, and unrelated local
-credentials. This is repository hygiene, not telemetry censorship.
+Credential containment still applies. Do not deliberately capture credentials,
+authorization headers, session cookies, Sentry auth tokens, API keys, passwords,
+DSNs, or secret environment values in telemetry, Git, or committed docs. This
+protects access authority without censoring Azurite product data.
 
 ## Judgment Calibration
 

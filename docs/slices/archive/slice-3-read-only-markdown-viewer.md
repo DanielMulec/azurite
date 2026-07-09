@@ -370,7 +370,7 @@ None.
 Resolve the temporary renderer before adding broader note-browsing polish.
 
 The next slice is planned in
-`docs/slices/slice-4-milkdown-crepe-editor-surface.md`. It replaces the
+`docs/slices/archive/slice-4-milkdown-crepe-editor-surface.md`. It replaces the
 temporary read-only note body with a Milkdown and Crepe editor surface that can
 load markdown, edit locally in memory, and switch to plain markdown source mode.
 Do not grow the current unified-based renderer into a parallel long-term

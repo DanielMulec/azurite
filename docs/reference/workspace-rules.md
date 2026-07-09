@@ -32,7 +32,10 @@ Rules:
 
 - Markdown notes must use the `.md` file extension.
 - Raw markdown is returned as data when reading note content.
-- Rendered HTML belongs to a later sanitized rendering slice.
+- The active editor renders and edits markdown through Milkdown and Crepe while
+  preserving markdown as the canonical serialized format.
+- Any separate HTML rendering path must sanitize markdown-derived output before
+  it reaches the browser DOM.
 
 ## Note IDs
 
