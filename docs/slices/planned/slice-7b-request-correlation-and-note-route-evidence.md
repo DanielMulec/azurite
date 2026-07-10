@@ -2,823 +2,872 @@
 
 ## Status
 
-Planned. Promote this document to `docs/slices/active/` only after Slice 7A is
-implemented and its runtime contracts are reflected here.
+Planned and implementation-ready after reconciliation on 2026-07-10. Keep this
+document in `docs/slices/planned/` until Daniel reviews the revised decisions and
+explicitly approves promotion. Promotion and implementation are separate from
+this planning revision.
 
-Slice 7B depends on Slice 7A: Sentry Runtime Delivery Foundation. It adds
-Azurite request correlation and note route evidence on top of the proven runtime.
-Slice 7C then adds semantic editor and persistence diagnostics.
-
-Slice 7C remains planned in
+Slice 7A is complete and archived in
+`docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
+and physical-phone runtime evidence is now an implemented dependency, not a
+future prerequisite. Slice 7C remains planned in
 `docs/slices/planned/slice-7c-semantic-editor-and-persistence-diagnostics.md`.
 
-Physical-phone Sentry QA passed on 2026-07-10 and recorded a separate mobile
-Markdown source-mode newline reversion in
-`docs/qa/mobile-markdown-newline-reversion.md`. Slice 7B must preserve that
-finding as known baseline behavior: use a disposable WYSIWYG edit for mobile
-save-correlation proof if necessary, and do not report correlation work as an
-editor fix.
+The physical-phone session also recorded the mobile Markdown newline reversion
+and unexplained recovered-draft state in
+`docs/qa/mobile-markdown-newline-reversion.md`. Slice 7B must preserve those
+findings without diagnosing or fixing them. Mobile save-correlation QA will use
+a disposable WYSIWYG edit because that path was proven to complete on the phone.
 
 ## Product Decision
 
-Azurite adds a stable request and note-operation correlation contract on top of
-the Slice 7A Sentry runtime.
+Azurite will own semantic request and note-operation correlation independently
+of Sentry trace sampling while continuing to use Sentry as the investigation
+platform.
 
-Slice 7B settles the current note workflow observability decision:
+The durable boundary is:
 
-- Frontend API calls receive stable Azurite request IDs.
-- Note load and save workflows receive stable note operation IDs.
-- Request IDs and note operation IDs are transported through typed web API
-  metadata and validated backend headers.
-- Backend request hooks create trusted request-scoped observability context.
-- Frontend note load/save events and backend note list/read/save route outcomes
-  use shared event names and attributes.
-- Note read, save, and conflict workflows can be followed across browser and
-  Fastify evidence even when Sentry trace propagation is missing or sampled out.
-- Sentry scopes are isolated or cleared so request, note, operation, hash, and
-  future payload context cannot leak into unrelated events.
+- one Azurite request ID identifies one HTTP attempt;
+- one note operation ID identifies one note-load or manual-save intent and can
+  survive future retry attempts;
+- existing numeric Zustand request counters remain UI stale-response sequences,
+  not distributed correlation IDs;
+- browser actions create explicit operation context and pass it through the
+  typed API boundary;
+- a Fastify request decoration owns validated server correlation context;
+- web and server events carry correlation attributes explicitly rather than
+  relying on mutable global Sentry scope;
+- the existing Slice 7A tracing, Replay, preload, console, and shutdown runtime
+  remains intact;
+- note list, read, save, conflict, validation, and unexpected route outcomes are
+  observable without changing API bodies or filesystem behavior.
 
-This slice deliberately does not add deep editor, draft, payload, or coalescing
-diagnostics. It proves the correlation backbone that Slice 7C will reuse.
+Slice 7B does not instrument Milkdown, Crepe, Zustand snapshots, Dexie draft
+semantics, or rich payloads. Slice 7C will add those layers on this correlation
+contract.
 
 ## User Story
 
-When Daniel loads a note, saves a note, or triggers a save conflict with Sentry
-enabled, he can inspect Sentry and follow the workflow from the browser action to
-the Fastify route outcome using the same `azurite.request_id` and
-`azurite.note_operation_id`.
+When Daniel loads or saves a note with Sentry debug mode enabled, he can take the
+request ID and note operation ID from the browser evidence and find the matching
+Fastify route evidence, even when the distributed Sentry trace is unavailable or
+sampled out.
 
-When Sentry is disabled, Azurite behaves like the current app: note list loading,
-URL navigation, note reading, manual save, conflict handling, draft recovery,
-desktop local development, and mobile/Tailscale development continue without
-requiring Sentry or changing API response bodies.
+When requests overlap, a stale response remains attached to the operation that
+created it. A later note, request, or unrelated runtime event does not inherit
+the earlier operation's metadata.
+
+When Sentry is disabled or correlation ID generation degrades, Azurite still
+lists, reads, edits, saves, detects conflicts, recovers drafts, routes by URL,
+and works through the Tailscale frontend proxy with the same product API
+responses as before this slice.
 
 ## Why This Matters
 
-Slice 7A proves that Sentry can run safely. That is necessary, but runtime
-delivery alone does not explain whether a particular note read, save, or conflict
-belongs to the same user workflow across the browser and backend.
+Slice 7A proved delivery: Sentry can initialize only when enabled, receive real
+web/server events and logs, show unmasked desktop and phone Replays, propagate
+trace headers through Vite, and flush within a bounded shutdown path. Delivery
+alone does not prove that a browser load, backend read, stale response, save, or
+conflict belongs to one user intent.
 
-The next useful delivery unit is correlation. It is narrow enough to review
-carefully, but meaningful enough to unlock later semantic diagnostics. Slice 7B
-ensures the app has durable request IDs, note operation IDs, shared event names,
-route-level outcome evidence, and overlap-safe scope isolation before Slice 7C
-adds Milkdown, Dexie, Zustand, payloads, and high-frequency editor events.
+Slice 7B supplies that missing semantic join. It also prevents Slice 7C from
+inventing its own identity, scope, and route event shapes while diagnosing the
+known Milkdown, Markdown source, Zustand, and IndexedDB behavior.
+
+## Reconciled Implementation Baseline
+
+This plan is based on the implemented repository rather than the pre-7A
+proposal. The implementation must extend these facts:
+
+- `packages/shared/src/runtime-observability.ts` owns the Sentry-free runtime
+  event shape, scalar attribute shape, 7A event names, and common attributes.
+- `apps/web/src/observability/web-runtime-observability.ts` and
+  `apps/server/src/observability/server-runtime-observability.ts` are the only
+  feature-facing Sentry adapters. Disabled mode is a synchronous no-op and spans
+  execute their callback directly.
+- Helper-emitted logs and errors use event-local `withScope` calls. The adapters
+  add environment, release, and `app.surface`; record helpers emit a structured
+  log plus breadcrumb, capture helpers emit an error log plus exception, and
+  span helpers add scalar attributes.
+- Browser initialization dynamically imports the enabled runtime before render.
+  Replay is explicitly unmasked for local debug sessions.
+- `apps/server/src/sentry-preload.mjs` gates the Node SDK import and initializes
+  the supported Fastify 5 integration before Fastify is imported. Slice 7B does
+  not add `setupFastifyErrorHandler` or a second initialization path.
+- Vite already propagates `sentry-trace` and `baggage` through the relative API
+  proxy. Those headers complement but do not replace Azurite IDs.
+- Graceful shutdown closes Fastify before the enabled Sentry flush and preserves
+  the implemented bounded flush/fallback budgets. Slice 7B adds no lifecycle
+  work after shutdown begins.
+- `apps/web/src/api-client.ts` is the centralized fetch and API-error boundary.
+- `apps/web/src/state/note-browser-contracts.ts` defines the injected
+  `NoteBrowserApi` boundary used by Zustand actions and tests.
+- `noteRequestId` and `notesRequestId` in the note-browser runtime are numeric
+  stale-response guards. Their current names are ambiguous and must be renamed
+  before distributed request IDs are introduced.
+- `packages/shared/src/cluster.ts` exposes only `ready` or `unavailable` cluster
+  identity results. The server route cannot truthfully distinguish whether
+  cluster metadata was read from disk or created during the call.
+- Current core-to-route error mapping exposes stable API outcomes, but does not
+  preserve a distinct filesystem-boundary rejection subtype at the route.
+- `packages/core` owns filesystem truth and remains Sentry-free.
+- The phone uses the MagicDNS frontend over HTTP while Fastify remains bound to
+  localhost. Browser UUID generation therefore cannot depend only on APIs that
+  require a secure context.
 
 ## Future Workflow Boundary
 
-### Current Workflow
-
-This slice covers the current correlated note request workflow:
-
-1. Slice 7A Sentry runtime delivery is complete and verified.
-2. Daniel starts the local Fastify API and Vite web app with Sentry explicitly
-   enabled or disabled.
-3. The web app may be opened on desktop Chrome or from a phone over the
-   Tailscale MagicDNS URL while the backend stays local-only behind the Vite
-   proxy.
-4. The app lists notes from the configured filesystem cluster.
-5. URL-owned route state selects a note.
-6. The frontend reads that note through `/api/notes/content`.
-7. Manual save writes markdown through the existing content-hash conflict
-   contract.
-8. The web API client sends an Azurite request ID on each API call.
-9. The note browser load/save workflow creates and passes a note operation ID
-   through the typed web API boundary.
-10. The backend validates or creates request-scoped correlation context without
-    changing API response bodies.
-11. Frontend events, backend route events, and Sentry trace evidence include the
-    same correlation metadata where applicable.
-12. Rapid note switches and stale-response guards keep distinct request IDs,
-    operation IDs, note IDs, and UI request sequences without leaking context
-    into unrelated events.
-
-The user story is complete only when a real note read, a real save, and a forced
-or real conflict can be joined across frontend and backend Sentry evidence by
-`azurite.request_id` and `azurite.note_operation_id`, and disabled-mode behavior
-remains unchanged.
-
-### Future Workflows This Foundation Must Support
-
-The correlation and event contract must be durable enough for:
-
-- Slice 7C semantic editor and persistence diagnostics.
-- create new markdown notes.
-- recoverable delete or move-to-trash behavior.
-- autosave policy and conflict resolution.
-- file watching and external-edit detection.
-- derived indexing, search, backlinks, and graph behavior.
-- multi-cluster selection and cluster identity changes.
-- PWA installability, service worker behavior, offline/degraded states, and
-  mobile tab discard recovery.
-- authentication and local/Tailscale hosting hardening.
-- production-like release builds with source-map upload.
-
-Future workflows should reuse the same release, environment, surface, request ID,
-note operation ID, route, cluster, note, result, content hash, and API error
-attributes instead of creating parallel telemetry shapes.
-
-### Product Layers Participating Now
-
-Slice 7B touches these current layers:
-
-- repository docs and slice notes
-- Slice 7A runtime observability helpers
-- `packages/shared` route, observability, result, attribute, and correlation
-  constants
-- web API client request headers
-- typed `NoteBrowserApi` metadata boundary
-- note browser load/save actions that create and pass operation IDs
-- TanStack Router selected-note state and route-source evidence
-- Zustand note browser state only as needed to observe load/save/stale outcomes
-- Fastify request hooks for correlation context
-- Fastify note list/read/save routes
-- existing `packages/core` filesystem note behavior as surfaced by server route
-  outcomes and caught errors
-- Vitest unit/integration tests
-- manual desktop, mobile/Tailscale, and Sentry UI verification
-
-### Product Layers Predictably Needed Soon
-
-Slice 7B leaves explicit seams for:
-
-- Slice 7C editor, draft, payload, snapshot, coalescing, and Replay-usefulness
-  diagnostics.
-- editor session IDs that join load/save/conflict to editor events.
-- note lifecycle operation IDs that span create, save, delete, and future
-  recovery flows.
-- file-watch and external-change events.
-- derived index/search worker or backend service instrumentation.
-- PWA/service-worker telemetry once that runtime exists.
-- release/source-map upload for production-like builds.
-- future auth and local-hosting decision telemetry.
-
-### Deliberately Excluded Layers
-
-These layers are excluded from Slice 7B:
-
-- creating Sentry projects, adding SDK dependencies, root env loading, Replay
-  runtime setup, console capture, or server preload work already completed by
-  Slice 7A
-- replacing the Slice 7A Fastify preload, startup, shutdown, or config boundary
-  unless Slice 7B discovers a correctness bug in that foundation
-- Milkdown/Crepe focus, selection, transaction, and block-menu instrumentation
-- Dexie draft read/write/delete semantic telemetry
-- Zustand state snapshots
-- full markdown and draft payload carrier machinery
-- under-limit and over-limit `azurite.debug_payload` proof
-- editor-update coalescing and rate limiting
-- several-minute large-note responsiveness QA with rich editor telemetry
-- fixing the Milkdown block-menu bug itself
-- mobile-native and desktop-native apps
-- service workers, sync workers, indexing workers, and background jobs that do
-  not exist yet
-- public production telemetry policy
-- custom in-app log viewer
-- Sentry self-hosting or billing work
-- source-map upload automation that requires Sentry auth tokens
-- direct `packages/core` observability hooks, observer interfaces, or Sentry
-  imports
-
-The exclusions are stable because Slice 7B delivers complete request and note
-workflow correlation: current note list/read/save/conflict operations are
-observable at the browser and server route boundary, correlation metadata is
-validated and scope-safe, and API behavior is unchanged. Slice 7C can then focus
-on editor and persistence semantics instead of repairing request correlation.
+| Boundary               | Required decision                                                                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result.                                                            |
+| Predictable extensions | Slice 7C editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction.                                                                           |
+| Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions, typed `NoteBrowserApi`, web API client, web/server observability adapters, Fastify request hook and note routes, existing core results, tests, and desktop/phone QA. |
+| Near-term seams        | Typed API metadata, immutable browser operation context, decorated Fastify request context, shared event/attribute vocabulary, and explicit event attributes leave room for editor session IDs and multiple request attempts per operation.      |
+| Exclusions             | Editor/draft semantics, rich payloads, retries, autosave, new note lifecycle behavior, core observers, and runtime setup can wait because the current workflow gains a complete correlation join without them.                                   |
 
 ## Goals
 
-- Reuse the Slice 7A Sentry runtime and observability helper surface.
-- Add shared event-name, attribute, result-status, route, and correlation
-  constants for the current note workflow.
-- Add request ID and note operation ID validation schemas.
-- Generate or propagate a request ID for each frontend API call.
-- Generate note operation IDs for note load and save workflows.
-- Transport correlation IDs through typed web API metadata, not hidden globals or
-  Sentry-only scope state.
-- Validate request ID and note operation ID headers in backend request hooks.
-- Generate a fresh server request ID when the frontend omits or sends an invalid
-  request ID.
-- Reject invalid, oversized, or duplicated correlation headers as canonical
-  identifiers without changing API response bodies.
-- Keep local frontend stale-response sequence counters separate from
-  `azurite.request_id`.
-- Add route-level runtime evidence for note list/read/save/conflict outcomes.
-- Add route-level evidence for cluster metadata read/create/failure behavior as
-  observed from the server route boundary.
-- Add route-level evidence for note ID rejection and filesystem boundary
-  rejection from existing core behavior.
-- Preserve existing Fastify/Pino logging and shared API error response shapes.
-- Keep `packages/core` Sentry-free with no new observer contract.
-- Prove overlapping note loads, stale-response guards, and unrelated events do
-  not leak Sentry scope context.
-- Verify real desktop/mobile note read, save, and conflict correlation in Sentry.
-- Keep Azurite fully functional when Sentry env vars are missing.
+- Establish shared UUID, header, correlation metadata, event, attribute, result,
+  and route constants.
+- Give every current web API attempt a fresh request ID when browser secure
+  randomness is available.
+- Give every note-read and manual-save intent a fresh note operation ID when
+  browser secure randomness is available.
+- Pass identifiers through explicit TypeScript parameters and HTTP headers.
+- Validate correlation headers once in an early Fastify request hook and expose
+  an immutable request-scoped context to routes.
+- Generate a trusted server request ID when the client request ID is missing or
+  invalid; never invent a semantic note operation ID on the server.
+- Rename local numeric request counters so their UI sequencing purpose is
+  unmistakable.
+- Emit truthful frontend API, note load/save, stale, and route evidence.
+- Emit truthful backend note list/read/save outcomes using the current shared
+  API and cluster-identity contracts.
+- Keep operation context isolated across overlapping requests and stale
+  responses.
+- Prove the same request and operation IDs in exact desktop and physical-phone
+  Sentry evidence.
+- Preserve all Sentry-disabled and existing product behavior.
 
 ## Non-Goals
 
-- Do not recreate Sentry runtime setup from Slice 7A.
-- Do not change Slice 7A's Sentry projects, dependency choices, env loading,
-  custom preload, Replay config, console capture, or shutdown boundary unless a
-  correctness bug is discovered.
-- Do not add deep Milkdown, Crepe, ProseMirror, Dexie, or Zustand diagnostics.
-- Do not implement full debug payload bounds or `azurite.debug_payload`.
-- Do not add high-frequency editor event coalescing.
-- Do not fix the Milkdown block-menu bug.
-- Do not add source-map upload infrastructure.
-- Do not add Sentry to future native, worker, sync, or indexing surfaces.
-- Do not create a public production telemetry policy.
-- Do not create a custom in-app log viewer.
-- Do not persist observability events as Azurite product state.
-- Do not replace existing Fastify/Pino logs with Sentry.
-- Do not add direct Sentry instrumentation, observer hooks, or telemetry
-  contracts to `packages/core`.
+- Do not reimplement or reconfigure Sentry initialization, projects, Replay,
+  console capture, trace propagation, preload behavior, or shutdown flushing.
+- Do not add a retry mechanism. The identity contract merely supports future
+  retries without redesign.
+- Do not fix the mobile Markdown newline reversion, recovered-draft observation,
+  or existing Milkdown/Crepe interaction finding.
+- Do not add Milkdown, ProseMirror, Crepe, Zustand snapshot, Dexie lifecycle, or
+  editor-session instrumentation.
+- Do not add full markdown, draft, request-body, response-body, or state payload
+  carrier machinery. Slice 7C owns bounded rich payloads.
+- Do not change note response schemas, error response schemas, status codes, or
+  content-hash conflict behavior.
+- Do not echo correlation IDs in response headers or bodies.
+- Do not treat diagnostic IDs as authentication, authorization, idempotency,
+  product identity, or persistence keys.
+- Do not add Sentry imports, telemetry state, observer interfaces, or callbacks
+  to `packages/core`.
+- Do not add source-map upload, production telemetry policy, a custom log viewer,
+  a service worker, or native-app telemetry.
 
-## Dependency On Slice 7A
+## Dependency On The Finished Slice 7A Runtime
 
-Slice 7B assumes Slice 7A has already delivered:
+Slice 7B reuses the following proven 7A behavior exactly:
 
-- `@sentry/react` and `@sentry/node` installed in the owning workspaces.
-- Web and server Sentry initialization behind typed config modules.
-- Root `.env.example` and untracked root `.env.local` workflow.
-- Sentry-disabled startup and note workflows verified.
-- Custom server preload with enabled-only dynamic `@sentry/node` import.
-- Bounded Sentry-enabled shutdown behavior.
-- `azurite-web` and `azurite-server` receiving real events.
-- Desktop and mobile/Tailscale web sessions visible in Sentry.
-- Desktop and mobile/Tailscale Replay delivery visible in Sentry.
-- Browser console warning/error capture visible in Sentry.
-- Baseline `sentry-trace` and `baggage` propagation through the Vite proxy and
-  Fastify boundary.
-- Shared development test-event route constants and base runtime helper types in
-  `packages/shared`.
-- Direct Sentry calls contained behind web/server observability helpers.
-- A typed runtime event/context surface that accepts controlled additional
-  serializable attributes.
+- `@sentry/react` and `@sentry/node` 10.64.0 in their owning workspaces;
+- typed enabled-only web/server configuration and ignored root `.env.local`;
+- enabled-only web dynamic import and server conditional ESM preload;
+- supported Fastify 5 diagnostics-channel integration initialized before
+  Fastify;
+- web/server structured logs, event capture, spans, low-cardinality runtime
+  tags, release, environment, and surface context;
+- unmasked browser Replay and warning/error console capture;
+- `sentry-trace` and `baggage` propagation through the Vite proxy;
+- Fastify/Pino logging alongside Sentry;
+- bounded server flush and shutdown ordering;
+- shared Sentry-free runtime event contracts and typed helper extension surface;
+- verified desktop, Tailscale, and physical-phone runtime delivery;
+- a frontend bound only to the selected Tailscale interface for phone QA while
+  Fastify stays on `127.0.0.1`.
 
-If any of those foundations are missing, Slice 7B should stop and repair the 7A
-foundation before adding request correlation.
+If implementation discovers a real 7A correctness defect, stop and revise this
+plan before changing that foundation. A desire for different helper ergonomics
+is not permission to duplicate the runtime.
 
 ## Architecture
 
-### Trace And Correlation Contract
+### Identity Semantics And Ownership
 
-Sentry trace propagation alone is not enough for this slice. Azurite must add
-stable semantic correlation IDs so desktop, mobile, frontend, backend, and server
-route-boundary evidence can be joined even when a trace is missing or sampled
-out.
+The three current identity classes are deliberately different:
 
-Required correlation fields:
+| Identity                      | Format           | Owner                                                                                  | Lifetime                            | Meaning                                                                         |
+| ----------------------------- | ---------------- | -------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
+| `azurite.request_id`          | UUID v4          | Browser action for normal web calls; Fastify fallback for missing/invalid client input | One HTTP attempt                    | Joins browser API evidence to one Fastify request.                              |
+| `azurite.note_operation_id`   | UUID v4          | Browser note load/save action                                                          | One note-read or manual-save intent | Joins all evidence for one semantic note operation and may span future retries. |
+| `azurite.ui_request_sequence` | Positive integer | Zustand note-browser runtime                                                           | One local list/read sequencing step | Determines whether an async response is still current; never crosses HTTP.      |
 
-| Attribute                     | Owner                         | Purpose                                                              |
-| ----------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| `app.surface`                 | Slice 7A web/server init      | Distinguish browser and API events.                                  |
-| `sentry.environment`          | Sentry SDK                    | Group local, Tailscale, and future builds.                           |
-| `sentry.release`              | Sentry SDK                    | Join frontend and backend events by build.                           |
-| `azurite.request_id`          | web API client/server hook    | Join frontend fetches to backend requests.                           |
-| `azurite.note_operation_id`   | web action/backend route      | Join read/save/conflict events for one note operation.               |
-| `azurite.editor_session_id`   | Slice 7C web store/editor     | Reserved for editor diagnostics.                                     |
-| `azurite.ui_request_sequence` | web store                     | Distinguish stale-response guards from API request IDs.              |
-| `azurite.cluster_id`          | shared response/store/backend | Scope events to the current cluster identity.                        |
-| `azurite.note_id`             | web/backend operation         | Scope events to the current note.                                    |
-| `http.method`                 | web/server request helpers    | Identify request behavior without relying on raw logs.               |
-| `http.route`                  | web/server request helpers    | Use route patterns, not only concrete URLs.                          |
-| `azurite.route_source`        | router/store                  | Distinguish direct URL, list click, history, and fallback selection. |
-| `azurite.api_error_code`      | API error handling            | Preserve shared error contract evidence.                             |
-| `azurite.result_status`       | observability helpers         | Normalize started, succeeded, failed, stale, conflict, invalid.      |
+Fastify's built-in `request.id` remains a separate server logging identifier.
+Slice 7C's `azurite.editor_session_id` remains a separate browser editor
+identity. Cluster IDs, note IDs, content hashes, and draft keys retain their
+existing product meanings.
 
-Implementation requirements:
+The browser action creates an immutable context immediately before an API call:
 
-- The web API client generates or propagates `azurite.request_id` for each API
-  call and sends it through an `x-azurite-request-id` header.
-- The web note browser actions generate `azurite.note_operation_id` for note load
-  and save workflows and pass it through the typed web API boundary.
-- The web API client sends note operation IDs through an
-  `x-azurite-note-operation-id` header when an operation exists.
-- The typed `NoteBrowserApi` boundary accepts optional request metadata for
-  correlation IDs instead of relying on hidden globals, module-level mutable
-  state, or Sentry-only scope state.
-- Shared correlation schemas define accepted ID format and length for request
-  IDs and note operation IDs.
-- Web-generated IDs use `crypto.randomUUID()` where available and a tested
-  fallback only if needed.
-- Backend request hooks accept only a single valid `x-azurite-request-id` header.
-  Missing or invalid request IDs cause the server to generate a fresh server
-  request ID for telemetry without changing API response bodies.
-- Backend request hooks accept only a single valid
-  `x-azurite-note-operation-id` header. Missing or invalid operation IDs are
-  omitted from request-scoped observability context.
-- Invalid, oversized, or duplicated correlation headers are recorded as
-  diagnostic metadata, not trusted as canonical correlation IDs.
-- Existing frontend numeric request counters remain local
-  `azurite.ui_request_sequence` metadata for stale-response protection. They
-  must not be used as `azurite.request_id`.
-- Backend note routes attach request ID, operation ID, cluster ID, note ID,
-  method, route pattern, result status, and error code to Sentry events/logs.
-- Sentry browser tracing continues to use Slice 7A trace propagation targets, but
-  Slice 7B's semantic request ID remains the reliable join key when trace
-  propagation is incomplete.
-- Sentry scopes may attach current request or note context during one operation,
-  but scopes must be cleared or isolated so request IDs, note IDs, operation IDs,
-  route values, hashes, and later Slice 7C markdown context do not leak into
-  unrelated events.
-- Tests prove that request IDs and operation IDs are present in fetch headers,
-  frontend helper calls, backend request context, and backend observability calls
-  without changing API response bodies.
-- Tests prove invalid, oversized, duplicated, and absent correlation headers do
-  not weaken API behavior or pollute canonical request/operation IDs.
+```ts
+type ApiRequestMetadata = {
+  readonly requestId?: string;
+  readonly noteOperationId?: string;
+};
+```
 
-### Runtime Helper Extension
+The action retains that same value in its async closure for lifecycle and stale
+result events. The API client serializes it but does not read or mutate a hidden
+module-global "current operation." Injected test APIs receive the same typed
+metadata.
 
-Slice 7B must reuse the Slice 7A runtime helper surface.
+`listNotes` receives a request ID only. `readNote` and `saveNote` receive both a
+request ID and a note operation ID. A future retry must create a new request ID
+while retaining the originating operation ID.
 
-Implementation requirements:
+### UUID Generation And Degraded Behavior
 
-- Do not import Sentry from feature code.
-- Extend shared event and attribute constants instead of creating parallel
-  frontend/backend telemetry shapes.
-- Use controlled additional serializable attributes on the Slice 7A helper
-  surface for request ID, operation ID, note ID, cluster ID, route source, hash,
-  result, and API error context.
-- If the 7A helper surface is too narrow, repair it as part of this slice before
-  adding note workflow instrumentation.
-- Keep helper APIs no-op safe when Sentry is disabled.
+The web correlation helper uses this exact order:
 
-### Scope Isolation And Overlap Boundary
+1. Call `globalThis.crypto.randomUUID()` when it exists and is callable.
+2. Otherwise create an RFC 4122 version-4 UUID from 16 bytes produced by
+   `globalThis.crypto.getRandomValues()` and set the required version/variant
+   bits.
+3. Never use `Math.random`, timestamps, counters, note content, or hashes.
+4. If no cryptographically secure browser source is available, return
+   `undefined`, emit `correlation.id_generation.failed` when the runtime is
+   enabled, and continue the product operation without the unavailable ID.
 
-Request and note context cannot leak between operations.
+The `getRandomValues` fallback is required because the current MagicDNS phone
+origin is HTTP and `randomUUID` is restricted to secure contexts, while
+`getRandomValues` is available in insecure contexts in supporting browsers.
 
-Implementation requirements:
+The server uses Node's `randomUUID()` for a missing or rejected request ID. It
+does not use a counter or Fastify's request ID as a substitute. Failure to
+generate a browser note operation ID degrades correlation only; it must never
+block a read or save. The server never manufactures an operation ID because it
+cannot know the client intent boundary.
 
-- Use per-operation scope isolation, direct structured-log attributes, or another
-  tested SDK-supported mechanism that keeps correlation context local to the
-  emitted event.
-- Do not rely on one global mutable "current note" context for overlapping
-  operations.
-- Rapid note switches must keep distinct request IDs, note operation IDs, note
-  IDs, and UI request sequences.
-- A stale ignored response must emit the stale evidence under the stale
-  operation's context, not the currently selected note's context.
-- The next unrelated runtime event after a note operation must not inherit the
-  prior note ID, operation ID, content hash, or API error code.
-- Tests must simulate overlapping note reads and stale-response handling.
+### Shared Header And Validation Contract
 
-### Core And Filesystem Boundary
+Shared constants define:
 
-`packages/core` remains Sentry-free in this slice.
+```text
+x-azurite-request-id
+x-azurite-note-operation-id
+```
 
-The current user story needs backend-route evidence for filesystem-backed note
-behavior, not a new core observer abstraction. Server routes should capture
-useful evidence from core calls and caught core errors:
+One shared `z.uuidv4()` schema validates both ID values. Header parsing accepts
+only one exact UUID-v4 string:
 
-- request ID
-- note operation ID when available
-- note ID
-- cluster ID when available
-- route pattern and HTTP method
-- duration
-- result status
-- shared API error code
-- content hashes
-- caught core error name, code, message, stack, and local filesystem path context
-  where available
+- `undefined` is missing;
+- a `string[]` is duplicated and rejected;
+- a comma-joined string is invalid and rejected by the UUID schema;
+- whitespace, oversized text, non-UUID values, and non-v4 UUIDs are invalid;
+- raw rejected header values are never copied into telemetry attributes;
+- a valid client request ID is accepted as canonical for that request;
+- a missing or rejected request ID is replaced with a fresh server UUID;
+- a missing or rejected operation ID is omitted.
 
-Do not add a core observer, hook, dependency injection surface, or Sentry import
-to `packages/core` in this slice.
+The server records bounded enum status rather than the rejected value:
 
-### File-Line And Refactor Boundary
+| Attribute                          | Values                                                           |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `azurite.request_id_source`        | `client`, `server_missing`, `server_invalid`, `server_duplicate` |
+| `azurite.note_operation_id_status` | `accepted`, `missing`, `invalid`, `duplicate`                    |
 
-Several implementation targets are already near the 400-line hard limit. Slice
-7B must split files before adding note workflow instrumentation where needed.
+Invalid correlation metadata never produces a `400`, changes a successful route
+to a failure, changes an API body, or bypasses existing validation. Correlation
+headers are request-only and are not returned in response headers. This keeps
+the established API compatible and avoids a second response contract.
 
-Known pressure points:
+### Browser Operation Flow
 
-- `apps/server/src/notes-route.ts`
-- `apps/web/src/state/note-browser-route-actions.ts`
-- `apps/web/src/state/note-browser-editor-actions.ts`
-- `apps/web/src/components/MilkdownEditor.tsx`
+The browser path is explicit and overlap-safe:
 
-Slice 7B should not expand `MilkdownEditor.tsx` for deep instrumentation. If a
-near-limit file must be touched for correlation metadata, extract focused helper
-modules first and preserve existing tests.
+1. A list, route-driven note load, discard-and-reload, or manual save action
+   obtains its UI sequence where the existing stale guard needs one.
+2. A note load or save action creates its note operation ID.
+3. Immediately before each API call, the action creates its request ID and
+   immutable `ApiRequestMetadata`.
+4. The action emits its semantic `started` event and passes the metadata to the
+   injected `NoteBrowserApi` method.
+5. The API client emits API request evidence, adds the shared headers that are
+   present, and preserves the existing parsed response/error return contract.
+6. The action emits the semantic result with the same closure-owned metadata.
+7. If the UI sequence is stale, `note.load.stale_ignored` uses the stale
+   closure's note ID, operation ID, request ID, and UI sequence—not current
+   store state.
 
-## Correlated Runtime Event Contract
+Rename the current runtime members and context methods before adding semantic
+IDs:
 
-### Shared Event Naming Rules
+- `noteRequestId` -> `noteRequestSequence`;
+- `notesRequestId` -> `notesRequestSequence`;
+- `nextNoteRequestId` -> `nextNoteRequestSequence`;
+- `nextNotesRequestId` -> `nextNotesRequestSequence`;
+- matching function parameters named `requestId` -> `requestSequence`.
 
-- Event names use lower-case dot-separated product vocabulary.
-- Event names describe product behavior, not Sentry mechanics.
-- Every started event has a matching succeeded, failed, stale, conflict,
-  invalid, or visible result when that lifecycle exists.
-- Event attributes use shared constants for common fields.
-- Slice 7B events carry metadata, hashes, IDs, and bounded marker context, not
-  full markdown or draft payloads.
+These are behavior-preserving names. Existing stale-response tests must pass
+before observability assertions are added.
 
-### Frontend Events
+### Route-Source Truth
 
-| Event                     | Required attributes                                              |
-| ------------------------- | ---------------------------------------------------------------- |
-| `route.note.changed`      | `azurite.note_id`, `azurite.route_source`                        |
-| `route.note.invalid`      | `azurite.route_source`, invalid route value                      |
-| `api.request.started`     | request ID, route, method, operation ID when present             |
-| `api.request.succeeded`   | request ID, route, method, status                                |
-| `api.request.failed`      | request ID, route, method, API error code or request reason      |
-| `note.load.started`       | note ID, operation ID                                            |
-| `note.load.succeeded`     | note ID, operation ID, cluster ID, content hash, markdown length |
-| `note.load.failed`        | note ID, operation ID, API error code, request ID                |
-| `note.load.stale_ignored` | note ID, operation ID, UI request sequence                       |
-| `save.started`            | note ID, operation ID, expected content hash                     |
-| `save.succeeded`          | note ID, operation ID, new content hash                          |
-| `save.conflicted`         | note ID, operation ID, expected content hash, API error code     |
-| `save.failed`             | note ID, operation ID, API error code or request failure reason  |
+Slice 7B records only route sources the current app can know honestly:
 
-### Backend Events
+| Source                 | Emission point                                              | Meaning                                                               |
+| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| `note_list`            | List-selection action before navigation                     | Daniel requested navigation from the visible note list.               |
+| `startup_fallback`     | Note-list load before replacing an absent/invalid selection | The app selected the first available note as its startup fallback.    |
+| `url_sync`             | Route synchronization action                                | The store synchronized to the note ID currently owned by the URL.     |
+| `draft_discard_reload` | Discard-and-reload action                                   | The app reread the selected disk note after deliberate draft discard. |
 
-| Event                             | Required attributes                                                       |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `workspace.notes.list.started`    | request ID, route, method                                                 |
-| `workspace.notes.list.succeeded`  | request ID, cluster ID, note count, duration                              |
-| `workspace.notes.list.failed`     | request ID, API error code, duration, caught core error context           |
-| `note.read.started`               | request ID, operation ID when present, note ID, route, method             |
-| `note.read.succeeded`             | request ID, operation ID when present, note ID, cluster ID, content hash  |
-| `note.read.not_found`             | request ID, operation ID when present, note ID, API error code            |
-| `note.read.invalid`               | request ID, operation ID when present, API error code                     |
-| `note.read.failed`                | request ID, operation ID when present, note ID when known, API error code |
-| `note.save.started`               | request ID, operation ID when present, note ID, expected content hash     |
-| `note.save.succeeded`             | request ID, operation ID when present, note ID, cluster ID, new hash      |
-| `note.save.conflicted`            | request ID, operation ID when present, note ID, expected hash, error code |
-| `note.save.invalid`               | request ID, operation ID when present, API error code                     |
-| `note.save.failed`                | request ID, operation ID when present, note ID when known, API error code |
-| `cluster.metadata.read.succeeded` | request ID, operation ID when present, cluster ID                         |
-| `cluster.metadata.created`        | request ID, operation ID when present, cluster ID                         |
-| `cluster.metadata.failed`         | request ID, operation ID when present, filesystem path, error details     |
-| `security.note_id.rejected`       | request ID, operation ID when present, rejected note ID, API error code   |
-| `filesystem.boundary.rejected`    | request ID, operation ID when present, rejected path, API error code      |
+The plan does not claim `direct_url` versus `browser_history`: the current
+router/store boundary does not preserve that distinction at the load action.
+`azurite.route_source` is attached where one of the four facts is known and is
+omitted otherwise. No router history behavior changes to create telemetry.
+
+### Fastify Request Context
+
+Add a Sentry-free server correlation module and Fastify type augmentation for:
+
+```ts
+type ServerRequestCorrelation = {
+  readonly noteOperationId?: string;
+  readonly noteOperationIdStatus:
+    "accepted" | "duplicate" | "invalid" | "missing";
+  readonly requestId: string;
+  readonly requestIdSource:
+    "client" | "server_duplicate" | "server_invalid" | "server_missing";
+};
+```
+
+The Fastify plugin decorates requests with a `null` placeholder, then assigns a
+fresh frozen correlation object in `onRequest`. It is registered before note
+routes and before the current trace-evidence hook so every API handler sees the
+context. A shared accessor returns the non-null context after the hook boundary.
+
+Do not decorate the Fastify request prototype with a shared object. Do not store
+current request context in a module global. The decorated request is the server
+authority; Sentry scope is only a carrier.
+
+The note-list handler must accept its `FastifyRequest` rather than discarding it.
+Read/save handlers reuse their existing request. Route modules pass the immutable
+context explicitly to observability helpers.
+
+### Sentry Scope And Concurrency Boundary
+
+Sentry's browser isolation scope is effectively global for the page. Slice 7B
+therefore never places request ID, operation ID, note ID, content hash, API
+error, or UI sequence on a browser global/isolation scope.
+
+Every web event and span receives its attributes explicitly from the immutable
+closure context. The 7A adapter continues to use event-local `withScope` for log
+and exception context. It may add correlation IDs as event-local tags for error
+searchability, but it must not call global `setTag`, `setContext`, or mutate a
+long-lived current scope for operation data.
+
+The Sentry Fastify integration may continue using its SDK-managed per-request
+isolation for automatic tracing and errors. Azurite does not depend on that scope
+as product state. Server route events and spans receive all correlation fields
+explicitly from the decorated Fastify request; error capture uses the existing
+event-local adapter scope.
+
+Operation breadcrumbs remain chronological history by design and can therefore
+appear on a later captured error in the same browser session. That is useful
+investigation context, not scope inheritance. The isolation requirement applies
+to the unrelated event's own tags, structured attributes, contexts, and span
+attributes; those must not silently inherit a prior operation.
+
+Tests run overlapping browser operations and concurrent Fastify injections,
+then emit an unrelated event. They must prove exact attributes at every helper
+call and absence of correlation residue on the unrelated event. Assertions must
+not merely check that the last operation looks correct.
+
+### API Compatibility Boundary
+
+The typed API boundary becomes:
+
+```ts
+type NoteBrowserApi = {
+  readonly listNotes: (
+    metadata: ApiRequestMetadata,
+  ) => Promise<ListNotesResponse>;
+  readonly readNote: (
+    noteId: string,
+    metadata: ApiRequestMetadata,
+  ) => Promise<ReadNoteResponse>;
+  readonly saveNote: (
+    input: SaveNoteInput,
+    metadata: ApiRequestMetadata,
+  ) => Promise<SaveNoteResponse>;
+};
+```
+
+Metadata is required as a parameter so every caller makes ownership explicit;
+its individual IDs remain optional for degraded generation. Test doubles must
+assert or deliberately ignore this parameter. The API client's successful body
+types and `WebApiError` contract remain unchanged.
+
+Custom headers are sent only when their value is present. Existing `Accept` and
+`Content-Type` behavior remains intact. Requests stay relative to the Vite
+origin, so the phone continues through the existing proxy and the backend stays
+local-only.
+
+### Core, Cluster, And Filesystem Evidence Boundary
+
+`packages/core` remains Sentry-free. Fastify route instrumentation observes
+inputs, validated request context, returned shared values, mapped API outcomes,
+duration, and caught errors.
+
+The current `ClusterIdentity` value permits these truthful attributes:
+
+- `azurite.cluster_identity_status = ready` plus `azurite.cluster_id`; or
+- `azurite.cluster_identity_status = unavailable` plus
+  `azurite.cluster_identity_reason`.
+
+Slice 7B does not emit `cluster.metadata.read`, `cluster.metadata.created`, or a
+standalone `cluster.metadata.failed` event because the current core return value
+does not expose read-versus-created provenance. Cluster identity is context on
+the note route result that actually observed it.
+
+Likewise, Slice 7B does not emit `filesystem.boundary.rejected` or attach a
+supposed rejected path. The current route mapping exposes `invalid_note_id`,
+`note_not_found`, and other shared API results but not a reliable boundary
+subtype or safe rejected path. Route outcome evidence records the known API code
+and caught error context. A future core contract may add provenance when a real
+product workflow needs it; 7B will not fabricate precision.
+
+Expected invalid input, not-found, and conflict outcomes are structured result
+events, not exceptions. Unexpected `5xx` failures capture the caught error once
+at the route boundary while Fastify/Pino logging remains intact.
+
+### File Decomposition Boundary
+
+The following files are already close enough to the 400-line hard limit that
+implementation must split responsibility before adding instrumentation:
+
+- `apps/server/src/notes-route.ts`: separate route registration, list handler,
+  content handlers, error mapping, and route-observability construction.
+- `apps/web/src/state/note-browser-route-actions.ts`: separate list/navigation
+  actions from note-read actions.
+- `apps/web/src/state/note-browser-editor-actions.ts`: extract save actions and
+  save-result mapping before adding save evidence.
+
+The correlation generator, web API evidence, and Fastify correlation hook each
+receive focused modules and tests. `MilkdownEditor.tsx` is untouched in Slice
+7B. Every code file remains at or below 400 lines.
+
+## Shared Correlation And Event Contract
+
+### Attribute Vocabulary
+
+Extend the existing shared attribute constants rather than creating web/server
+copies:
+
+| Attribute                          | Type or values              | Use                                                                                         |
+| ---------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| `azurite.request_id`               | UUID string                 | One HTTP attempt.                                                                           |
+| `azurite.request_id_source`        | bounded enum                | Client acceptance or server fallback reason.                                                |
+| `azurite.note_operation_id`        | UUID string                 | One note load/save intent.                                                                  |
+| `azurite.note_operation_id_status` | bounded enum                | Backend header disposition.                                                                 |
+| `azurite.ui_request_sequence`      | number                      | Browser stale-response ordering only.                                                       |
+| `azurite.note_id`                  | string                      | Validated or locally known note identity.                                                   |
+| `azurite.cluster_id`               | UUID string                 | Ready cluster identity.                                                                     |
+| `azurite.cluster_identity_status`  | `ready`, `unavailable`      | Current shared identity result.                                                             |
+| `azurite.cluster_identity_reason`  | existing shared reason enum | Why identity is unavailable.                                                                |
+| `azurite.route_source`             | four-value enum above       | Truthful browser navigation/load source.                                                    |
+| `azurite.api_error_code`           | existing shared API code    | Stable route/client error result.                                                           |
+| `azurite.content_hash`             | string                      | Returned note version.                                                                      |
+| `azurite.expected_content_hash`    | string                      | Save precondition.                                                                          |
+| `azurite.markdown_length`          | number                      | Non-payload content size context.                                                           |
+| `azurite.note_count`               | number                      | Successful list result size.                                                                |
+| `http.method`                      | `GET`, `PUT`                | Current API method.                                                                         |
+| `http.route`                       | shared route pattern        | Route pattern, never an unbounded concrete URL.                                             |
+| `http.response.status_code`        | number                      | Actual HTTP result where available.                                                         |
+| `azurite.duration_ms`              | number                      | Measured operation duration.                                                                |
+| `azurite.result_status`            | bounded lifecycle result    | `started`, `succeeded`, `failed`, `invalid`, `not_found`, `conflicted`, or `stale_ignored`. |
+
+Environment, release, surface, trace-header evidence, and 7A test attributes
+retain their existing names. Slice 7B does not rename 7A events.
+
+### Frontend Event Vocabulary
+
+| Event                              | Required operation-specific attributes                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `correlation.id_generation.failed` | ID kind and bounded failure reason; no fabricated ID                                                                               |
+| `note.route.navigation_requested`  | note ID and `note_list` or `startup_fallback` source                                                                               |
+| `note.route.synchronized`          | note ID when present and `url_sync` source                                                                                         |
+| `api.request.started`              | request ID when available, operation ID when applicable, route, method, `started`                                                  |
+| `api.request.succeeded`            | same IDs, route, method, status code, duration, `succeeded`                                                                        |
+| `api.request.failed`               | same IDs, route, method, status when available, API code when available, duration, `failed`                                        |
+| `notes.list.started`               | request ID when available, UI sequence, `started`                                                                                  |
+| `notes.list.succeeded`             | request ID when available, UI sequence, cluster identity, note count, duration, `succeeded`                                        |
+| `notes.list.failed`                | request ID when available, UI sequence, API code when available, duration, `failed`                                                |
+| `notes.list.stale_ignored`         | stale request ID when available, stale UI sequence, duration, `stale_ignored`                                                      |
+| `note.load.started`                | note ID, operation/request IDs when available, UI sequence, route source, `started`                                                |
+| `note.load.succeeded`              | note ID, operation/request IDs when available, UI sequence, cluster identity, content hash, markdown length, duration, `succeeded` |
+| `note.load.failed`                 | note ID, operation/request IDs when available, UI sequence, API code when available, duration, `failed`                            |
+| `note.load.stale_ignored`          | stale note ID, operation/request IDs when available, stale UI sequence, duration, `stale_ignored`                                  |
+| `note.save.started`                | note ID, operation/request IDs when available, expected hash, `started`                                                            |
+| `note.save.succeeded`              | note ID, operation/request IDs when available, cluster identity, content hash, duration, `succeeded`                               |
+| `note.save.conflicted`             | note ID, operation/request IDs when available, expected hash, API conflict code, duration, `conflicted`                            |
+| `note.save.failed`                 | note ID, operation/request IDs when available, API code when available, duration, `failed`                                         |
+
+`api.request.failed` owns capture of the normalized browser request error when it
+is unexpected. The paired note result is recorded without capturing the same
+exception again. Expected HTTP/API outcomes remain structured logs and
+breadcrumbs rather than fake errors.
+
+### Backend Event Vocabulary
+
+| Event                  | Required operation-specific attributes                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `notes.list.started`   | request ID/source, header status, route, method, `started`                                                                         |
+| `notes.list.succeeded` | request ID/source, cluster identity, note count, duration, status code, `succeeded`                                                |
+| `notes.list.failed`    | request ID/source, API code, duration, status code, caught error context for unexpected failure, `failed`                          |
+| `note.read.started`    | request ID/source, operation ID/status when accepted, note ID when valid, route, method, `started`                                 |
+| `note.read.succeeded`  | same IDs, note ID, cluster identity, content hash, markdown length, duration, status code, `succeeded`                             |
+| `note.read.invalid`    | request ID/source, operation status/ID when accepted, API code, duration, status code, `invalid`                                   |
+| `note.read.not_found`  | request ID/source, operation ID when accepted, note ID, API code, duration, status code, `not_found`                               |
+| `note.read.failed`     | request ID/source, operation ID when accepted, note ID when known, API code, duration, status code, caught error context, `failed` |
+| `note.save.started`    | request ID/source, operation ID/status when accepted, note ID when valid, expected hash, route, method, `started`                  |
+| `note.save.succeeded`  | same IDs, note ID, cluster identity, content hash, duration, status code, `succeeded`                                              |
+| `note.save.invalid`    | request ID/source, operation status/ID when accepted, API code, duration, status code, `invalid`                                   |
+| `note.save.not_found`  | request ID/source, operation ID when accepted, note ID, API code, duration, status code, `not_found`                               |
+| `note.save.conflicted` | request ID/source, operation ID when accepted, note ID, expected hash, API code, duration, status code, `conflicted`               |
+| `note.save.failed`     | request ID/source, operation ID when accepted, note ID when known, API code, duration, status code, caught error context, `failed` |
+
+Workspace-not-configured and invalid-body/query outcomes use the matching route
+event and existing API error code. A handler emits exactly one start and one
+terminal result. It does not additionally emit speculative cluster or filesystem
+events.
+
+### Telemetry Carrier Mapping
+
+- Structured logs are the primary record for every event above.
+- `recordWebRuntimeEvent` and `recordServerRuntimeEvent` provide the matching
+  chronological breadcrumb for non-exception lifecycle/results.
+- Web API, note operation, and server route spans measure the work and carry the
+  same explicit scalar attributes. Nested spans use distinct operation names;
+  they do not replace semantic IDs.
+- Event-local tags are limited to searchable identifiers and bounded dimensions:
+  surface, route, result, request ID, operation ID when present, and API code
+  when present. They are never installed globally.
+- Event-local context and structured attributes carry note ID, cluster identity,
+  hashes, UI sequence, duration, header status, and caught error context.
+- Captured exceptions are reserved for ID-generation exceptions, unexpected web
+  request failures, and unexpected server failures. Expected invalid input,
+  not-found, and conflict states are not captured as exceptions.
+- Full markdown, drafts, Zustand snapshots, request/response payloads, and local
+  filesystem path enrichment remain Slice 7C work. Existing caught error stacks
+  remain eligible diagnostic data.
 
 ## Implementation Plan
 
-### 1. Confirm The Slice 7A Baseline
+### 1. Lock The Shared Contract
 
-Before adding correlation, confirm the runtime foundation is present.
+- Extend `packages/shared/src/runtime-observability.ts` with the chosen event,
+  attribute, result, header-status, and route-source constants.
+- Add focused Sentry-free correlation types, header constants, and UUID schemas
+  in shared modules rather than expanding one file toward the line limit.
+- Reuse existing API route, API error, cluster, note, and save schemas.
+- Add TSDoc for every exported type, schema, constant, and helper.
+- Add shared tests for exact names, enum values, UUID acceptance/rejection, and
+  header constants.
 
-Implementation requirements:
+### 2. Add The Browser Correlation Helper
 
-- Verify web and server Sentry initialization modules exist and are used.
-- Verify the custom server preload gates `@sentry/node` imports when disabled.
-- Verify root `.env.example` and root `.env.local` workflow exist.
-- Verify Sentry-disabled startup and note workflow tests exist.
-- Verify web and server Sentry projects receive real test events.
-- Verify desktop and mobile/Tailscale Replay delivery is documented and proven.
-- Verify baseline trace headers reach Fastify through the Vite proxy.
-- Verify direct Sentry calls are contained behind helper modules.
-- Verify the typed runtime helper extension surface exists.
-- Do not proceed by creating a parallel Sentry setup path.
+- Implement the `randomUUID` then `getRandomValues` UUID-v4 algorithm exactly as
+  specified.
+- Return immutable optional metadata and keep generation failure non-blocking.
+- Test native generation, HTTP-compatible fallback bit formatting, unavailable
+  crypto, and thrown crypto calls.
+- Emit one bounded generation-failure event per failed requested identifier; do
+  not retry in a loop or fall back to weak randomness.
 
-### 2. Add Shared Observability And Correlation Constants
+### 3. Clarify Zustand Sequence Ownership
 
-Extend shared event-name, attribute, route, result, and correlation constants in
-`packages/shared`.
+- Rename both runtime counters, context methods, action parameters, and tests
+  from request IDs to request sequences.
+- Prove existing list/read overlap and stale-result behavior before correlation
+  events are added.
+- Do not persist request, operation, or sequence values in Dexie or URL state.
 
-Implementation requirements:
+### 4. Extend The Typed Browser API Boundary
 
-- Frontend and backend import event names from the same source.
-- Attribute names for correlation IDs, note IDs, cluster IDs, route patterns,
-  route source, result statuses, hashes, and API error codes are shared.
-- Request ID and note operation ID header names are shared.
-- Request ID and note operation ID validation schemas are shared.
-- Event names in this proposal are represented as shared constants.
-- Exported constants include beginner-readable TSDoc.
-- Tests prove event names do not drift from the Slice 7B contract.
+- Make `ApiRequestMetadata` an explicit parameter on all three `NoteBrowserApi`
+  methods.
+- Update the default API, injected fakes, and all call sites.
+- Add headers only for present validated metadata while preserving `Accept`,
+  `Content-Type`, method, body, response parsing, and `WebApiError` behavior.
+- Instrument the centralized API request start/result and span once so actions
+  do not duplicate transport evidence.
+- Test GET/PUT headers, missing degraded IDs, parsed success, every existing API
+  error, network failure, and unchanged response/body types.
 
-### 3. Add Request And Operation Correlation
+### 5. Add Browser Note And Route Evidence
 
-Implement the Azurite correlation contract.
+- Split route and editor action modules before they approach 401 lines.
+- Create note operation context in read/reload/save actions and retain it in the
+  async closure.
+- Emit the exact route, note-list, note-load, save, conflict, failure, and stale
+  events.
+- Preserve URL ownership, startup replacement, list navigation, browser history,
+  `azurite-dev=sentry-test`, draft flushing, content-hash conflict protection,
+  and existing visible UI states.
+- Test rapid overlapping reads so stale evidence uses the stale closure rather
+  than current Zustand state.
 
-Implementation requirements:
+### 6. Add Fastify Request Correlation
 
-- Web API requests include `x-azurite-request-id`.
-- Web note load/save API requests include `x-azurite-note-operation-id`.
-- The `NoteBrowserApi` TypeScript boundary accepts optional correlation metadata
-  for operations that need transport headers.
-- Backend request hooks validate, read, or create `azurite.request_id`.
-- Backend request hooks validate `x-azurite-note-operation-id` and attach
-  `azurite.note_operation_id` to request-scoped observability context only when
-  the header is valid.
-- Invalid, oversized, duplicated, and absent correlation headers never change API
-  response body shapes.
-- Note load and save workflows create `azurite.note_operation_id`.
-- Local frontend stale-response counters remain
-  `azurite.ui_request_sequence` metadata and are never used as
-  `azurite.request_id`.
-- Frontend and backend observability helpers attach shared release/environment,
-  request ID, operation ID, note ID, cluster ID, route, method, result status,
-  and API error code where applicable.
-- Observability helpers isolate or clear Sentry scopes after request/note
-  operations so correlation metadata cannot leak into unrelated events.
-- Tests prove fetch headers, backend request context, observability calls, and
-  API response body shapes all satisfy the contract.
+- Implement shared-header parsing and server UUID fallback in a Sentry-free
+  module.
+- Register a request decorator with a `null` placeholder and create a fresh
+  frozen context in `onRequest` before note routes and trace evidence.
+- Add Fastify type augmentation and a checked accessor.
+- Keep Fastify's request ID and SDK-managed request scope separate.
+- Test missing, valid, invalid, non-v4, whitespace, oversized, comma-joined, and
+  array-valued headers plus concurrent injected requests.
 
-### 4. Add Frontend Note Workflow Evidence
+### 7. Split And Instrument Note Routes
 
-Add basic runtime observability for route selection, note load, stale-response,
-save, and conflict states.
+- Decompose `notes-route.ts` by registration, handlers, errors, and evidence
+  before adding behavior.
+- Pass the Fastify request and decorated correlation context through list, read,
+  and save handlers.
+- Emit exactly one start and one truthful terminal route event with the current
+  API error and cluster-identity contracts.
+- Wrap route work in server spans and preserve Pino logs.
+- Capture unexpected caught errors once; do not create fake cluster provenance,
+  filesystem-boundary detail, or exceptions for expected results.
+- Keep `packages/core` untouched unless a non-observability correctness defect
+  is independently discovered and the plan is revised first.
 
-Implementation requirements:
+### 8. Prove Carrier And Scope Isolation
 
-- Instrument route selection and invalid route handling at the existing router or
-  store boundary.
-- Instrument note load started, succeeded, failed, and stale ignored states.
-- Instrument save started, succeeded, conflicted, and failed states.
-- Instrument frontend API request started, succeeded, and failed states.
-- Attach request ID, operation ID, note ID, cluster ID, route source, route,
-  method, result status, API error code, UI request sequence, and content hashes
-  where applicable.
-- Preserve URL-owned selected-note state.
-- Preserve stale-response guards and UI request sequence semantics.
-- Do not add Milkdown, Dexie, Zustand snapshot, full payload, or coalescing
-  diagnostics in this slice.
+- Extend both 7A adapters only as needed for selected event-local tags and
+  context; direct SDK calls remain inside the adapter modules.
+- Assert logs, breadcrumbs, spans, tags, context, and exceptions against the
+  exact event mapping.
+- Run overlapping browser note lists, overlapping browser note reads, and two
+  concurrent Fastify requests with different identifiers.
+- Emit a runtime test event afterward and prove it contains no note, request,
+  operation, sequence, hash, route-source, or API-error residue in its own tags,
+  attributes, contexts, or span. Prior chronological breadcrumbs may remain as
+  intentional history.
+- Preserve all existing 7A helper, preload, tracing, Replay, and shutdown tests.
 
-### 5. Add Backend Route Evidence
+### 9. Run Desktop And Physical-Phone Acceptance QA
 
-Add route-boundary observability for note and cluster operations through focused
-helper modules and route integration points.
-
-Implementation requirements:
-
-- Instrument backend note list/read/save started, succeeded, invalid, not-found,
-  conflicted, and failed states.
-- Instrument cluster metadata read/create/failure behavior as observed from the
-  server route boundary.
-- Instrument note ID rejection and filesystem boundary rejection as route-level
-  outcomes from existing core behavior.
-- Map backend events to Sentry logs, breadcrumbs, spans, tags, contexts, and
-  errors according to the Slice 7A runtime carrier boundary.
-- Include local filesystem paths, stack traces, request/response context, and
-  caught core error context where useful for debugging.
-- Do not attach full markdown payloads; Slice 7C owns payload helpers.
-- Preserve existing Fastify error response shapes and shared API error codes.
-- Keep Fastify/Pino logging intact.
-- Keep `packages/core` Sentry-free.
-
-### 6. Add Scope Isolation And Overlap Tests
-
-Prove correlation context cannot leak between overlapping operations.
-
-Implementation requirements:
-
-- Add tests for two rapid overlapping note reads with different note IDs.
-- Prove each read has a distinct request ID and note operation ID.
-- Prove stale ignored evidence carries the stale operation context.
-- Prove the currently selected note does not inherit stale operation metadata.
-- Prove the next unrelated runtime/test event after a note operation has no note
-  ID, operation ID, hash, or API error residue.
-- Prove backend request contexts for concurrent requests stay isolated.
-- Keep UI request sequence metadata separate from API request IDs.
-
-### 7. Refactor Before Instrumenting Near-Limit Files
-
-Split files before adding observability to modules that are already close to the
-400-line hard limit.
-
-Implementation requirements:
-
-- Keep every code file at 400 lines or fewer.
-- Extract backend note route observability or handlers before expanding
-  `notes-route.ts`.
-- Extract frontend request/correlation/runtime observability helpers before
-  expanding route actions or editor actions.
-- Avoid adding deep instrumentation to `MilkdownEditor.tsx` in this slice.
-- Preserve existing tests while adding focused tests for extracted helpers.
-
-### 8. Verify With Real Note Workflows
-
-Run automated validation and then verify through Sentry UI.
-
-Required QA:
-
-- Azurite starts without `.env.local` and behaves like the current
-  Sentry-disabled app.
-- Azurite starts with Slice 7A Sentry env vars enabled.
-- A local desktop browser can load notes normally.
-- Loading a real note creates frontend and backend observability evidence with
-  the same request ID and note operation ID.
-- Saving a disposable note creates frontend and backend save evidence with the
-  same request ID and note operation ID.
-- A forced or real conflict creates frontend and backend conflict evidence.
-- A rapid note-switch/stale-response scenario preserves distinct request IDs,
-  note operation IDs, note IDs, and UI request sequences.
-- The next unrelated runtime event does not inherit prior note context.
-- A mobile/Tailscale browser session can load and save through the same local
-  backend proxy path while evidence remains correlated.
-- Sentry-disabled startup and note workflow remain unchanged.
+- Use a disposable two-note cluster and an explicit Sentry-enabled debug run.
+- Keep Vite bound only to the selected Tailscale interface and Fastify on
+  localhost for phone QA.
+- Record exact event names and IDs in completion evidence rather than writing
+  only "Sentry worked."
+- Use WYSIWYG for the phone save marker. Do not use the known-broken Markdown
+  newline path as a 7B completion gate.
+- Re-run Sentry-disabled desktop behavior and the full repository validation.
 
 ## Negative Side-Effect Guardrails
 
-Slice 7B must preserve existing product behavior while adding request
-correlation and note route evidence.
+The shared preservation baseline is
+`docs/reference/product-guardrails.md`. Slice 7B adds only these correlation- and
+observability-specific protections:
 
-Existing workflows that must keep working:
-
-- Slice 7A Sentry-enabled and Sentry-disabled runtime behavior
-- note list loading
-- selected-note URL navigation and browser history
-- note read through the current shared API contracts
-- Milkdown editor mount and mode switching
-- manual save through the content-hash conflict contract
-- Dexie draft persistence and recovery
-- missing-note and degraded recovery states
-- desktop local development
-- mobile/Tailscale development with the backend local-only behind the Vite proxy
-
-Persistence and recovery guarantees that must not regress:
-
-- markdown files remain the canonical content source
-- Sentry must not persist product state
-- draft state remains browser-local and scoped by cluster ID and note ID
-- save still requires the expected content hash
-- conflict responses still prevent overwriting changed disk content
-- failed draft persistence still produces visible degraded recovery state
-- stale async responses remain ignored
-
-Validation, security, and filesystem boundaries that must not weaken:
-
-- note ID validation remains shared and enforced
-- path traversal remains rejected
-- filesystem boundary protections remain in core/server behavior
-- `packages/core` remains free of Sentry imports, observer contracts, and
-  telemetry-specific state
-- existing API error codes and response body shapes remain stable unless tests
-  and reference docs explicitly cover a deliberate change
-- Sentry credentials, auth tokens, DSNs, and unrelated local credentials stay out
-  of Git
-- root `.env.local` stays untracked and root `.env.example` contains placeholders
-  only
-- correlation headers are diagnostic metadata only and cannot change product API
-  behavior
-- invalid or duplicated correlation headers are not trusted as canonical IDs
-- Sentry scopes are cleared or isolated so request, route, note, operation, hash,
-  and future payload context cannot leak into unrelated events
-
-URL, state, cache, and storage behavior that must stay coherent:
-
-- URL-owned selected-note state remains the route source of truth
-- browser history behavior does not change
-- `azurite-dev=sentry-test` remains a typed dev diagnostics search param and is
-  preserved during startup note selection, note-list navigation, and
-  browser-history navigation
-- Zustand remains the note browser state owner
-- Dexie remains the draft persistence owner
-- Sentry does not become a cache, source of truth, or recovery mechanism
-- request IDs and operation IDs are diagnostic metadata only
-- local UI request sequences remain separate from API request IDs
-
-Degraded, error, and recovery states that must remain visible:
-
-- API unreachable
-- invalid workspace
-- invalid note ID
-- note not found
-- stale note load ignored
-- save conflict
-- save failed
-- draft database unavailable
-- draft validation failed
-- Milkdown creation failure
-
-QA flows that must still pass:
-
-- Slice 7A runtime tests
-- existing route, draft, save, conflict, and recovery tests
-- Sentry-disabled app startup and note workflow
-- Sentry-enabled app startup and note workflow
-- desktop browser smoke test
-- mobile/Tailscale smoke test
-- `/opt/homebrew/bin/pnpm validate`
+- Browser cryptographic-ID failure must degrade evidence, never block or alter a
+  note request.
+- A client-supplied correlation header is diagnostic input only; it must not
+  authorize work, change note selection, bypass validation, select a workspace,
+  or become an idempotency key.
+- Invalid or duplicated header contents must not be copied into telemetry,
+  response bodies, response headers, logs, or error messages.
+- Request IDs, note operation IDs, UI sequences, Fastify request IDs, editor
+  session IDs, cluster IDs, and content hashes must remain distinct types and
+  meanings.
+- No browser or server global mutable scope may retain operation context between
+  overlapping or subsequent work.
+- A stale response must report its original closure context and must not mutate
+  the currently selected note.
+- Each lifecycle emits at most one start and one terminal semantic result at its
+  owning layer; nested API/operation/route evidence must not become an event
+  storm.
+- Route evidence must not claim cluster read/create provenance, filesystem
+  rejection details, route-history source, or other facts unavailable at its
+  boundary.
+- Sentry failure, latency, or disabled state must not change API response
+  shapes, status codes, filesystem writes, draft behavior, navigation, or
+  conflict protection.
+- Phone QA must preserve the current network boundary: frontend on the selected
+  Tailscale interface, backend local-only behind the Vite proxy.
+- The known mobile editor findings remain recorded and unfixed; a WYSIWYG save
+  passing 7B must not be presented as editor correctness.
 
 ## Verification Plan
 
-Run the full repository validation:
+### Automated Verification
+
+Run:
 
 ```sh
 /opt/homebrew/bin/pnpm validate
+/opt/homebrew/bin/pnpm build
+git diff --check
 ```
 
-Run targeted automated tests for:
+Targeted tests must prove:
 
-- Slice 7A runtime baseline still passing
-- shared event, attribute, result, and correlation constants
-- request ID and note operation ID validation schemas
-- web API request IDs and note operation IDs in headers without API response body
-  changes
-- typed `NoteBrowserApi` metadata boundary
-- local UI stale-response sequence IDs remaining separate from API request IDs
-- backend request ID and note operation ID creation/propagation
-- invalid, oversized, duplicated, and absent correlation headers
-- Sentry scope isolation/clearing after request and note operations
-- overlapping note reads with distinct request IDs, operation IDs, note IDs, and
-  UI request sequences
-- stale ignored evidence preserving stale operation context
-- unrelated events not inheriting prior note context
-- Sentry-enabled server route instrumentation with mocked SDK calls
-- web and server correlated carrier mapping for logs, breadcrumbs, spans, tags,
-  context, and errors
-- route selection and invalid route observability
-- note load started/succeeded/failed/stale ignored observability
-- save started/succeeded/conflicted/failed observability
-- backend note list/read/save route outcome observability
-- cluster metadata read/create/failure route-boundary evidence
-- note ID rejection and filesystem boundary rejection evidence
-- backend route-level observability capturing core outcomes/errors without adding
-  Sentry imports or observer hooks to `packages/core`
-- existing route, draft, save, conflict, and recovery tests
+- exact shared constants, schemas, result values, header names, and event names;
+- UUID-v4 native generation and `getRandomValues` fallback formatting;
+- no weak-randomness fallback and non-blocking unavailable-crypto behavior;
+- sequence-counter renames preserve list/read staleness semantics;
+- explicit `NoteBrowserApi` metadata at all production and test call sites;
+- GET/PUT headers, existing request headers, body parsing, API errors, and
+  unchanged successful return types;
+- one request ID per call and one operation ID per load/save intent;
+- route-source values only at truthful emission points;
+- frontend start/result attributes for read, stale read, save, conflict, and
+  failure, plus list success/failure/staleness;
+- Fastify decoration ordering and fresh immutable context per request;
+- valid, missing, invalid, duplicate, comma-joined, whitespace, oversized, and
+  non-v4 correlation header handling;
+- no API body/status change for any correlation-header case;
+- server fallback request IDs and omission of untrusted operation IDs;
+- backend list/read/save success, invalid, not-found, conflict, workspace, and
+  unexpected-failure events;
+- ready and unavailable cluster identity attributes without invented provenance;
+- expected results produce no fake captured exception;
+- unexpected errors are captured once and Pino behavior remains intact;
+- overlapping browser operations and concurrent Fastify requests never exchange
+  correlation context;
+- the next unrelated runtime event has no residual operation tags, attributes,
+  context, or span data while prior breadcrumbs remain valid history;
+- direct Sentry imports remain confined to initialization/adapter modules;
+- `packages/core` remains Sentry- and telemetry-free;
+- all existing routing, draft, recovery, editor, save, conflict, 7A runtime,
+  preload, Replay-config, trace, and shutdown tests remain green;
+- all code files remain at or below 400 lines.
 
-Run manual/browser QA:
+### Exact Desktop Sentry Evidence
 
-- Start Azurite with Slice 7A Sentry env vars enabled.
-- Open the local desktop URL on desktop Chrome.
-- Load a real note and confirm Sentry captures the browser session, API request
-  path, request ID, note operation ID, note-load breadcrumbs/logs, and backend
-  note-read evidence.
-- Confirm the same request ID appears in frontend and backend evidence for a
-  note read.
-- Confirm the same note operation ID appears in frontend load/save events, fetch
-  headers, backend request context, and backend route evidence.
-- Save a disposable note and confirm the same request ID and note operation ID
-  appear in frontend and backend save evidence.
-- Force a save conflict and confirm conflict evidence includes expected content
-  hash and shared API error code.
-- Rapidly switch notes and confirm stale ignored evidence stays tied to the stale
-  operation while the current note keeps its own context.
-- Trigger an unrelated runtime/test event after a note operation and confirm no
-  previous note context leaks into it.
-- Open the same MagicDNS URL on mobile through the Slice 7A Tailscale path.
-- Confirm a mobile/Tailscale note read and save remain correlated through the
-  local backend proxy path.
-- Confirm the backend remains local-only while the frontend proxies API requests
-  for Tailscale/phone QA.
-- Start Azurite without `.env.local` and confirm Sentry-disabled startup and note
-  workflows behave like the current app.
+Completion evidence must record one example value for each accepted request and
+operation ID and show these joins:
+
+| Workflow          | Required browser evidence                                                   | Required server evidence                       | Required Sentry proof                                                                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Note list         | `notes.list.started/succeeded`, `api.request.started/succeeded`             | `notes.list.started/succeeded`                 | Same request ID on browser list/API and server list; no note operation ID; note count, cluster identity, route/method/result, duration, and both surfaces visible.                        |
+| Note read         | `note.load.started`, `api.request.started/succeeded`, `note.load.succeeded` | `note.read.started/succeeded`                  | Same request ID on browser API and server read; same operation ID on load, API, and server read; route/method/result, cluster ID, content hash, duration, and web/server surface visible. |
+| Manual save       | `note.save.started`, `api.request.started/succeeded`, `note.save.succeeded` | `note.save.started/succeeded`                  | Same request and operation IDs across both surfaces; expected and returned hashes, `PUT`, status `200`, durations, and result visible.                                                    |
+| Save conflict     | `note.save.started`, `api.request.failed`, `note.save.conflicted`           | `note.save.started/conflicted`                 | Same IDs across both surfaces; existing conflict API code, expected hash, status `409`, and no fake exception visible.                                                                    |
+| Overlapping reads | Two distinct load/API contexts and one `stale_ignored` result               | Corresponding independent server read contexts | Stale event carries its original IDs/note/sequence; current operation remains distinct; unrelated test event has no residue.                                                              |
+
+At least one sampled read or save should still show the 7A Sentry trace, but a
+trace is corroborating evidence rather than the semantic acceptance key. Replay
+must still load and remain unmasked; 7B does not require new editor-specific
+Replay content.
+
+### Exact Physical-Phone Sentry Evidence
+
+Use the current MagicDNS URL on the Pixel 6/Android Chrome path and a disposable
+note:
+
+1. Open the disposable cluster and confirm browser/server `notes.list.succeeded`
+   share a request ID and report no note operation ID.
+2. Load `technical-architecture.md` or another named disposable note.
+3. Confirm browser `note.load.succeeded` and server `note.read.succeeded` share
+   the request and operation IDs.
+4. Insert `PHONE-QA-7B-SAVED-2026-07-10` near the top through WYSIWYG and save.
+5. Confirm browser/server save events share new request and operation IDs,
+   status `200`, and expected/returned hashes.
+6. Read the note again and confirm the marker persisted.
+7. Confirm `sentry-trace` and `baggage` still reach Fastify and the phone Replay
+   remains distinct and unmasked.
+8. Confirm Fastify is not directly reachable through its Tailscale address.
+
+The phone QA record must explicitly say that Markdown source Enter was not used
+as the save path because its newline reversion remains scheduled for diagnosis
+in 7C and repair immediately afterward.
+
+### Sentry-Disabled Evidence
+
+Start without enabled Sentry configuration and prove:
+
+- no Sentry or Replay runtime is required for browser or server startup;
+- correlation headers and Fastify context do not change note list/read/save
+  results;
+- note URL navigation, browser history, WYSIWYG/Markdown mode switching, manual
+  save, conflict handling, draft recovery, and stale-response behavior match the
+  pre-7B app;
+- no correlation helper failure becomes visible product failure.
 
 ## Acceptance Criteria
 
-- Slice 7A runtime startup, config, disabled-mode import gating, custom preload,
-  shutdown, Replay, console, trace, and Tailscale behavior remain intact.
-- Shared observability event, attribute, result, route, and correlation constants
-  exist.
-- Request ID and note operation ID validation schemas exist.
-- Frontend API calls include `x-azurite-request-id`.
-- Note load and save API calls include `x-azurite-note-operation-id`.
-- `NoteBrowserApi` accepts typed optional correlation metadata.
-- Backend request hooks validate, read, or create request IDs.
-- Backend request hooks validate note operation IDs and attach only valid IDs to
-  request-scoped observability context.
-- Correlation headers are validated; invalid, oversized, duplicated, and absent
-  headers do not change API response bodies or pollute canonical IDs.
-- Frontend API calls and backend requests remain trace-correlatable through
-  Sentry where supported and semantically correlatable through
-  `azurite.request_id` even when trace propagation is incomplete.
-- Note load and save workflows are correlatable through
-  `azurite.note_operation_id`.
-- Request IDs, note operation IDs, and local UI request sequences remain
-  distinct and are transported or scoped only where intended.
-- Sentry scopes isolate or clear request/note context so correlation metadata
-  cannot leak into unrelated events.
-- Overlapping note loads and stale-response handling preserve distinct
-  correlation context.
-- Frontend route, API request, note load, stale ignored, save, conflict, and
-  failure events are emitted through shared names and attributes.
-- Backend note list/read/save, cluster metadata, note ID rejection, and
-  filesystem boundary outcomes are emitted through shared names and attributes.
-- Backend observability captures route-level evidence from core outcomes/errors,
-  and `packages/core` remains Sentry-free with no new observer contract.
-- Existing Fastify/Pino logs, API error codes, and response body shapes remain
-  intact.
-- Sentry-disabled Azurite behaves the same as before Slice 7A and Slice 7B.
-- Slice 7C can add semantic editor and persistence diagnostics without changing
-  the runtime startup, config, project, preload, shutdown, Replay, console,
-  trace, request ID, operation ID, or route evidence foundations established
-  here.
-- All negative side-effect guardrails remain true.
-- `/opt/homebrew/bin/pnpm validate` passes.
-- The repository is clean and pushed on `main`.
+- The identity ownership, UUID generation, header validation, API compatibility,
+  route-source, Fastify decoration, event vocabulary, scope isolation, and
+  carrier decisions in this document are implemented without unresolved
+  alternatives.
+- Every normal frontend API attempt has a UUID-v4 request ID; degraded browser
+  generation remains non-blocking and the server supplies a trusted request ID.
+- Every normal browser note read/save intent has a note operation ID that is
+  transported unchanged to Fastify.
+- Numeric Zustand counters are clearly named and remain local UI sequences.
+- Correlation headers accept only one exact UUID-v4 value; missing/invalid
+  request IDs get a server fallback and missing/invalid operation IDs are
+  omitted.
+- API response bodies, response headers, status codes, and shared error codes
+  remain unchanged.
+- Frontend and backend emit the exact shared lifecycle/result events with
+  explicit correlation attributes.
+- Cluster identity evidence reflects only `ready` or `unavailable`; no event
+  invents read/create or filesystem-rejection provenance.
+- Expected invalid, not-found, and conflict outcomes are not fake exceptions;
+  unexpected failures are captured once with useful context.
+- Overlapping browser operations, concurrent server requests, stale responses,
+  and the next unrelated event prove correlation isolation.
+- Existing 7A preload, tracing, Replay, console, shutdown, and disabled-mode
+  behavior remains intact.
+- Existing routing, save, conflict, draft, recovery, filesystem, and Tailscale
+  behavior remains intact.
+- Desktop and physical-phone Sentry QA produce the exact join evidence defined
+  above.
+- The mobile Markdown newline and recovered-draft findings remain explicitly
+  unfixed and handed to 7C.
+- `packages/core` remains Sentry-free and no code file exceeds 400 lines.
+- `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and
+  `git diff --check` pass.
+- Completion evidence records the commands, test totals, concrete IDs, Sentry
+  event names, desktop/phone outcomes, and any implementation-time plan change.
+- The completed repository state is clean and pushed to `origin/main`.
 
 ## Handoff To Slice 7C
 
-Slice 7C may begin only after Slice 7B proves:
+Slice 7C may rely on these completed 7B truths:
 
-- Slice 7A runtime behavior remains intact.
-- Shared event and attribute constants exist for runtime and note workflow
-  evidence.
-- Direct Sentry calls are contained behind web/server observability helpers.
-- Request IDs and note operation IDs propagate through frontend API calls and
-  backend request context.
-- Invalid, oversized, duplicated, and absent correlation headers are handled
-  without API response body changes.
-- Note read/save/conflict workflows are correlated by request ID and note
-  operation ID.
-- Route-level backend evidence exists for note list/read/save, cluster metadata,
-  note ID rejection, filesystem boundary rejection, and caught core errors.
-- Request/note Sentry scope context is isolated or cleared between operations.
-- Overlapping note reads and stale-response guards preserve distinct correlation
-  context.
-- The existing note, save, draft, recovery, and routing behavior remains intact.
+- request-attempt IDs, note-operation IDs, UI request sequences, Fastify request
+  IDs, editor session IDs, cluster IDs, and hashes have distinct ownership;
+- browser operation context is closure-owned and explicit, not global scope;
+- backend correlation context is request-decorated, immutable, and validated;
+- note read/save/conflict evidence joins browser and server by shared IDs;
+- list/read/save route outcomes carry truthful cluster identity and API result
+  context;
+- event-local helper scopes and explicit attributes remain isolated under
+  overlap;
+- the canonical save event prefix is `note.save.*`, not `save.*`;
+- 7C must enrich route failures rather than depend on a nonexistent
+  `cluster.metadata.failed` event;
+- full payload, editor session, Milkdown/Crepe, Zustand, Dexie, coalescing, and
+  Replay-usefulness behavior remains intentionally unimplemented;
+- the mobile Markdown newline reversion and recovered-draft observation remain
+  active diagnostic targets, followed immediately by the required
+  editor-correctness slice.
+
+## Open Questions
+
+None. If implementation evidence contradicts one of these decisions, pause,
+update this planned slice with the new evidence, and obtain review before
+changing the architecture.

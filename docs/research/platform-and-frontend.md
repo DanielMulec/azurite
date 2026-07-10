@@ -57,6 +57,19 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Route schema and validation choices still need a focused
   implementation decision.
 
+### Fastify Decorators
+
+- URL: https://fastify.dev/docs/latest/Reference/Decorators/
+- Accessed: 2026-07-10
+- Area: Backend request-scoped correlation
+- Use when: Adding typed request metadata that every Fastify note route can read
+  without a module-global current-request value.
+- Notes: Fastify request decorators establish the request object shape before
+  handling and should use a value-shaped placeholder such as `null`; a fresh
+  object can then be assigned for each request in `onRequest`.
+- Caveats: Do not place a shared reference object on the request prototype.
+  Correlation context must be created independently for every request.
+
 ### Fastify Server Reference
 
 - URL: https://fastify.dev/docs/latest/Reference/Server/
@@ -67,6 +80,31 @@ the entry template live in `docs/research-sources.md`.
   interfaces.
 - Caveats: Revisit when adding Tailscale-specific access modes, Docker, or
   installable service packaging.
+
+### Web Crypto `randomUUID`
+
+- URL: https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID
+- Accessed: 2026-07-10
+- Area: Browser correlation identifier generation
+- Use when: Generating standards-shaped UUID-v4 request and operation IDs in a
+  secure browser context.
+- Notes: `crypto.randomUUID()` creates a cryptographically secure UUID version 4
+  and is restricted to secure contexts.
+- Caveats: Azurite's current physical-phone MagicDNS development origin uses
+  HTTP, so `randomUUID()` cannot be the only browser generation path.
+
+### Web Crypto `getRandomValues`
+
+- URL: https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+- Accessed: 2026-07-10
+- Area: Browser correlation identifier generation
+- Use when: Creating an RFC 4122 UUID-v4 fallback for the current HTTP MagicDNS
+  phone-development origin.
+- Notes: `crypto.getRandomValues()` provides cryptographically strong random
+  bytes and is the Web Crypto method exposed in insecure contexts. Version and
+  variant bits must be set explicitly when formatting UUID-v4 values.
+- Caveats: If secure random bytes are unavailable or throw, correlation should
+  degrade without blocking product requests; never fall back to `Math.random`.
 
 ### CommonMark Spec
 

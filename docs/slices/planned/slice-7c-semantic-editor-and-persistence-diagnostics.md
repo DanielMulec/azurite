@@ -6,6 +6,11 @@ Planned. Promote this document to `docs/slices/active/` only after Slices 7A and
 7B are implemented and their actual runtime and correlation contracts are
 reflected here.
 
+The 7B-dependent event and scope references in this plan were aligned on
+2026-07-10 with the revised planned 7B contract. Slice 7C still requires a full
+refresh against the implemented 7B code and completion evidence before
+promotion.
+
 This slice depends on Slice 7A: Sentry Runtime Delivery Foundation and Slice 7B:
 Request Correlation And Note Route Evidence.
 
@@ -265,7 +270,8 @@ Slice 7C assumes Slice 7B has already delivered:
   backend request context.
 - Shared observability constants and route constants in `packages/shared`.
 - Basic note read/save/conflict route-boundary evidence.
-- Scope isolation for request and note context.
+- Closure-owned browser operation context, decorated Fastify request context,
+  explicit event attributes, and event-local Sentry scope isolation.
 - Overlapping note-read and stale-response tests.
 
 If any of those foundations are missing, Slice 7C should stop and repair the 7A
@@ -321,8 +327,12 @@ Backend semantic events:
 | `note.save.started`               | 7B attributes plus eligible markdown payload summary                  |
 | `note.save.conflicted`            | 7B attributes plus expected hash, API error code, payload summary     |
 | `note.save.failed`                | 7B attributes plus caught error context and payload summary when used |
-| `cluster.metadata.failed`         | 7B attributes plus local filesystem path and error details            |
 | `telemetry.server.test.triggered` | request ID, release, environment, surface, payload test state         |
+
+Slice 7C enriches the truthful 7B note route result that observed a cluster or
+filesystem failure. It does not reintroduce a standalone
+`cluster.metadata.failed` event or invent filesystem provenance unavailable at
+the route boundary.
 
 ### Replay Configuration Boundary
 
@@ -376,9 +386,11 @@ Errors and captured exceptions are reserved for real failures, deliberate
 development test events, and error-boundary captures. Do not turn normal
 successful lifecycle events into fake exceptions just to make them visible.
 
-Sentry scopes may attach current request/editor context during one operation,
-but scopes must be cleared or isolated so note IDs, markdown, and operation IDs
-do not leak into unrelated events.
+Browser request, operation, and editor context stays closure- or session-owned
+and is passed as explicit event attributes. It must never be installed on the
+browser global/isolation scope. Backend request context remains owned by the
+decorated Fastify request. Sentry `withScope` usage is event-local so note IDs,
+markdown, and operation IDs cannot leak into unrelated events.
 
 ### Payload Carrier Mapping
 
@@ -535,7 +547,8 @@ Implementation requirements:
 - Verify request ID and note operation ID propagation tests exist.
 - Verify Sentry-disabled startup and note workflow tests exist.
 - Verify runtime note read/save/conflict observability helpers exist.
-- Verify overlapping note-read and stale-response scope-isolation tests exist.
+- Verify overlapping note-read, concurrent server-request, stale-response, and
+  unrelated-event context-isolation tests exist.
 - Do not proceed by creating a parallel Sentry setup path.
 
 ### 2. Extend Shared Semantic Constants
@@ -936,8 +949,7 @@ Run manual/browser QA:
 ## Acceptance Criteria
 
 - Slice 7A runtime startup, config, and disabled-mode behavior, plus Slice 7B
-  correlation behavior
-  remains intact.
+  correlation behavior, remain intact.
 - The Milkdown block-menu bug report can be investigated with Sentry evidence
   instead of only terminal logs.
 - The mobile Markdown newline reversion and fresh-cluster recovered-draft

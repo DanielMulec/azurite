@@ -55,6 +55,20 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Azurite still needs its own request and operation IDs because trace
   sampling, proxying, or SDK limitations can leave a debugging path incomplete.
 
+### Sentry Browser Scopes
+
+- URL: https://docs.sentry.io/platforms/javascript/enriching-events/scopes/
+- Accessed: 2026-07-10
+- Area: Frontend correlation and concurrency
+- Use when: Attaching note, request, operation, editor, or payload context to
+  browser Sentry events without leaking it across overlapping work.
+- Notes: Sentry documents global, isolation, and current scopes. In browser
+  applications the isolation scope is effectively global, while `withScope`
+  provides a short-lived current scope for event-local enrichment.
+- Caveats: Azurite must keep browser operation state in app-owned closures or
+  sessions and pass explicit event attributes. A mutable browser isolation scope
+  is not a safe owner for concurrent note context.
+
 ### Sentry Vite Source Maps
 
 - URL: https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/
@@ -102,6 +116,20 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: The installed SDK documentation and source identify
   `setupFastifyErrorHandler` as the Fastify 3/4 path and warn that it duplicates
   Fastify 5 error capture, so Azurite does not install it.
+
+### Sentry Node And Fastify Scopes
+
+- URL: https://docs.sentry.io/platforms/javascript/guides/fastify/enriching-events/scopes/
+- Accessed: 2026-07-10
+- Area: Backend request correlation and concurrency
+- Use when: Deciding how Azurite request metadata relates to SDK-managed
+  per-request scope in the Fastify server.
+- Notes: Sentry documents isolation scopes as request-local in server runtimes
+  and recommends narrow current scopes for temporary event enrichment. The
+  Fastify integration manages SDK request isolation for automatic telemetry.
+- Caveats: Azurite's decorated Fastify request remains the authoritative
+  correlation context. Route events and spans must still receive explicit
+  attributes and must not depend on Sentry scope as product state.
 
 ### Sentry Node Logs
 
