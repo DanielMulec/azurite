@@ -133,6 +133,8 @@ The semantic event vocabulary and payload helpers must be durable enough for:
 - PWA installability, service worker behavior, offline/degraded states, and
   mobile tab discard recovery.
 - authentication and local/Tailscale hosting hardening.
+- a measured lightweight daily Sentry profile that may remain permanently
+  enabled while full debug stays deliberate.
 - production-like release builds with source-map upload.
 
 Future workflows should reuse the same event naming, request ID, operation ID,
@@ -183,6 +185,8 @@ Slice 7C leaves explicit seams for:
   migration.
 - PWA/service-worker telemetry once that runtime exists.
 - release/source-map upload for production-like builds.
+- a Daily Observability Operating Profile that compares disabled, lightweight
+  daily, and full-debug modes after the mandatory editor-correctness fix.
 - future auth and local-hosting decision telemetry.
 
 ### Deliberately Excluded Layers
@@ -208,6 +212,8 @@ These layers are excluded from Slice 7C:
 - service workers, sync workers, indexing workers, and background jobs that do
   not exist yet
 - public production telemetry policy
+- enabling a permanent lightweight daily Sentry profile or settling its exact
+  sampling, Replay, event, and payload configuration
 - custom in-app log viewer
 - Sentry self-hosting or billing work
 - source-map upload automation that requires Sentry auth tokens
@@ -245,6 +251,8 @@ promise without smuggling in new note lifecycle product behavior.
 - Verify replay shows enough unmasked editor/debug context to guide the
   Milkdown block-menu fix slice.
 - Verify large-note editing stays responsive and Sentry remains inspectable.
+- Record disabled-versus-full-debug responsiveness and event-volume evidence
+  sufficient to design, but not enable, a future lightweight daily profile.
 
 ## Non-Goals
 
@@ -989,6 +997,8 @@ Run manual/browser QA:
   whole-payload path, and truncated-payload path.
 - Bounded full-payload capture, rate-limited editor updates, and cleared
   coalescing buffers keep normal editing responsive and Sentry inspectable.
+- Completion evidence records the disabled-versus-full-debug responsiveness and
+  event-volume baseline needed to evaluate a future lightweight daily mode.
 - Backend observability enriches route-level evidence from core outcomes/errors,
   and `packages/core` remains Sentry-free with no new observer contract.
 - Sentry-disabled Azurite behaves the same as before Slice 7A, Slice 7B, and
@@ -1037,6 +1047,13 @@ serves, such as create/delete, autosave, file watching, indexing/search,
 PWA/service-worker behavior, hosting hardening, or release/source-map upload.
 The immediate editor-correctness handoff above takes priority over those later
 capabilities.
+
+After that mandatory fix, a focused Daily Observability Operating Profile may
+use the 7C evidence to compare disabled, lightweight daily, and full-debug
+configuration. It may keep the lightweight profile permanently enabled for
+Daniel only when measured editor responsiveness, memory, network, and event
+volume are negligible in daily use. Full debug remains deliberate and
+exhaustive; completely disabled startup remains a supported baseline.
 
 The first create/rename/move/delete/trash, file-watch/indexing, or multi-cluster
 filesystem capability must also introduce the richer stable core/shared error

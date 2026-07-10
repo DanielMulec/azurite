@@ -264,6 +264,23 @@ Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from
 `docs/reference/product-guardrails.md` still applies.
 
+After Slice 7C and its mandatory editor-correctness follow-up, a focused Daily
+Observability Operating Profile may establish three explicit modes:
+
+- disabled, which retains the current zero-SDK-runtime baseline;
+- lightweight daily, which may remain permanently enabled for Daniel with
+  errors, bounded breadcrumbs, measured trace sampling, and error-triggered or
+  modest Replay; and
+- full debug, which retains exhaustive 7B/7C semantic diagnostics, uncensored
+  Replay, high sampling, and bounded rich product payloads behind deliberate
+  configuration.
+
+This remains an evidence-gated future decision. Slice 7C must leave usable
+configuration seams and record disabled-versus-full-debug responsiveness and
+event-volume evidence. The later operating-profile slice must measure its actual
+daily candidate before enabling it permanently; it must not weaken full debug or
+eliminate the completely disabled troubleshooting baseline.
+
 ## Security Architecture
 
 - Treat markdown and filesystem content as untrusted input.
@@ -289,6 +306,8 @@ that genuinely needs them:
 - derived index, file watching, search, backlinks, and graph storage;
 - PWA service-worker and offline behavior;
 - authentication and hardened Tailscale hosting;
+- a measured lightweight daily Sentry operating profile after Slice 7C and the
+  mandatory editor-correctness follow-up;
 - production distribution and update strategy;
 - release source-map upload and production observability policy;
 - CI provider and required checks;
