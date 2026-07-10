@@ -2,10 +2,11 @@
 
 ## Status
 
-Planned and implementation-ready after reconciliation on 2026-07-10. Keep this
-document in `docs/slices/planned/` until Daniel reviews the revised decisions and
-explicitly approves promotion. Promotion and implementation are separate from
-this planning revision.
+Planned and implementation-ready after reconciliation on 2026-07-10 and focused
+adversarial contract review on 2026-07-11. Keep this document in
+`docs/slices/planned/` until Daniel reviews the revised decisions and explicitly
+approves promotion. Promotion and implementation are separate from this
+planning revision.
 
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
@@ -105,6 +106,22 @@ proposal. The implementation must extend these facts:
 - `noteRequestId` and `notesRequestId` in the note-browser runtime are numeric
   stale-response guards. Their current names are ambiguous and must be renamed
   before distributed request IDs are introduced.
+- The note-list success path ignores stale results, but the failure path does
+  not. A late older list failure can currently replace a newer ready list with
+  an error. Slice 7B owns this correctness repair because it adds exact list
+  stale-result evidence.
+- Startup fallback replaces the URL before its first-note load finishes. The
+  route effect can observe that replacement and request the same note again
+  while it is already loading. Slice 7B must coalesce that duplicate system
+  reaction into the original startup intent before assigning operation IDs.
+- `apps/web/src/observability/web-sentry-test-events.ts` deliberately uses a
+  separate direct `fetch` for the Slice 7A development diagnostic POST. It is
+  not a note-browser API attempt and remains outside browser correlation-header
+  generation in this slice.
+- Fastify 5 and Node normalize duplicate custom HTTP headers before the request
+  hook normally sees them. A repeated or injected array value can arrive as a
+  comma-joined string, so Slice 7B must classify the observable value as invalid
+  rather than claim independently observable duplicate provenance.
 - `packages/shared/src/cluster.ts` exposes only `ready` or `unavailable` cluster
   identity results. The server route cannot truthfully distinguish whether
   cluster metadata was read from disk or created during the call.
@@ -134,7 +151,7 @@ proposal. The implementation must extend these facts:
 
 - Establish shared UUID, header, correlation metadata, event, attribute, result,
   and route constants.
-- Give every current web API attempt a fresh request ID when browser secure
+- Give every note-browser API attempt a fresh request ID when browser secure
   randomness is available.
 - Give every note-read and manual-save intent a fresh note operation ID when
   browser secure randomness is available.
@@ -145,6 +162,9 @@ proposal. The implementation must extend these facts:
   invalid; never invent a semantic note operation ID on the server.
 - Rename local numeric request counters so their UI sequencing purpose is
   unmistakable.
+- Prevent stale note-list successes and failures from mutating newer list state.
+- Coalesce startup fallback and the resulting same-note URL synchronization into
+  one note-load intent, operation ID, request, and in-flight result.
 - Emit truthful frontend API, note load/save, stale, and route evidence.
 - Emit truthful backend note list/read/save outcomes using the current shared
   API and cluster-identity contracts.
@@ -214,25 +234,40 @@ is not permission to duplicate the runtime.
 
 The three current identity classes are deliberately different:
 
-| Identity                      | Format           | Owner                                                                                  | Lifetime                            | Meaning                                                                         |
-| ----------------------------- | ---------------- | -------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| `azurite.request_id`          | UUID v4          | Browser action for normal web calls; Fastify fallback for missing/invalid client input | One HTTP attempt                    | Joins browser API evidence to one Fastify request.                              |
-| `azurite.note_operation_id`   | UUID v4          | Browser note load/save action                                                          | One note-read or manual-save intent | Joins all evidence for one semantic note operation and may span future retries. |
-| `azurite.ui_request_sequence` | Positive integer | Zustand note-browser runtime                                                           | One local list/read sequencing step | Determines whether an async response is still current; never crosses HTTP.      |
+| Identity                      | Format           | Owner                                                                          | Lifetime                            | Meaning                                                                         |
+| ----------------------------- | ---------------- | ------------------------------------------------------------------------------ | ----------------------------------- | ------------------------------------------------------------------------------- |
+| `azurite.request_id`          | UUID v4          | Browser note-browser action; Fastify fallback for missing/invalid client input | One HTTP attempt                    | Joins browser API evidence to one Fastify request.                              |
+| `azurite.note_operation_id`   | UUID v4          | Browser note load/save action                                                  | One note-read or manual-save intent | Joins all evidence for one semantic note operation and may span future retries. |
+| `azurite.ui_request_sequence` | Positive integer | Zustand note-browser runtime                                                   | One local list/read sequencing step | Determines whether an async response is still current; never crosses HTTP.      |
 
 Fastify's built-in `request.id` remains a separate server logging identifier.
 Slice 7C's `azurite.editor_session_id` remains a separate browser editor
 identity. Cluster IDs, note IDs, content hashes, and draft keys retain their
 existing product meanings.
 
-The browser action creates an immutable context immediately before an API call:
+Shared schemas use one UUID-v4 validator with distinct TypeScript brands so a
+request ID and note operation ID cannot be swapped accidentally:
 
 ```ts
+const correlationUuidV4Schema = z.uuidv4();
+const requestIdSchema = correlationUuidV4Schema.brand<"RequestId">();
+const noteOperationIdSchema =
+  correlationUuidV4Schema.brand<"NoteOperationId">();
+
+type RequestId = z.infer<typeof requestIdSchema>;
+type NoteOperationId = z.infer<typeof noteOperationIdSchema>;
+
 type ApiRequestMetadata = {
-  readonly requestId?: string;
-  readonly noteOperationId?: string;
+  readonly requestId?: RequestId;
+  readonly noteOperationId?: NoteOperationId;
 };
 ```
+
+Only the shared validated generator and parser produce these branded values.
+`NoteBrowserApi` and the API client do not accept arbitrary correlation strings.
+
+The browser action creates an immutable metadata value immediately before an
+API call.
 
 The action retains that same value in its async closure for lifecycle and stale
 result events. The API client serializes it but does not read or mutate a hidden
@@ -245,16 +280,50 @@ while retaining the originating operation ID.
 
 ### UUID Generation And Degraded Behavior
 
-The web correlation helper uses this exact order:
+The web correlation helper receives an ID kind of `request` or
+`note_operation` and uses this exact order:
 
-1. Call `globalThis.crypto.randomUUID()` when it exists and is callable.
-2. Otherwise create an RFC 4122 version-4 UUID from 16 bytes produced by
-   `globalThis.crypto.getRandomValues()` and set the required version/variant
-   bits.
-3. Never use `Math.random`, timestamps, counters, note content, or hashes.
-4. If no cryptographically secure browser source is available, return
-   `undefined`, emit `correlation.id_generation.failed` when the runtime is
-   enabled, and continue the product operation without the unavailable ID.
+1. If `globalThis.crypto.randomUUID()` exists and is callable, call it and
+   validate its result with the branded UUID-v4 schema.
+2. If `randomUUID()` is missing, throws, or returns a value that fails
+   validation, try the fallback instead of ending generation.
+3. The fallback requires callable `globalThis.crypto.getRandomValues()`, fills
+   16 bytes, sets the RFC 4122 version-4 and variant bits, formats the UUID, and
+   validates the result with the same branded schema.
+4. If either secure path succeeds, return the branded ID. A recovered native
+   failure does not emit `correlation.id_generation.failed` and does not capture
+   a false terminal exception.
+5. If neither secure path succeeds, return `undefined`, emit exactly one
+   `correlation.id_generation.failed` event for the requested ID kind when the
+   runtime is enabled, and continue the product operation.
+6. Never use `Math.random`, timestamps, counters, note content, or hashes.
+
+The failure event uses these bounded values:
+
+| Attribute                            | Values                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `azurite.correlation_id_kind`        | `request`, `note_operation`                                                               |
+| `azurite.correlation_failure_reason` | `crypto_unavailable`, `random_values_unavailable`, `random_values_failed`, `uuid_invalid` |
+
+`crypto_unavailable` means `globalThis.crypto` itself is unavailable.
+`random_values_unavailable` means the native UUID path did not yield a valid ID
+and no callable secure-byte fallback exists. `random_values_failed` means the
+fallback threw. `uuid_invalid` means a secure API returned bytes or text that
+still failed the shared UUID-v4 validation after formatting.
+
+Terminal reason selection is deterministic:
+
+| Terminal condition                                            | Failure reason              |
+| ------------------------------------------------------------- | --------------------------- |
+| `globalThis.crypto` is absent                                 | `crypto_unavailable`        |
+| Native path is unusable and `getRandomValues` is not callable | `random_values_unavailable` |
+| `getRandomValues` throws                                      | `random_values_failed`      |
+| Fallback formatting still fails UUID-v4 validation            | `uuid_invalid`              |
+
+When terminal failure includes a caught crypto exception, capture that exception
+once with the same failure event and ID kind. When terminal failure has no
+exception, record the structured failure event without fabricating one. The
+event never contains a candidate or rejected ID value.
 
 The `getRandomValues` fallback is required because the current MagicDNS phone
 origin is HTTP and `randomUUID` is restricted to secure contexts, while
@@ -275,13 +344,16 @@ x-azurite-request-id
 x-azurite-note-operation-id
 ```
 
-One shared `z.uuidv4()` schema validates both ID values. Header parsing accepts
-only one exact UUID-v4 string:
+One shared UUID-v4 validator underlies the distinct request-ID and
+operation-ID branded schemas. Header parsing accepts only one exact UUID-v4
+string:
 
 - `undefined` is missing;
-- a `string[]` is duplicated and rejected;
-- a comma-joined string is invalid and rejected by the UUID schema;
-- whitespace, oversized text, non-UUID values, and non-v4 UUIDs are invalid;
+- a `string[]` presented to the defensive pure parser is invalid;
+- a comma-joined string is invalid without claiming whether it came from
+  repeated HTTP fields or one malformed value;
+- whitespace, application-reachable overlong text, non-UUID values, and non-v4
+  UUIDs are invalid;
 - raw rejected header values are never copied into telemetry attributes;
 - a valid client request ID is accepted as canonical for that request;
 - a missing or rejected request ID is replaced with a fresh server UUID;
@@ -289,15 +361,22 @@ only one exact UUID-v4 string:
 
 The server records bounded enum status rather than the rejected value:
 
-| Attribute                          | Values                                                           |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| `azurite.request_id_source`        | `client`, `server_missing`, `server_invalid`, `server_duplicate` |
-| `azurite.note_operation_id_status` | `accepted`, `missing`, `invalid`, `duplicate`                    |
+| Attribute                          | Values                                       |
+| ---------------------------------- | -------------------------------------------- |
+| `azurite.request_id_source`        | `client`, `server_missing`, `server_invalid` |
+| `azurite.note_operation_id_status` | `accepted`, `missing`, `invalid`             |
 
 Invalid correlation metadata never produces a `400`, changes a successful route
 to a failure, changes an API body, or bypasses existing validation. Correlation
 headers are request-only and are not returned in response headers. This keeps
 the established API compatible and avoids a second response contract.
+
+The unchanged-response guarantee applies only after a value reaches Fastify's
+request hook. A transport-level header that exceeds Node's configured header
+limit may be rejected before application code runs; Slice 7B neither overrides
+that server protection nor claims the normal note API body/status for a request
+Fastify never dispatches. Tests use bounded overlong values that reach the hook
+when proving application classification.
 
 ### Browser Operation Flow
 
@@ -313,9 +392,13 @@ The browser path is explicit and overlap-safe:
 5. The API client emits API request evidence, adds the shared headers that are
    present, and preserves the existing parsed response/error return contract.
 6. The action emits the semantic result with the same closure-owned metadata.
-7. If the UI sequence is stale, `note.load.stale_ignored` uses the stale
-   closure's note ID, operation ID, request ID, and UI sequence—not current
-   store state.
+7. If a list success or failure is stale, `notes.list.stale_ignored` uses the
+   stale closure's request ID and UI sequence, reports whether the ignored
+   completion succeeded or failed, and never mutates list or cluster state.
+8. If a note-load success or failure is stale, `note.load.stale_ignored` uses
+   the stale closure's note ID, operation ID, request ID, and UI sequence—not
+   current store state—and reports whether the ignored completion succeeded or
+   failed.
 
 Rename the current runtime members and context methods before adding semantic
 IDs:
@@ -327,7 +410,29 @@ IDs:
 - matching function parameters named `requestId` -> `requestSequence`.
 
 These are behavior-preserving names. Existing stale-response tests must pass
-before observability assertions are added.
+before observability assertions are added. Add the missing list-failure guard
+before list events: an older failure after a newer success and an older success
+after a newer failure must both leave the current result untouched and emit
+stale evidence for the older completion.
+
+### Same-Note In-Flight Coalescing
+
+One startup fallback is one semantic note-load intent. The store runtime owns an
+ephemeral active-load record containing the target note ID, UI sequence,
+operation context, and in-flight promise. It is never persisted in Zustand
+state, URL state, or Dexie.
+
+The startup path registers that active load before replacing the absent or
+invalid URL selection. If the route effect then synchronizes the same note while
+that load is active, it returns the existing promise and creates no second UI
+sequence, operation ID, request ID, API call, or lifecycle event. The original
+operation retains `startup_fallback` as its route source; the system-caused
+`url_sync` reaction is not a second intent.
+
+An explicit `forceReload` bypasses coalescing and starts a new operation. A load
+for a different note also starts a new operation and makes the older result
+stale. The active-load record is cleared only when the matching in-flight
+operation settles, so an older completion cannot clear a newer active record.
 
 ### Route-Source Truth
 
@@ -345,18 +450,22 @@ router/store boundary does not preserve that distinction at the load action.
 `azurite.route_source` is attached where one of the four facts is known and is
 omitted otherwise. No router history behavior changes to create telemetry.
 
+The self-induced route effect after `startup_fallback` is suppressed by the
+same-note in-flight coalescing boundary. It does not emit
+`note.route.synchronized` or create a `url_sync` operation. `url_sync` remains
+reserved for a route synchronization that is not merely the echo of the active
+startup replacement.
+
 ### Fastify Request Context
 
 Add a Sentry-free server correlation module and Fastify type augmentation for:
 
 ```ts
 type ServerRequestCorrelation = {
-  readonly noteOperationId?: string;
-  readonly noteOperationIdStatus:
-    "accepted" | "duplicate" | "invalid" | "missing";
-  readonly requestId: string;
-  readonly requestIdSource:
-    "client" | "server_duplicate" | "server_invalid" | "server_missing";
+  readonly noteOperationId?: NoteOperationId;
+  readonly noteOperationIdStatus: "accepted" | "invalid" | "missing";
+  readonly requestId: RequestId;
+  readonly requestIdSource: "client" | "server_invalid" | "server_missing";
 };
 ```
 
@@ -427,6 +536,13 @@ its individual IDs remain optional for degraded generation. Test doubles must
 assert or deliberately ignore this parameter. The API client's successful body
 types and `WebApiError` contract remain unchanged.
 
+This boundary covers the three current note-browser calls only: list, read, and
+save. The direct Slice 7A development diagnostic POST remains outside
+`NoteBrowserApi`, sends no browser-generated Azurite correlation headers, and
+continues proving Sentry trace/test delivery. A future product API must adopt an
+explicit request-metadata boundary deliberately rather than inheriting a claim
+about every `fetch` in the web application.
+
 Custom headers are sent only when their value is present. Existing `Accept` and
 `Content-Type` behavior remains intact. Requests stay relative to the Vite
 origin, so the phone continues through the existing proxy and the backend stays
@@ -483,28 +599,31 @@ receive focused modules and tests. `MilkdownEditor.tsx` is untouched in Slice
 Extend the existing shared attribute constants rather than creating web/server
 copies:
 
-| Attribute                          | Type or values              | Use                                                                                         |
-| ---------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
-| `azurite.request_id`               | UUID string                 | One HTTP attempt.                                                                           |
-| `azurite.request_id_source`        | bounded enum                | Client acceptance or server fallback reason.                                                |
-| `azurite.note_operation_id`        | UUID string                 | One note load/save intent.                                                                  |
-| `azurite.note_operation_id_status` | bounded enum                | Backend header disposition.                                                                 |
-| `azurite.ui_request_sequence`      | number                      | Browser stale-response ordering only.                                                       |
-| `azurite.note_id`                  | string                      | Validated or locally known note identity.                                                   |
-| `azurite.cluster_id`               | UUID string                 | Ready cluster identity.                                                                     |
-| `azurite.cluster_identity_status`  | `ready`, `unavailable`      | Current shared identity result.                                                             |
-| `azurite.cluster_identity_reason`  | existing shared reason enum | Why identity is unavailable.                                                                |
-| `azurite.route_source`             | four-value enum above       | Truthful browser navigation/load source.                                                    |
-| `azurite.api_error_code`           | existing shared API code    | Stable route/client error result.                                                           |
-| `azurite.content_hash`             | string                      | Returned note version.                                                                      |
-| `azurite.expected_content_hash`    | string                      | Save precondition.                                                                          |
-| `azurite.markdown_length`          | number                      | Non-payload content size context.                                                           |
-| `azurite.note_count`               | number                      | Successful list result size.                                                                |
-| `http.method`                      | `GET`, `PUT`                | Current API method.                                                                         |
-| `http.route`                       | shared route pattern        | Route pattern, never an unbounded concrete URL.                                             |
-| `http.response.status_code`        | number                      | Actual HTTP result where available.                                                         |
-| `azurite.duration_ms`              | number                      | Measured operation duration.                                                                |
-| `azurite.result_status`            | bounded lifecycle result    | `started`, `succeeded`, `failed`, `invalid`, `not_found`, `conflicted`, or `stale_ignored`. |
+| Attribute                            | Type or values              | Use                                                                                         |
+| ------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------- |
+| `azurite.request_id`                 | UUID string                 | One HTTP attempt.                                                                           |
+| `azurite.request_id_source`          | bounded enum                | Client acceptance or server fallback reason.                                                |
+| `azurite.note_operation_id`          | UUID string                 | One note load/save intent.                                                                  |
+| `azurite.note_operation_id_status`   | bounded enum                | Backend header disposition.                                                                 |
+| `azurite.ui_request_sequence`        | number                      | Browser stale-response ordering only.                                                       |
+| `azurite.note_id`                    | string                      | Validated or locally known note identity.                                                   |
+| `azurite.cluster_id`                 | UUID string                 | Ready cluster identity.                                                                     |
+| `azurite.cluster_identity_status`    | `ready`, `unavailable`      | Current shared identity result.                                                             |
+| `azurite.cluster_identity_reason`    | existing shared reason enum | Why identity is unavailable.                                                                |
+| `azurite.route_source`               | four-value enum above       | Truthful browser navigation/load source.                                                    |
+| `azurite.api_error_code`             | existing shared API code    | Stable route/client error result.                                                           |
+| `azurite.content_hash`               | string                      | Returned note version.                                                                      |
+| `azurite.expected_content_hash`      | string                      | Save precondition.                                                                          |
+| `azurite.markdown_length`            | number                      | Non-payload content size context.                                                           |
+| `azurite.note_count`                 | number                      | Successful list result size.                                                                |
+| `http.method`                        | `GET`, `PUT`                | Current API method.                                                                         |
+| `http.route`                         | shared route pattern        | Route pattern, never an unbounded concrete URL.                                             |
+| `http.response.status_code`          | number                      | Actual HTTP result where available.                                                         |
+| `azurite.duration_ms`                | number                      | Measured operation duration.                                                                |
+| `azurite.result_status`              | bounded lifecycle result    | `started`, `succeeded`, `failed`, `invalid`, `not_found`, `conflicted`, or `stale_ignored`. |
+| `azurite.stale_completion`           | `succeeded`, `failed`       | Whether an ignored list/read completion returned data or an error.                          |
+| `azurite.correlation_id_kind`        | `request`, `note_operation` | Which browser identifier could not be generated.                                            |
+| `azurite.correlation_failure_reason` | bounded enum above          | Why no secure branded browser identifier was available.                                     |
 
 Environment, release, surface, trace-header evidence, and 7A test attributes
 retain their existing names. Slice 7B does not rename 7A events.
@@ -513,7 +632,7 @@ retain their existing names. Slice 7B does not rename 7A events.
 
 | Event                              | Required operation-specific attributes                                                                                             |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `correlation.id_generation.failed` | ID kind and bounded failure reason; no fabricated ID                                                                               |
+| `correlation.id_generation.failed` | exact ID kind and bounded failure reason; no candidate or fabricated ID                                                            |
 | `note.route.navigation_requested`  | note ID and `note_list` or `startup_fallback` source                                                                               |
 | `note.route.synchronized`          | note ID when present and `url_sync` source                                                                                         |
 | `api.request.started`              | request ID when available, operation ID when applicable, route, method, `started`                                                  |
@@ -522,11 +641,11 @@ retain their existing names. Slice 7B does not rename 7A events.
 | `notes.list.started`               | request ID when available, UI sequence, `started`                                                                                  |
 | `notes.list.succeeded`             | request ID when available, UI sequence, cluster identity, note count, duration, `succeeded`                                        |
 | `notes.list.failed`                | request ID when available, UI sequence, API code when available, duration, `failed`                                                |
-| `notes.list.stale_ignored`         | stale request ID when available, stale UI sequence, duration, `stale_ignored`                                                      |
+| `notes.list.stale_ignored`         | stale request ID when available, stale UI sequence, stale completion, duration, `stale_ignored`                                    |
 | `note.load.started`                | note ID, operation/request IDs when available, UI sequence, route source, `started`                                                |
 | `note.load.succeeded`              | note ID, operation/request IDs when available, UI sequence, cluster identity, content hash, markdown length, duration, `succeeded` |
 | `note.load.failed`                 | note ID, operation/request IDs when available, UI sequence, API code when available, duration, `failed`                            |
-| `note.load.stale_ignored`          | stale note ID, operation/request IDs when available, stale UI sequence, duration, `stale_ignored`                                  |
+| `note.load.stale_ignored`          | stale note ID, operation/request IDs when available, stale UI sequence, stale completion, duration, `stale_ignored`                |
 | `note.save.started`                | note ID, operation/request IDs when available, expected hash, `started`                                                            |
 | `note.save.succeeded`              | note ID, operation/request IDs when available, cluster identity, content hash, duration, `succeeded`                               |
 | `note.save.conflicted`             | note ID, operation/request IDs when available, expected hash, API conflict code, duration, `conflicted`                            |
@@ -536,6 +655,13 @@ retain their existing names. Slice 7B does not rename 7A events.
 is unexpected. The paired note result is recorded without capturing the same
 exception again. Expected HTTP/API outcomes remain structured logs and
 breadcrumbs rather than fake errors.
+
+The API layer always reports the transport result that actually occurred. At
+the owning Zustand action layer, a stale list or read completion emits
+`stale_ignored` instead of its normal `succeeded` or `failed` event. Therefore a
+late failed request may correctly produce `api.request.failed` plus
+`notes.list.stale_ignored` or `note.load.stale_ignored`, while never producing a
+current semantic failure or mutating newer state.
 
 ### Backend Event Vocabulary
 
@@ -563,20 +689,86 @@ events.
 
 ### Telemetry Carrier Mapping
 
+Extend the shared Sentry-free runtime event contract with these optional typed
+fields while preserving every existing 7A caller:
+
+```ts
+type RuntimeSpanOperation =
+  | "azurite.runtime"
+  | "azurite.api.request"
+  | "azurite.note.operation"
+  | "azurite.server.route";
+
+type RuntimeCaughtErrorContext = {
+  readonly code?: string;
+  readonly message: string;
+  readonly name: string;
+  readonly stack?: string;
+};
+
+type RuntimeSearchTagName =
+  | "azurite.api_error_code"
+  | "azurite.note_operation_id"
+  | "azurite.request_id"
+  | "azurite.result_status"
+  | "http.route";
+
+type RuntimeSearchTags = Readonly<
+  Partial<Record<RuntimeSearchTagName, string>>
+>;
+
+type RuntimeObservabilityEvent = {
+  readonly attributes?: RuntimeObservabilityAttributes;
+  readonly name: string;
+  readonly spanOperation?: RuntimeSpanOperation;
+  readonly surface: RuntimeObservabilitySurface;
+  readonly tags?: RuntimeSearchTags;
+};
+```
+
+Existing 7A events omit the new `spanOperation` and `tags` fields and retain
+`azurite.runtime`. The adapters continue to own `app.surface`; callers cannot
+override it through the search-tag map. Adapters apply optional tags only inside
+the existing event-local `withScope` and never install them on a global or
+long-lived scope.
+
+The existing capture helpers retain their `error: unknown` parameter as the one
+caught-error source. They normalize it into `RuntimeCaughtErrorContext`, set it
+under the exact event-local Sentry context key `azurite.error`, and capture the
+same original error. The event does not carry a second error copy that could
+drift from the captured exception. For `Error` instances, `name`, `message`, and
+string `stack` are preserved; a string or numeric `code` property is normalized
+to string. Non-`Error` values use `name = "UnknownError"` and
+`message = "A non-Error value was thrown."`; `code` and `stack` are omitted. The
+original thrown value still goes to `captureException`.
+
+Span operation mapping is exact:
+
+| Work measured                             | Span operation           |
+| ----------------------------------------- | ------------------------ |
+| Existing Slice 7A runtime/test work       | `azurite.runtime`        |
+| Browser `api.request.*` transport         | `azurite.api.request`    |
+| Browser list/load/save semantic operation | `azurite.note.operation` |
+| Server list/read/save route work          | `azurite.server.route`   |
+
+The semantic event name remains the span name. Span attributes use the same
+explicit scalar attributes as the paired lifecycle evidence; tags and caught
+error context are event carriers and are not copied into span attributes.
+
 - Structured logs are the primary record for every event above.
 - `recordWebRuntimeEvent` and `recordServerRuntimeEvent` provide the matching
   chronological breadcrumb for non-exception lifecycle/results.
-- Web API, note operation, and server route spans measure the work and carry the
-  same explicit scalar attributes. Nested spans use distinct operation names;
-  they do not replace semantic IDs.
+- Web API, note operation, and server route spans measure the work with the
+  exact operations above and carry the same explicit scalar attributes. Nested
+  spans do not replace semantic IDs.
 - Event-local tags are limited to searchable identifiers and bounded dimensions:
   surface, route, result, request ID, operation ID when present, and API code
   when present. They are never installed globally.
 - Event-local context and structured attributes carry note ID, cluster identity,
   hashes, UI sequence, duration, header status, and caught error context.
-- Captured exceptions are reserved for ID-generation exceptions, unexpected web
-  request failures, and unexpected server failures. Expected invalid input,
-  not-found, and conflict states are not captured as exceptions.
+- Captured exceptions are reserved for terminal ID-generation exceptions,
+  unexpected web request failures, and unexpected server failures. Expected
+  invalid input, not-found, and conflict states are not captured as exceptions.
 - Full markdown, drafts, Zustand snapshots, request/response payloads, and local
   filesystem path enrichment remain Slice 7C work. Existing caught error stacks
   remain eligible diagnostic data.
@@ -586,7 +778,8 @@ events.
 ### 1. Lock The Shared Contract
 
 - Extend `packages/shared/src/runtime-observability.ts` with the chosen event,
-  attribute, result, header-status, and route-source constants.
+  attribute, result, header-status, route-source, span-operation, search-tag,
+  and caught-error contracts.
 - Add focused Sentry-free correlation types, header constants, and UUID schemas
   in shared modules rather than expanding one file toward the line limit.
 - Reuse existing API route, API error, cluster, note, and save schemas.
@@ -596,11 +789,14 @@ events.
 
 ### 2. Add The Browser Correlation Helper
 
-- Implement the `randomUUID` then `getRandomValues` UUID-v4 algorithm exactly as
-  specified.
-- Return immutable optional metadata and keep generation failure non-blocking.
-- Test native generation, HTTP-compatible fallback bit formatting, unavailable
-  crypto, and thrown crypto calls.
+- Implement the native-attempt then `getRandomValues` UUID-v4 algorithm, branded
+  validation, failure reasons, and recovered/terminal exception behavior exactly
+  as specified.
+- Return immutable optional branded metadata and keep terminal generation
+  failure non-blocking.
+- Test native success, native invalid output, native throw followed by fallback
+  success, HTTP-compatible fallback bit formatting, missing crypto, missing
+  fallback, fallback throw, invalid formatted UUID, and both ID kinds.
 - Emit one bounded generation-failure event per failed requested identifier; do
   not retry in a loop or fall back to weak randomness.
 
@@ -610,6 +806,8 @@ events.
   from request IDs to request sequences.
 - Prove existing list/read overlap and stale-result behavior before correlation
   events are added.
+- Repair stale list failures and prove that stale success and stale failure both
+  preserve the newer result in both completion orderings.
 - Do not persist request, operation, or sequence values in Dexie or URL state.
 
 ### 4. Extend The Typed Browser API Boundary
@@ -623,19 +821,25 @@ events.
   do not duplicate transport evidence.
 - Test GET/PUT headers, missing degraded IDs, parsed success, every existing API
   error, network failure, and unchanged response/body types.
+- Prove the direct Slice 7A diagnostic POST remains outside note-browser
+  correlation headers and retains its existing behavior.
 
 ### 5. Add Browser Note And Route Evidence
 
 - Split route and editor action modules before they approach 401 lines.
 - Create note operation context in read/reload/save actions and retain it in the
   async closure.
+- Register startup fallback as active before URL replacement and coalesce the
+  resulting same-note URL synchronization onto that in-flight operation.
 - Emit the exact route, note-list, note-load, save, conflict, failure, and stale
   events.
 - Preserve URL ownership, startup replacement, list navigation, browser history,
   `azurite-dev=sentry-test`, draft flushing, content-hash conflict protection,
   and existing visible UI states.
-- Test rapid overlapping reads so stale evidence uses the stale closure rather
-  than current Zustand state.
+- Test the real router/effect startup boundary and prove one fallback produces
+  one operation, request, API call, start event, and terminal event. Test rapid
+  overlapping reads so stale evidence uses the stale closure rather than
+  current Zustand state.
 
 ### 6. Add Fastify Request Correlation
 
@@ -645,8 +849,13 @@ events.
   frozen context in `onRequest` before note routes and trace evidence.
 - Add Fastify type augmentation and a checked accessor.
 - Keep Fastify's request ID and SDK-managed request scope separate.
-- Test missing, valid, invalid, non-v4, whitespace, oversized, comma-joined, and
-  array-valued headers plus concurrent injected requests.
+- Test missing, valid, invalid, non-v4, whitespace, bounded overlong,
+  comma-joined, and array-valued parser inputs plus concurrent injected
+  requests. Every rejected present value is `invalid`; no test claims observable
+  duplicate provenance.
+- Add one real-server boundary test proving transport-level oversized rejection
+  occurs before the application hook and is not covered by the unchanged
+  note-response guarantee.
 
 ### 7. Split And Instrument Note Routes
 
@@ -665,7 +874,8 @@ events.
 ### 8. Prove Carrier And Scope Isolation
 
 - Extend both 7A adapters only as needed for selected event-local tags and
-  context; direct SDK calls remain inside the adapter modules.
+  caught-error context, plus the exact bounded span operations; direct SDK calls
+  remain inside the adapter modules.
 - Assert logs, breadcrumbs, spans, tags, context, and exceptions against the
   exact event mapping.
 - Run overlapping browser note lists, overlapping browser note reads, and two
@@ -698,15 +908,19 @@ observability-specific protections:
 - A client-supplied correlation header is diagnostic input only; it must not
   authorize work, change note selection, bypass validation, select a workspace,
   or become an idempotency key.
-- Invalid or duplicated header contents must not be copied into telemetry,
+- Invalid header contents must not be copied into telemetry,
   response bodies, response headers, logs, or error messages.
 - Request IDs, note operation IDs, UI sequences, Fastify request IDs, editor
   session IDs, cluster IDs, and content hashes must remain distinct types and
   meanings.
 - No browser or server global mutable scope may retain operation context between
   overlapping or subsequent work.
-- A stale response must report its original closure context and must not mutate
-  the currently selected note.
+- A stale list or note response, whether successful or failed, must report its
+  original closure context and must not mutate newer list, cluster, selection,
+  note, editor, or recovery state.
+- A startup URL replacement must not turn one fallback intent into a second
+  same-note load. Same-note in-flight synchronization reuses the original
+  operation, while force reload remains a new intent.
 - Each lifecycle emits at most one start and one terminal semantic result at its
   owning layer; nested API/operation/route evidence must not become an event
   storm.
@@ -736,19 +950,32 @@ git diff --check
 Targeted tests must prove:
 
 - exact shared constants, schemas, result values, header names, and event names;
-- UUID-v4 native generation and `getRandomValues` fallback formatting;
+- distinct branded request/operation types, UUID-v4 native generation, and
+  `getRandomValues` fallback formatting;
+- native throw/invalid recovery through fallback plus exact terminal ID-kind and
+  failure-reason evidence;
 - no weak-randomness fallback and non-blocking unavailable-crypto behavior;
-- sequence-counter renames preserve list/read staleness semantics;
+- sequence-counter renames preserve list/read staleness semantics, and stale
+  list successes/failures preserve the newer result in both orderings;
 - explicit `NoteBrowserApi` metadata at all production and test call sites;
 - GET/PUT headers, existing request headers, body parsing, API errors, and
   unchanged successful return types;
 - one request ID per call and one operation ID per load/save intent;
+- one startup fallback produces one same-note operation/API call despite the
+  resulting URL synchronization, emits no self-induced `url_sync` semantic
+  event, and preserves `startup_fallback`; force reload produces a new
+  operation;
+- the Slice 7A diagnostic POST remains unchanged and outside browser-generated
+  note correlation;
 - route-source values only at truthful emission points;
 - frontend start/result attributes for read, stale read, save, conflict, and
   failure, plus list success/failure/staleness;
 - Fastify decoration ordering and fresh immutable context per request;
-- valid, missing, invalid, duplicate, comma-joined, whitespace, oversized, and
-  non-v4 correlation header handling;
+- valid, missing, invalid, comma-joined, whitespace, bounded overlong, non-v4,
+  and defensive array-valued correlation input handling without duplicate
+  provenance claims;
+- transport-level oversized headers remain governed by Node/Fastify before the
+  application correlation hook;
 - no API body/status change for any correlation-header case;
 - server fallback request IDs and omission of untrusted operation IDs;
 - backend list/read/save success, invalid, not-found, conflict, workspace, and
@@ -760,6 +987,9 @@ Targeted tests must prove:
   correlation context;
 - the next unrelated runtime event has no residual operation tags, attributes,
   context, or span data while prior breadcrumbs remain valid history;
+- exact `azurite.runtime`, `azurite.api.request`, `azurite.note.operation`, and
+  `azurite.server.route` span-operation mapping, event-local search tags, and
+  `azurite.error` caught-error context;
 - direct Sentry imports remain confined to initialization/adapter modules;
 - `packages/core` remains Sentry- and telemetry-free;
 - all existing routing, draft, recovery, editor, save, conflict, 7A runtime,
@@ -794,7 +1024,8 @@ note:
 2. Load `technical-architecture.md` or another named disposable note.
 3. Confirm browser `note.load.succeeded` and server `note.read.succeeded` share
    the request and operation IDs.
-4. Insert `PHONE-QA-7B-SAVED-2026-07-10` near the top through WYSIWYG and save.
+4. Insert `PHONE-QA-7B-SAVED-<QA-DATE>` near the top through WYSIWYG, replacing
+   `<QA-DATE>` with the actual local run date, and save.
 5. Confirm browser/server save events share new request and operation IDs,
    status `200`, and expected/returned hashes.
 6. Read the note again and confirm the marker persisted.
@@ -824,14 +1055,16 @@ Start without enabled Sentry configuration and prove:
   route-source, Fastify decoration, event vocabulary, scope isolation, and
   carrier decisions in this document are implemented without unresolved
   alternatives.
-- Every normal frontend API attempt has a UUID-v4 request ID; degraded browser
-  generation remains non-blocking and the server supplies a trusted request ID.
+- Every note-browser list/read/save API attempt has a branded UUID-v4 request
+  ID; degraded browser generation remains non-blocking and the server supplies a
+  trusted request ID. The Slice 7A diagnostic POST remains explicitly excluded.
 - Every normal browser note read/save intent has a note operation ID that is
   transported unchanged to Fastify.
 - Numeric Zustand counters are clearly named and remain local UI sequences.
-- Correlation headers accept only one exact UUID-v4 value; missing/invalid
-  request IDs get a server fallback and missing/invalid operation IDs are
-  omitted.
+- Correlation headers accept only one exact UUID-v4 value. Missing/invalid
+  request IDs get a server fallback, missing/invalid operation IDs are omitted,
+  and no server status claims duplicate provenance unavailable at Fastify's
+  normalized request boundary.
 - API response bodies, response headers, status codes, and shared error codes
   remain unchanged.
 - Frontend and backend emit the exact shared lifecycle/result events with
@@ -842,6 +1075,8 @@ Start without enabled Sentry configuration and prove:
   unexpected failures are captured once with useful context.
 - Overlapping browser operations, concurrent server requests, stale responses,
   and the next unrelated event prove correlation isolation.
+- Stale list successes and failures cannot replace newer state, and startup URL
+  replacement cannot create a duplicate same-note operation.
 - Existing 7A preload, tracing, Replay, console, shutdown, and disabled-mode
   behavior remains intact.
 - Existing routing, save, conflict, draft, recovery, filesystem, and Tailscale
@@ -887,6 +1122,6 @@ Slice 7C may rely on these completed 7B truths:
 
 ## Open Questions
 
-None. If implementation evidence contradicts one of these decisions, pause,
-update this planned slice with the new evidence, and obtain review before
-changing the architecture.
+None after the 2026-07-11 adversarial contract review. If implementation
+evidence contradicts one of these decisions, pause, update this planned slice
+with the new evidence, and obtain review before changing the architecture.
