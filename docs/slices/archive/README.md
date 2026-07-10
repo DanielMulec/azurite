@@ -8,5 +8,6 @@ Current architecture belongs in `docs/technical-architecture.md`, stable
 contracts belong in `docs/reference/`, and operational procedures belong in
 `docs/runbooks/`.
 
-Slice 7A's archive record includes its desktop Sentry/runtime evidence and the
-explicit decision to defer physical-phone QA to a separate optional session.
+Slice 7A's archive record includes its desktop Sentry/runtime evidence, the
+original decision to defer physical-phone QA, and the successful follow-up
+phone-Sentry evidence from 2026-07-10.

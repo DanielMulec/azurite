@@ -38,6 +38,12 @@ This settles that the Milkdown block-menu QA finding and future editor/persisten
 failures should be investigated through replay plus semantic evidence, not by
 guessing from terminal logs or one-off console prints.
 
+The 2026-07-10 physical-phone session added a second concrete input:
+`docs/qa/mobile-markdown-newline-reversion.md`. Android Enter briefly created a
+source-mode newline and then the controlled value reverted it; the same session
+also surfaced an unexplained recovered-draft state. Slice 7C must make those
+transitions explainable without claiming to fix them.
+
 ## User Story
 
 When Azurite feels wrong while Daniel is editing real notes, we can inspect the
@@ -66,8 +72,12 @@ current questions:
 - Did Crepe expose enough block-menu state to explain the visual failure?
 - Did a markdown update come from editor input, source mode, note switch, or
   stale async work?
+- Did an Android source-mode input reach local editor state before a parent,
+  editor lifecycle, Zustand, or Dexie transition replaced it?
 - Did Dexie fail, recover stale data, or show degraded persistence?
 - Did Zustand preserve the right conflict/recovery state?
+- Why did the phone display recovered-draft state for the newly created
+  disposable cluster?
 - Did debug telemetry itself make editing a large note feel worse?
 
 Slice 7C makes those questions answerable without creating a parallel product
@@ -171,6 +181,7 @@ These layers are excluded from Slice 7C:
   evidence, or scope-isolation boundary unless Slice 7C discovers a correctness
   bug in that foundation
 - fixing the Milkdown block-menu bug itself
+- fixing the mobile Markdown source-mode newline reversion itself
 - adding new note creation, delete, autosave, search, backlinks, graph, sync, or
   file-watch behavior
 - mobile-native and desktop-native apps
@@ -222,6 +233,7 @@ promise without smuggling in new note lifecycle product behavior.
 - Do not recreate the request ID, note operation ID, API metadata, backend
   request hook, or route-evidence foundation from Slice 7B.
 - Do not fix the Milkdown block-menu bug in this slice.
+- Do not fix the mobile Markdown source-mode newline reversion in this slice.
 - Do not add create, delete, autosave, file watching, search, backlinks, graph,
   sync, or offline write queue behavior.
 - Do not make Sentry a cache, source of truth, recovery system, editor state
@@ -722,6 +734,7 @@ Run automated validation and then verify through Sentry UI.
 Required QA:
 
 - Load the note from the Milkdown block-menu bug report.
+- Load a disposable note from the mobile Markdown newline QA report.
 - Confirm Sentry captures the browser session, console warnings/logs, API
   request path, request ID, note operation ID, note-load evidence, and backend
   note-read evidence inherited from Slice 7B.
@@ -729,6 +742,11 @@ Required QA:
   DOM state, focus context, selection context, and block-menu context where
   available.
 - Reproduce or attempt to reproduce the Milkdown `+` block-menu behavior.
+- Reproduce or attempt to reproduce Android Enter being reverted in Markdown
+  source mode and confirm the semantic evidence identifies the state transition
+  that replaced it.
+- Reproduce or rule out recovered-draft state for a fresh cluster identity
+  before a deliberate edit.
 - Confirm editor breadcrumbs and logs are useful enough to decide the next fix
   slice.
 - Confirm draft read/write/delete and recovery states appear in Sentry.
@@ -881,12 +899,18 @@ Run manual/browser QA:
 - Start Azurite with Slice 7A Sentry env vars enabled.
 - Open the Tailscale MagicDNS URL on desktop Chrome.
 - Load the note from the Milkdown block-menu bug report.
+- Load a disposable note from the mobile Markdown newline QA report.
 - Confirm Sentry captures browser replay, API path, request ID, note operation
   ID, note-load breadcrumbs/logs, and backend note-read evidence.
 - Confirm replay shows unmasked Milkdown editor text and markdown textarea text.
 - Confirm replay shows relevant DOM, focus, selection, and block-menu context
   when available.
 - Reproduce or attempt to reproduce the Milkdown `+` block-menu behavior.
+- Reproduce or attempt to reproduce Android Enter being reverted in Markdown
+  source mode and inspect the source-input, editor lifecycle, Zustand, and Dexie
+  evidence around the reversion.
+- Reproduce or rule out recovered-draft state for a fresh cluster identity
+  before a deliberate edit.
 - Confirm editor semantic breadcrumbs/logs are useful enough to guide the
   follow-up fix slice.
 - Confirm draft read/write/delete and recovery evidence appears in Sentry.
@@ -916,6 +940,9 @@ Run manual/browser QA:
   remains intact.
 - The Milkdown block-menu bug report can be investigated with Sentry evidence
   instead of only terminal logs.
+- The mobile Markdown newline reversion and fresh-cluster recovered-draft
+  observation can be investigated with Sentry evidence instead of inference
+  from the visible UI alone.
 - Session Replay captures unmasked editor/debug context in explicitly enabled
   local debug sessions.
 - Editor lifecycle, focus, selection, transaction, markdown update, block-menu,

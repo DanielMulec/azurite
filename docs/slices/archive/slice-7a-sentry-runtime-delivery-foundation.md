@@ -7,16 +7,17 @@ Completed on 2026-07-09.
 ## Completion Scope Amendment
 
 Daniel explicitly deferred physical-phone QA to a separate, optional session
-when he is in front of the development laptop. Physical mobile-session and
-mobile-Replay proof are therefore not Slice 7A completion gates and are not
-claimed in this archive record.
+when Slice 7A closed. Physical mobile-session and mobile-Replay proof were not
+Slice 7A completion gates. The follow-up physical-phone session passed on
+2026-07-10 and is recorded in the completion evidence below.
 
 The implementation still delivers and verifies the Tailscale foundation:
 Fastify remains bound to `127.0.0.1`, Vite can bind only to the current
 Tailscale IPv4 interface, MagicDNS host allowlisting works, API traffic remains
 proxied to localhost, and direct tailnet access to Fastify is rejected. Any
-earlier mobile-proof requirements retained below describe the original plan and
-are superseded by this amendment.
+earlier mobile-proof requirements retained below describe the original plan.
+They were superseded as close-out gates by this amendment and were later
+satisfied through the follow-up evidence.
 
 Slice 7A implements only the runtime delivery foundation. Slice 7B adds request
 correlation and note route evidence on top of this runtime. Slice 7C then adds
@@ -1009,12 +1010,23 @@ commit `f347a85` plus the final review corrections recorded in this close-out:
 - `packages/core` remains Sentry-free. Fastify/Pino and the existing note,
   routing, save, conflict, draft, recovery, filesystem, and lifecycle suites all
   remain green.
-- Physical-phone session and mobile Replay verification were not performed and
-  are intentionally deferred under the completion scope amendment above.
+- Follow-up physical-phone QA on 2026-07-10 used Android Chrome on a Pixel 6
+  through the current MagicDNS origin. The phone delivered deliberate web and
+  server events, reported `sentry-trace=true` and `baggage=true`, and appeared
+  as a distinct live `azurite-web` Replay with the full unmasked marker visible.
+  Sentry received the matching server issue, Vite remained bound only to the
+  current Tailscale interface, and Fastify remained reachable only through the
+  localhost proxy.
+- The same disposable phone session saved a WYSIWYG edit through
+  `PUT /api/notes/content` with a `200` response. It also exposed a Markdown
+  source-mode newline reversion and an unexplained recovered-draft state. Those
+  editor findings do not weaken the 7A runtime proof and are recorded in
+  `docs/qa/mobile-markdown-newline-reversion.md` for the 7C diagnostic handoff
+  and a later editor-correctness slice.
 
-Slice 7B remains planned and unpromoted. Daniel will complete the separate
-physical-phone QA before any work begins on 7B, and 7B must then be refreshed
-against the implemented helper and runtime contracts before promotion.
+Slice 7B remains planned and unpromoted. Its phone-QA prerequisite is complete;
+7B must now be refreshed against the implemented helper/runtime contracts and
+the recorded mobile editor findings before promotion.
 
 ## Handoff To Slice 7B
 
@@ -1024,9 +1036,8 @@ Slice 7B may begin only after Slice 7A proves:
 - Sentry-disabled startup skips Sentry SDK and Replay runtime imports at the
   current web and server entrypoints.
 - Web and server Sentry projects receive real events.
-- The desktop web session and Session Replay are visible in Sentry. Physical
-  phone-session and mobile-Replay proof remain deferred until Daniel's separate
-  QA session.
+- Desktop and physical-phone web sessions and Session Replays are visible in
+  Sentry, with the phone Replay distinct from the desktop Replay.
 - Replay debug defaults are uncensored at the runtime configuration layer, with
   editor-specific usefulness left to 7C.
 - Browser console warning/error capture is visible in Sentry.
@@ -1037,9 +1048,8 @@ Slice 7B may begin only after Slice 7A proves:
 - The custom server preload initializes Sentry before Fastify only when enabled
   and imports no Sentry SDK when disabled.
 - Sentry-enabled shutdown has a coherent flush/fallback budget.
-- The Tailscale/MagicDNS path is documented and its network boundary is verified
-  with the backend local-only behind the Vite proxy. Physical-phone proof is
-  deferred.
+- The Tailscale/MagicDNS path is documented and verified from a physical phone,
+  with the backend local-only behind the Vite proxy.
 - Shared route constants and base runtime observability types exist.
 - Direct Sentry calls are contained behind web/server observability helpers.
 - Those helpers expose a typed extension surface for 7B request and note

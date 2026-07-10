@@ -12,6 +12,13 @@ Slice 7C then adds semantic editor and persistence diagnostics.
 Slice 7C remains planned in
 `docs/slices/planned/slice-7c-semantic-editor-and-persistence-diagnostics.md`.
 
+Physical-phone Sentry QA passed on 2026-07-10 and recorded a separate mobile
+Markdown source-mode newline reversion in
+`docs/qa/mobile-markdown-newline-reversion.md`. Slice 7B must preserve that
+finding as known baseline behavior: use a disposable WYSIWYG edit for mobile
+save-correlation proof if necessary, and do not report correlation work as an
+editor fix.
+
 ## Product Decision
 
 Azurite adds a stable request and note-operation correlation contract on top of
