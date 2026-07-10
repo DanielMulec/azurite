@@ -22,6 +22,10 @@ truth.
    implemented 7A runtime contracts and the recorded mobile editor QA findings
    before promotion.
 3. Planned: Slice 7C, semantic editor and persistence diagnostics.
+4. Required immediately after 7C: a focused editor-correctness slice that uses
+   the 7A runtime, 7B correlation, and 7C semantic evidence to fix the mobile
+   Markdown source-mode newline reversion. No unrelated feature slice should
+   intervene.
 
 When a slice is completed, add concise completion evidence to its document and
 move it to `archive/`. Promote the next planned slice to `active/` only after its

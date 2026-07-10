@@ -6,8 +6,8 @@
 - Reporter: Daniel
 - Environment: Pixel 6, Android Chrome, Tailscale MagicDNS Azurite URL
 - QA context: deferred Slice 7A physical-phone and mobile-Replay verification
-- Current disposition: preserve as an editor-correctness finding; use Slice 7B
-  correlation and Slice 7C semantic diagnostics before defining the fix slice
+- Current disposition: required first product fix after Slice 7C; use Slice 7B
+  correlation and Slice 7C semantic diagnostics to define the durable fix
 
 ## Context
 
@@ -70,9 +70,11 @@ defect. Slice 7C diagnostics should make the recovery transition explainable.
   Fastify evidence.
 - Slice 7C adds the Milkdown/Crepe, Markdown source, Zustand, and Dexie semantic
   evidence needed to determine why the newline and draft states change.
-- The product fix must be explicitly accepted in a focused editor-correctness
-  slice after the diagnostic evidence identifies the durable behavior boundary.
-  Completing 7B or 7C must not be reported as fixing this finding.
+- The product fix is the required first delivery after Slice 7C. Its focused
+  editor-correctness slice must use the 7A runtime, 7B correlation, and 7C
+  semantic evidence to identify and repair the durable behavior boundary. No
+  unrelated feature slice should intervene, and completing 7B or 7C must not be
+  reported as fixing this finding.
 
 ## Verification Needed
 

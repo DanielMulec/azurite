@@ -970,6 +970,30 @@ Run manual/browser QA:
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
+## Immediate Handoff To Editor Correctness
+
+The first product slice after 7C must fix the mobile Markdown source-mode
+newline reversion recorded in
+`docs/qa/mobile-markdown-newline-reversion.md`. No unrelated feature slice
+should intervene.
+
+That fix slice must:
+
+- use the Slice 7A runtime, Slice 7B request/note-operation correlation, and
+  Slice 7C editor, Zustand, Dexie, payload, and Replay evidence;
+- convert the observed state-transition evidence into a durable ownership and
+  lifecycle correction rather than a mobile-keyboard special case;
+- satisfy the acceptance boundary and negative side-effect guardrails in the QA
+  report;
+- prove the repair with automated controlled-state tests, desktop regression
+  tests, and physical Android phone QA; and
+- preserve manual-save conflicts, draft durability, WYSIWYG/Markdown
+  round-tripping, URL navigation, and Sentry-disabled behavior.
+
+The exact implementation plan should be written from the evidence captured by
+7C. This committed sequence sets the priority and outcome now without guessing
+at the root cause before the diagnostic foundation exists.
+
 ## Completion Note
 
 When Slice 7C is complete, Sentry observability is functionally delivered for
@@ -978,3 +1002,5 @@ filesystem-backed note workflow. Future
 observability work should be framed around the next product capability it
 serves, such as create/delete, autosave, file watching, indexing/search,
 PWA/service-worker behavior, hosting hardening, or release/source-map upload.
+The immediate editor-correctness handoff above takes priority over those later
+capabilities.
