@@ -108,6 +108,11 @@ proposal. The implementation must extend these facts:
 - `packages/shared/src/cluster.ts` exposes only `ready` or `unavailable` cluster
   identity results. The server route cannot truthfully distinguish whether
   cluster metadata was read from disk or created during the call.
+- This outcome-oriented identity contract deliberately omits transient
+  metadata-read state and successful resolution provenance. A future Cluster
+  Opening And Lifecycle Foundation owns a separate existing, created, migrated,
+  repaired, or copied-identity resolution contract. Slice 7B does not add a
+  transient `missing` state to note responses.
 - Current core-to-route error mapping exposes stable API outcomes, but does not
   preserve a distinct filesystem-boundary rejection subtype at the route.
 - `packages/core` owns filesystem truth and remains Sentry-free.
@@ -117,13 +122,13 @@ proposal. The implementation must extend these facts:
 
 ## Future Workflow Boundary
 
-| Boundary               | Required decision                                                                                                                                                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result.                                                            |
-| Predictable extensions | Slice 7C editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction.                                                                           |
-| Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions, typed `NoteBrowserApi`, web API client, web/server observability adapters, Fastify request hook and note routes, existing core results, tests, and desktop/phone QA. |
-| Near-term seams        | Typed API metadata, immutable browser operation context, decorated Fastify request context, shared event/attribute vocabulary, and explicit event attributes leave room for editor session IDs and multiple request attempts per operation.      |
-| Exclusions             | Editor/draft semantics, rich payloads, retries, autosave, new note lifecycle behavior, core observers, and runtime setup can wait because the current workflow gains a complete correlation join without them.                                   |
+| Boundary               | Required decision                                                                                                                                                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result.                                                                                   |
+| Predictable extensions | Slice 7C editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction.                                                                                                  |
+| Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions, typed `NoteBrowserApi`, web API client, web/server observability adapters, Fastify request hook and note routes, existing core results, tests, and desktop/phone QA.                        |
+| Near-term seams        | Typed API metadata, immutable browser operation context, decorated Fastify request context, shared event/attribute vocabulary, and explicit event attributes leave room for editor session IDs and multiple request attempts per operation.                             |
+| Exclusions             | Editor/draft semantics, rich payloads, retries, autosave, new note lifecycle behavior, cluster-resolution provenance, richer filesystem errors, core observers, and runtime setup can wait because the current workflow gains a complete correlation join without them. |
 
 ## Goals
 
@@ -168,6 +173,14 @@ proposal. The implementation must extend these facts:
   product identity, or persistence keys.
 - Do not add Sentry imports, telemetry state, observer interfaces, or callbacks
   to `packages/core`.
+- Do not add cluster-resolution provenance or expose an internal metadata
+  `missing` state through current note responses. The future cluster-lifecycle
+  foundation owns that domain contract unless Slice 7C evidence requires it
+  earlier.
+- Do not broaden core filesystem errors solely to restore speculative telemetry
+  events. The first create/delete/move, file-watch/indexing, or multi-cluster
+  filesystem capability that needs distinct recovery owns the richer stable
+  taxonomy.
 - Do not add source-map upload, production telemetry policy, a custom log viewer,
   a service worker, or native-app telemetry.
 
@@ -860,6 +873,12 @@ Slice 7C may rely on these completed 7B truths:
 - the canonical save event prefix is `note.save.*`, not `save.*`;
 - 7C must enrich route failures rather than depend on a nonexistent
   `cluster.metadata.failed` event;
+- 7C must test whether the fresh-cluster recovered-draft finding depends on
+  cluster identity being created, reused, or copied. If that distinction is
+  required to explain the behavior, revise 7C or its immediate fix to introduce
+  the domain-level resolution result described in
+  `docs/technical-architecture.md`; otherwise defer it to the future Cluster
+  Opening And Lifecycle Foundation;
 - full payload, editor session, Milkdown/Crepe, Zustand, Dexie, coalescing, and
   Replay-usefulness behavior remains intentionally unimplemented;
 - the mobile Markdown newline reversion and recovered-draft observation remain

@@ -136,6 +136,45 @@ Current note writes:
   original;
 - never expose absolute filesystem paths in browser responses.
 
+### Cluster Resolution And Filesystem Error Evolution
+
+The current shared `ClusterIdentity` is an outcome contract for browser state:
+it reports either a durable `ready` cluster ID or an `unavailable` reason. A
+missing `.azurite/cluster.json` is an internal transient condition because core
+immediately attempts race-safe creation. The public identity therefore does not
+expose raw metadata-read states or whether a ready identity was loaded from an
+existing file, created by the current call, or reused after a concurrent
+creator won.
+
+A future Cluster Opening And Lifecycle Foundation owns a separate domain-level
+resolution result for that provenance. It must cover user-selected cluster
+opening, a cluster picker and recent clusters, existing versus newly initialized
+identity, invalid metadata inspection and recovery, copied-cluster identity,
+an explicit make-this-copy-a-new-cluster operation, metadata migrations,
+external or synced directories, moved folders, and the workspace-to-cluster
+terminology migration. Keep durable identity separate from resolution history;
+do not add a transient `missing` identity state to current note responses.
+
+Introduce this resolution result earlier only if Slice 7C or its immediate
+editor-correctness follow-up proves that created, reused, or copied cluster
+identity is required to explain the fresh-cluster recovered-draft behavior.
+
+The current core error taxonomy is sufficient for existing note read and manual
+save outcomes, but it is not the permanent contract for broader filesystem
+behavior. Extend stable core and shared error reasons before implementing the
+first capability that requires different recovery or security behavior for
+different filesystem causes. The hard trigger is whichever comes first:
+
+- create, rename, move, delete, trash, or restore;
+- file watching, external-edit detection, or derived indexing; or
+- multi-cluster opening across external or synced folders.
+
+The richer contract must distinguish actionable product, filesystem, and
+security outcomes without inferring them from error messages. It must exist
+before path-affecting operations are accepted through a hardened multi-device
+or authenticated hosting surface. Build it with the first triggering product
+capability, not as telemetry-only state inside an observability slice.
+
 ## Markdown Rendering And Editing
 
 Milkdown with Crepe owns the active WYSIWYG editor surface. Markdown remains the

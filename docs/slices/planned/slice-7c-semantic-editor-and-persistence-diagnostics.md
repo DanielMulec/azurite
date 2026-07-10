@@ -139,6 +139,14 @@ Future workflows should reuse the same event naming, request ID, operation ID,
 editor session ID, route source, cluster, note, result, payload, and recovery
 attributes instead of creating parallel telemetry shapes.
 
+Cluster identity remains the current ready-or-unavailable outcome contract. If
+the fresh-cluster recovered-draft investigation cannot be explained without
+knowing whether cluster metadata was created, reused, or copied, stop and revise
+this slice to introduce the separate domain-level resolution result defined as
+an early trigger in `docs/technical-architecture.md`. Otherwise leave that
+provenance to the future Cluster Opening And Lifecycle Foundation; do not expose
+an internal metadata `missing` state through current note responses.
+
 ### Product Layers Participating Now
 
 Slice 7C touches these current layers:
@@ -169,6 +177,10 @@ Slice 7C leaves explicit seams for:
 - autosave and future outbox diagnostics.
 - file-watch and external-change evidence.
 - derived index/search worker or backend service instrumentation.
+- a Cluster Opening And Lifecycle Foundation for user-selected clusters,
+  lifecycle provenance, metadata recovery and migration, copied identities,
+  external or synced folders, and the workspace-to-cluster terminology
+  migration.
 - PWA/service-worker telemetry once that runtime exists.
 - release/source-map upload for production-like builds.
 - future auth and local-hosting decision telemetry.
@@ -189,6 +201,9 @@ These layers are excluded from Slice 7C:
 - fixing the mobile Markdown source-mode newline reversion itself
 - adding new note creation, delete, autosave, search, backlinks, graph, sync, or
   file-watch behavior
+- changing the current cluster identity response or broadening core filesystem
+  error reasons unless the recovered-draft evidence triggers the explicit early
+  cluster-resolution boundary above
 - mobile-native and desktop-native apps
 - service workers, sync workers, indexing workers, and background jobs that do
   not exist yet
@@ -1006,6 +1021,12 @@ The exact implementation plan should be written from the evidence captured by
 7C. This committed sequence sets the priority and outcome now without guessing
 at the root cause before the diagnostic foundation exists.
 
+If the evidence shows that created, reused, or copied cluster identity
+participates in the recovered-draft failure, the responsible 7C revision or
+immediate fix must establish and test the separate resolution contract before
+claiming the behavior is understood. If it does not participate, cluster
+lifecycle provenance remains deferred to its dedicated foundation.
+
 ## Completion Note
 
 When Slice 7C is complete, Sentry observability is functionally delivered for
@@ -1016,3 +1037,9 @@ serves, such as create/delete, autosave, file watching, indexing/search,
 PWA/service-worker behavior, hosting hardening, or release/source-map upload.
 The immediate editor-correctness handoff above takes priority over those later
 capabilities.
+
+The first create/rename/move/delete/trash, file-watch/indexing, or multi-cluster
+filesystem capability must also introduce the richer stable core/shared error
+taxonomy required for its distinct recovery and security outcomes. This work
+must precede hardened multi-device or authenticated path-affecting operations
+and must not be implemented as telemetry-only classification.
