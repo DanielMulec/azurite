@@ -71,6 +71,10 @@ conflict contract, and preserves the intentional edit across reload.
   draft, mode, and save-status rerenders.
 - Preserve a ready Crepe instance's latest document before an in-app transition
   can destroy it while Milkdown's listener is still debounced.
+- Close the asynchronous gap between transition request and actual editor-session
+  replacement so the outgoing surface cannot accept an unowned edit.
+- Refuse a destructive in-app handoff when dirty Markdown could not be made
+  durable, while keeping the same editor session available for retry or Save.
 - Keep source editing usable while Crepe is creating or unavailable without
   calling editor APIs before readiness.
 - Keep dirty-state, Save eligibility, and Dexie draft decisions on one shared
@@ -115,7 +119,7 @@ conflict contract, and preserves the intentional edit across reload.
 | Current workflow       | Read exact Markdown from disk or a valid recovery draft, project it into one session-owned Crepe instance, switch between WYSIWYG and source without inventing an edit, commit accepted content before transitions, persist only real dirty drafts, and manually save through the existing conflict contract.  |
 | Predictable extensions | Autosave, external file watching, diff/conflict UI, source/WYSIWYG diagnostics, future editor loading, and multi-client editing all need to distinguish authoritative content from rendered or serialized projections and flush pending editor work before ownership changes.                                  |
 | Participating layers   | Milkdown/Crepe lifecycle and serialization, React editor and transition coordination, Zustand editor session, Save toolbar, Dexie draft scheduling/persistence and reconciliation, existing note API and content-hash save contract, Vitest, and real-browser QA.                                              |
-| Near-term seams        | A focused Markdown-authority controller; a React-owned active-editor transition boundary; typed accepted-change origins (`source_input` and `wysiwyg_document`); one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                              |
+| Near-term seams        | A focused Markdown-authority controller; a React-owned active-editor transition and durability gate; typed accepted-change origins (`source_input` and `wysiwyg_document`); one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                  |
 | Exclusions             | Token-level Markdown reconciliation, automatic legacy-draft classification, new persistence formats, editor replacement, route selection behavior, block-menu behavior, mobile newline repair, observability payloads, and bundle loading can wait because none is required to stop projection-only mutations. |
 
 ## Authoritative Markdown Contract
@@ -135,6 +139,8 @@ not create competing definitions.
 | Latest WYSIWYG projection      | The most recent projection accepted or synchronously read from the active Crepe instance. It suppresses duplicate listener and transition commits without replacing the synchronization checkpoint.                                                         |
 | Accepted content change        | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.              |
 | Synchronization                | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Synchronization never becomes dirty by itself.                                                                           |
+| Handoff freeze                 | A React-owned, temporary non-interactive state entered after the outgoing editor's live Markdown is committed and before a destructive asynchronous note/route transition waits for durability. It prevents new input from appearing in a session that is already being handed off.                           |
+| Durability gate                | The result required before an in-app note/route transition may supersede dirty authority: either the editor is clean or the exact current dirty Markdown was written successfully to its scoped draft. An unavailable dirty-draft write fails the gate.                                                        |
 | Legacy ambiguous draft         | A valid draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite preserves it because automatic classification could delete real work.                                        |
 
 ### Required Transitions
@@ -190,7 +196,7 @@ not create competing definitions.
    - A projection equal to the latest projection is a no-op even if Milkdown
      reports a document transaction.
 
-4. **Pre-transition WYSIWYG commit**
+4. **Pre-transition commit and asynchronous ownership handoff**
    - A React-owned active-editor transition boundary retains only the current
      controller capability. Crepe runtime objects and functions do not enter
      Zustand, Dexie, or serialized product state.
@@ -200,9 +206,32 @@ not create competing definitions.
      `crepe.getMarkdown()` while the instance still owns the session.
    - If that projection differs from the latest projection, process it once
      through the same checkpoint-aware WYSIWYG transition.
-   - Then publish accepted authority, flush the existing pending-draft boundary
-     when the transition requires durability, and only afterward continue the
-     store transition or destroy the instance.
+   - If the synchronous projection read or authority publication fails, keep the
+     current surface and mode active, cancel the requested in-app action, and
+     expose the editor failure. Never continue into destruction with an unknown
+     live projection.
+   - WYSIWYG-to-source and manual Save are non-destructive same-session actions.
+     Commit first, then continue without reconstructing Crepe. A successful Save
+     updates the saved Markdown, content hash, note metadata, recovery, and save
+     status in the existing `sessionKey`; it preserves mode, current document,
+     selection, synchronization checkpoint, and Undo history.
+   - For sidebar selection, URL-driven note replacement, and Back/Forward, commit
+     accepted authority, enter the handoff freeze, and then resolve the durability
+     gate before starting the store action that may eventually replace the
+     session. The outgoing editor remains mounted but cannot accept pointer,
+     keyboard, touch, or IME input while the gate or note read is pending.
+   - Continue a destructive transition only when the outgoing content is clean or
+     the exact dirty authority has been written successfully to its scoped draft.
+     Once the gate succeeds, close the outgoing controller before starting the
+     asynchronous store transition, so later editor/plugin work cannot create an
+     unowned change while a note response is pending.
+   - If a dirty-draft write is unavailable, cancel the destructive transition,
+     leave the same Crepe instance/session/Undo history active, remove the handoff
+     freeze, and expose the existing degraded-recovery state. Sidebar selection
+     must not push a new URL. If Back/Forward already changed the URL, replace it
+     with the still-active note without adding another history entry. This narrow
+     failure rollback does not repair or absorb the separate general route/sidebar
+     selection finding.
    - A projection equal to the latest projection commits nothing. Do not create
      a revision or draft solely because a transition requested a commit.
    - `visibilitychange` and `pagehide` synchronously commit a ready projection
@@ -210,8 +239,9 @@ not create competing definitions.
      lifecycle protection; the slice does not claim recovery after a hard process
      kill, power loss, or browser termination that runs no lifecycle callback.
    - If the instance is still creating, source authority is already current and
-     no Crepe runtime call is allowed. In-app session replacement invalidates the
-     creating instance without waiting for it to become authoritative.
+     no Crepe runtime call is allowed. A destructive transition still freezes
+     source input and passes the same durability gate before invalidating the
+     creating instance; it never waits for Crepe to become authoritative.
 
 5. **WYSIWYG to source**
    - Complete the pre-transition WYSIWYG commit before changing modes. This
@@ -250,6 +280,12 @@ not create competing definitions.
    - Invalidate the instance before asynchronous destruction.
    - A create resolution, listener callback, mode action, or destroy completion
      from an old note/session cannot mutate the new editor.
+   - A note/route request may replace only a controller that was already closed
+     after a successful durability gate. The old rendered editor is never left
+     interactive while an asynchronous response can supersede it.
+   - Successful same-session Save settlement is not session replacement and must
+     not change `sessionKey` or recreate Crepe, including when a WYSIWYG edit is
+     still inside the listener debounce window.
    - The new session receives its own exact authority, synchronization
      checkpoint, and latest projection.
 
@@ -262,6 +298,10 @@ not create competing definitions.
      also returns without an API request.
    - Real dirty content continues through the existing draft and conflict
      contracts unchanged.
+   - The draft flush boundary returns a typed durability result. Destructive
+     note/route transitions may proceed after `clean` or `durable`, but not after
+     `unavailable`. Save and mode switching retain the current session and do not
+     depend on a successful draft write to avoid content loss.
 
 10. **Legacy ambiguous draft compatibility**
     - Do not automatically delete, canonicalize, or semantically classify a
@@ -271,6 +311,11 @@ not create competing definitions.
     - Explicit save continues through the content-hash contract. Explicit
       discard deletes that draft, reloads exact disk Markdown, and must remain
       clean through readiness and mode switching.
+    - The existing discard action is exposed for both ordinary recovered drafts
+      and conflicts, with recovery-appropriate confirmation copy. Pristine notes
+      do not gain a discard action. After confirmation, discard intentionally
+      bypasses transition capture because deleting all recovered/current draft
+      work is the requested destructive outcome.
     - Completion evidence must distinguish prevention of new projection-only
       drafts from preservation of already stored ambiguous drafts.
 
@@ -336,8 +381,8 @@ Implementation requirements:
 - Keep rendering and accessible controls in the component file. Move lifecycle,
   instance ownership, authority/projection transitions, and Crepe integration
   into focused modules with beginner-readable exported API documentation.
-- Represent lifecycle explicitly (`creating`, `ready`, `destroyed`) and bind it
-  to one editor-session/instance generation.
+- Represent lifecycle explicitly (`creating`, `ready`, `failed`, `destroyed`)
+  and bind it to one editor-session/instance generation.
 - Accept `sessionKey` as the Crepe lifetime identity. Do not include mutable
   Markdown, editor mode, recovery, draft, or save-status values in the creation
   effect's reconstruction boundary.
@@ -345,6 +390,8 @@ Implementation requirements:
   and origin: `source_input` or `wysiwyg_document`.
 - Expose a narrow controller capability that can synchronously commit the
   current ready WYSIWYG projection before a React-owned transition continues.
+- Make synchronous commit return an explicit success/failure result. A failed
+  public `getMarkdown()` or publication cannot be mistaken for a clean no-op.
 - Implement the authoritative transitions above as named, independently
   testable operations. Do not scatter boolean suppression flags across React
   callbacks without a single state owner.
@@ -395,8 +442,24 @@ Implementation requirements:
   synchronization, manual Save, and WYSIWYG-to-source activation through the
   coordinator before their existing store actions continue.
 - For a ready WYSIWYG session, synchronously read and reconcile
-  `crepe.getMarkdown()`, then flush the existing pending-draft boundary when the
-  transition requires durability, then continue the store transition.
+  `crepe.getMarkdown()`. Cancel the requested in-app action and retain the
+  current editor if the commit fails.
+- Model destructive note/route handoff explicitly: commit, freeze the outgoing
+  editor surface, resolve the typed dirty-draft durability result, close the
+  controller, and only then start the existing asynchronous store transition.
+  Prevent pointer, keyboard, touch, and IME editing while frozen.
+- Change the pending-draft flush boundary to return whether current authority is
+  `clean`, `durable`, or `unavailable`. A dirty `unavailable` result cancels
+  selection/history synchronization and unfreezes the same editor session.
+- Keep URL ownership coherent on a canceled transition: sidebar selection does
+  not push, and URL-driven Back/Forward failure replaces the route with the
+  still-active note without adding history. Do not change the general route and
+  selected-item behavior owned by the separately classified finding.
+- Refactor successful same-session save reconciliation so it updates the saved
+  baseline, hash, note metadata, recovery, and status in place. It must retain
+  `sessionKey`, editor mode, current Markdown, revision ownership, Crepe,
+  checkpoint, selection, and Undo history rather than calling a fresh-session
+  constructor.
 - Make transition ownership exact: an old controller cannot delay, cancel, or
   publish into a newer session, and repeated commit requests for an unchanged
   projection are idempotent.
@@ -431,6 +494,9 @@ Implementation requirements:
   after its prerequisite repairs.
 - Preserve every valid legacy ambiguous draft. Do not infer that a draft is safe
   to delete merely because it equals Milkdown's projection of disk content.
+- Expose the existing confirmed discard-and-reload action for ordinary
+  `recovery === "draft"` sessions as well as conflicts. Use recovery-appropriate
+  text and keep the action absent for pristine sessions.
 
 ### 6. Add Layered Regression Coverage
 
@@ -454,18 +520,38 @@ Implementation requirements:
     debounced listener;
   - transition commit is idempotent and captures a projection before listener
     debounce;
+  - a thrown public projection read reports commit failure and cannot continue a
+    destructive transition;
   - delayed old-session work cannot replace a new session.
 - Extend `MilkdownEditor` component tests with a controllable Crepe mock whose
   create promise and `markdownUpdated` callback can be resolved independently.
 - Prove same-session rerenders after Markdown, mode, draft, recovery, and
   save-status changes retain one Crepe instance and preserve its checkpoint and
   Undo history; a new `sessionKey` creates exactly one replacement instance.
+- Prove successful same-session Save settlement retains `sessionKey`, source or
+  WYSIWYG mode, the same Crepe instance, selection, checkpoint, and Undo history.
+- Add a deferred-save integration case: begin Save, make a WYSIWYG edit while
+  the request is pending, resolve the response before `markdownUpdated`, and
+  prove the same live instance later publishes a dirty, recoverable edit instead
+  of being reconstructed.
 - Add React transition-coordinator tests for WYSIWYG edit followed immediately
   by source mode, note selection, route replacement, Back/Forward, Save,
   visibility change, and page hide. Assert projection commit occurs before store
   flush/transition and before destruction.
+- Add a deferred-note-read case that holds the replacement response, proves the
+  outgoing editor is non-interactive after its commit, resolves inside the
+  listener debounce window, and confirms the exact committed edit is durable.
+- Simulate unavailable dirty-draft persistence for sidebar selection and
+  Back/Forward. Prove the store transition does not start, the URL remains or is
+  restored to the active note, the same editor and Undo history are unfrozen,
+  and manual Save remains available.
 - Extend `SaveableNoteEditor` tests to consume the shared dirty helper and prove
   exact syntax changes remain dirty while CRLF/LF-only differences remain clean.
+- Drive one shared parameter table through the comparison helper, Save/UI
+  eligibility, store draft decisions, production Dexie saved-snapshot
+  reconciliation, and the memory persistence adapter. Every consumer must treat
+  CRLF/LF-only differences as equal and intentional syntax/whitespace changes as
+  different.
 - Extend note-browser store tests to prove:
   - pristine load plus editor readiness creates no draft;
   - mode-only changes leave no draft after flush;
@@ -476,6 +562,8 @@ Implementation requirements:
     recovery state without being replaced by the editor projection;
   - a seeded valid pre-7C projection-only draft is preserved as ambiguous until
     explicit save or discard, and discard returns to exact clean disk authority;
+  - ordinary recovered drafts expose confirmed discard while pristine sessions
+    do not;
   - conflict discard reloads exact disk Markdown and stays clean;
   - save, edit-during-save, failure, conflict, navigation, and same-note reopen
     ownership remain correct.
@@ -483,6 +571,12 @@ Implementation requirements:
   component mock: wait through readiness and delayed plugin activity, record
   whether configured features change the document, and prove those changes do
   not become accepted content without the authoritative contract.
+- Add a test-only browser lifecycle harness at the Crepe-factory boundary for
+  deterministic pending-create and rejected-create cases. It must mount the
+  production editor component, remain outside the Azurite product router, be
+  excluded from normal application builds, add no runtime dependency or
+  product-visible fault switch, and run through both a Vite development server
+  and an optimized test-harness build.
 - Use fake timers only to drive the known debounce/draft scheduling in tests;
   production logic must not use timing guesses for authority.
 
@@ -518,6 +612,13 @@ or QA proves any of these:
   Crepe's public `getMarkdown()` and lifecycle APIs.
 - Correct transition ownership requires storing Crepe runtime state in Zustand
   or Dexie instead of a React-owned ephemeral boundary.
+- Preventing edits during asynchronous note replacement cannot be implemented
+  as a React-owned handoff freeze without replacing the established note-loading
+  or route architecture.
+- A failed dirty-draft durability gate cannot retain the active session and
+  restore URL coherence without introducing another state owner, durable store,
+  or general route-selection capability. Do not silently build those broader
+  foundations inside 7C.
 - Pre-ready source input cannot remain authoritative without mutating Crepe
   before `create()` resolves.
 - Deterministic accepted-change ownership requires transaction-origin
@@ -537,8 +638,14 @@ Baseline: `docs/reference/product-guardrails.md`.
 - Projection suppression must not discard a real WYSIWYG edit, including one
   followed immediately by a mode switch, Save, note navigation, route/history
   navigation, or a supported browser lifecycle callback.
+- A note/route transition must not leave the outgoing editor interactive after
+  its final commit while an asynchronous replacement can still supersede it.
+- A failed dirty-draft write must not destroy or supersede the only live copy;
+  the same session, Crepe instance, and Undo history remain available.
 - A same-session rerender must not reconstruct Crepe, reset Undo history, move a
   synchronization checkpoint, or duplicate an editor DOM tree.
+- Successful Save settlement must not end a same-note editor session or cancel a
+  WYSIWYG edit still waiting for Milkdown's debounced listener.
 - Source edits accepted while Crepe creates must not call the unready editor,
   disappear at readiness, or reveal stale WYSIWYG content.
 - A stale Crepe instance must not overwrite newer source input or a newly opened
@@ -554,6 +661,8 @@ Baseline: `docs/reference/product-guardrails.md`.
 - Valid legacy ambiguous drafts must not be deleted or rewritten by projection
   inference; only explicit save/discard and the existing exact successful-save
   contract may dispose of them.
+- Ordinary recovered legacy drafts must not become practically undiscardable
+  merely because their base hash still matches disk.
 - Crepe instances and controller capabilities must remain ephemeral React-owned
   runtime state, not a second product-state owner in Zustand or Dexie.
 - Discarding a conflict must restore exact disk Markdown and remain clean until
@@ -592,42 +701,64 @@ production preview:
 3. Confirm status remains `Saved`, Save is disabled, and IndexedDB contains no
    draft for that note.
 4. Switch WYSIWYG to Markdown to WYSIWYG and confirm the source textarea still
-   contains the exact fixture bytes, status remains clean, and no draft appears.
+   contains the fixture's exact logical text, status remains clean, and no draft
+   appears. For the CRLF fixture, treat the textarea's browser-normalized LF
+   presentation separately from authority: prove the untouched store/disk bytes
+   and hash remain exact rather than requiring a DOM textarea to retain CRLF.
 5. Reload and confirm no recovered-draft state.
 6. Invoke the store save action defensively and confirm no `PUT` request occurs.
 7. Confirm every disk byte length and SHA-256 hash is unchanged.
 8. Under a throttled cold start, switch to source while the visible preparing
    state is still present when that window is observable, make one source edit,
-   and confirm the edit becomes dirty and recoverable. After readiness, enter
-   WYSIWYG and confirm it shows the latest source rather than the stale
-   construction value. The controllable component test remains the deterministic
-   proof when real creation completes before browser automation can interact.
-9. Make one deliberate WYSIWYG edit and switch immediately to Markdown; confirm
+   attempt WYSIWYG activation before readiness, and confirm the edit becomes
+   dirty and recoverable while source remains visible and stale WYSIWYG content
+   cannot appear. After readiness, enter WYSIWYG and confirm it shows the latest
+   source rather than the stale construction value.
+9. In the test-only browser lifecycle harness, hold the real component's create
+   promise pending and repeat the pre-ready activation attempt deterministically;
+   then reject creation and confirm exact source remains editable, WYSIWYG stays
+   unavailable, failure is visible, and no content callback/draft is invented.
+   Run this harness through Vite development and its optimized harness build.
+10. Make one deliberate WYSIWYG edit and switch immediately to Markdown; confirm
    the edit is present, dirty, recoverable, saveable, and durable. Record any
    broader Milkdown syntax normalization honestly as the accepted real-edit
    boundary.
-10. Repeat an immediate WYSIWYG edit before Save, sidebar selection, Back,
+11. Repeat an immediate WYSIWYG edit before Save, sidebar selection, Back,
     Forward, reload, `visibilitychange`, and `pagehide`; confirm the public
     pre-transition commit runs before the old session is destroyed and the edit
     is retained wherever the browser executed the supported lifecycle callback.
-11. Trigger same-session parent rerenders through mode, draft, recovery, and
+12. Hold a Save request pending, edit in WYSIWYG, settle Save before the
+    200-millisecond listener, and confirm the same Crepe DOM, mode, selection,
+    checkpoint, and Undo history remain. After the listener settles, confirm the
+    newer edit is dirty and recoverable against the updated saved baseline.
+13. Hold a replacement note read pending after sidebar and Back/Forward
+    navigation. Confirm the outgoing surface becomes non-interactive after its
+    committed edit, then settle the read inside the listener debounce window and
+    prove the committed edit recovers exactly on reopen.
+14. Force the dirty-draft write used by sidebar and Back/Forward handoff to fail.
+    Confirm no note load starts, sidebar navigation does not push, a changed URL
+    is replaced with the active note, the same editor and Undo history become
+    interactive again, degraded recovery is visible, and manual Save remains
+    available.
+15. Trigger same-session parent rerenders through mode, draft, recovery, and
     save-status changes; confirm one Crepe DOM tree remains, Undo still reaches
     the checkpoint, and no duplicate listener publishes. Component tests own the
     exact instance-count assertion.
-12. Create an external-write conflict, discard the recovered draft, and confirm
+16. Create an external-write conflict, discard the recovered draft, and confirm
     exact disk Markdown stays clean after editor readiness and mode switching.
-13. Recover one deliberate dirty draft whose syntax normalizes in Milkdown and
+17. Recover one deliberate dirty draft whose syntax normalizes in Milkdown and
     confirm the exact draft remains authoritative and dirty until save or
     discard.
-14. Seed a valid pre-7C projection-only draft, confirm Azurite preserves it as
-    ambiguous, discard it explicitly, and confirm exact disk Markdown remains
-    clean after readiness and mode switching.
-15. Navigate rapidly between notes during editor creation and confirm stale
+18. Seed a valid pre-7C projection-only draft with the current base hash, confirm
+    Azurite preserves it as ambiguous and exposes Save and Discard, discard it
+    explicitly, and confirm exact disk Markdown remains clean after readiness and
+    mode switching.
+19. Navigate rapidly between notes during editor creation and confirm stale
     callbacks never alter the current note.
-16. Wait through readiness and delayed configured-plugin activity without input;
+20. Wait through readiness and delayed configured-plugin activity without input;
     confirm no post-ready non-authoritative document change becomes accepted
     content.
-17. Confirm the normal production console has no new errors or warnings.
+21. Confirm the normal production console has no new errors or warnings.
 
 ### Synthetic Mobile QA
 
@@ -639,9 +770,13 @@ CPU-throttled cold start:
 - repeat pristine open, readiness, mode-only switching, reload, draft absence,
   and file-hash proof;
 - attempt source editing during the visible preparing state, then activate
-  WYSIWYG after readiness and confirm the latest source is shown; retain the
-  controllable component case as deterministic proof when creation is too fast;
+  WYSIWYG before readiness and confirm activation is refused, then activate it
+  after readiness and confirm the latest source is shown;
+- run the pending-create and rejected-create browser harness with mobile viewport,
+  user agent, touch, and CPU throttling, confirming source remains editable;
 - prove same-session rerenders retain one editor DOM tree and preserve Undo;
+- hold note replacement pending and confirm touch/keyboard input cannot enter the
+  outgoing surface after its handoff commit;
 - make a WYSIWYG edit and immediately switch mode, select another note, use
   Back/Forward, and reload; confirm supported transitions retain the edit; and
 - inspect touch interaction, console output, network requests, and IndexedDB.
@@ -673,8 +808,15 @@ finding. That remains the mandatory correctness work after Slice 7D.
 - Source remains editable while Crepe creates or fails, no runtime API is called
   before readiness, and later WYSIWYG activation synchronizes the latest exact
   authority before revealing the rich editor.
+- Attempted WYSIWYG activation before readiness is refused, and deterministic
+  browser-level create failure leaves exact source editable with a visible rich-
+  editor failure in development and an optimized harness build.
 - One editor session retains one Crepe instance, document, checkpoint, and Undo
   history across ordinary same-session React and Zustand rerenders.
+- Successful same-session Save settlement retains `sessionKey`, mode, Crepe,
+  selection, checkpoint, and Undo history. A WYSIWYG edit made while Save is
+  pending survives response settlement inside the listener debounce window and
+  becomes dirty against the updated saved baseline.
 - WYSIWYG/Markdown mode-only round trips preserve the exact authoritative
   Markdown and create no recovery draft.
 - Save is disabled for pristine content, a direct clean save makes no API call,
@@ -688,13 +830,20 @@ finding. That remains the mandatory correctness work after Slice 7D.
 - An accepted WYSIWYG document change becomes dirty, is synchronously retained
   through immediate mode, Save, note, route/history, and supported lifecycle
   transitions, persists a draft, saves, and survives reload.
+- Destructive note/route handoff freezes the outgoing surface after its final
+  commit, makes exact dirty authority durable, and closes controller ownership
+  before asynchronous replacement begins; no edit can appear in the gap.
+- An unavailable dirty-draft write cancels destructive selection/history
+  handoff, preserves and unfreezes the same editor session and Undo history,
+  keeps or restores the active-note URL, and leaves manual Save available.
 - Old editor instances and synchronization echoes cannot replace newer session
   or source intent.
 - Valid legacy ambiguous drafts are preserved without inference; explicit
+  Save and Discard are available for ordinary recovered drafts, and explicit
   discard reloads exact disk Markdown and remains clean.
 - One shared Markdown comparison owns UI, store dirty/draft/save decisions,
   Dexie saved-draft reconciliation, and matching test persistence with CRLF/LF
-  equivalence only.
+  equivalence only, proven by one shared parameter table across every consumer.
 - Crepe runtime objects and active controller capabilities remain out of Zustand,
   Dexie, and serializable snapshots.
 - The architecture documentation records the exact-authority versus projection
