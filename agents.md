@@ -42,6 +42,17 @@ documented in `docs/product-vision.md`, current architecture in
 - For cross-cutting foundations, include the compact `Future Workflow Boundary`
   defined in `docs/working-agreement.md`. Name the end-to-end workflow and
   participating layers without reproducing an exhaustive future roadmap.
+- Apply the `Scope Re-selection During Review` rule in
+  `docs/working-agreement.md` whenever adversarial review, QA, or implementation
+  evidence introduces another product capability, workflow, state owner,
+  storage boundary, or independently useful outcome. Do not silently annex that
+  work to the current slice; either prove it is required to complete the current
+  user story honestly or create, order, and document a separate slice.
+- Give each material slice decision one authoritative home as defined in
+  `docs/working-agreement.md`. Other sections may summarize or reference that
+  decision, but must not restate its complete contract. Integrate review feedback
+  by updating the authoritative decision plus the implementation and proof that
+  it changes, not by repeating review history throughout the proposal.
 - Every meaningful slice links to `docs/reference/product-guardrails.md` and
   lists only the additional slice-specific negative side effects it must
   prevent.

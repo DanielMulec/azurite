@@ -55,6 +55,37 @@ A slice is too small when it proves an implementation detail but leaves the user
 story unfinished, knowingly preserves a broken workflow, or creates immediate
 follow-up work that is already required for the behavior to be usable.
 
+## Scope Re-selection During Review
+
+Adversarial review, QA, and implementation evidence validate the selected slice
+boundary; they do not automatically enlarge it. Classify each newly discovered
+requirement before incorporating it:
+
+1. Include work that is required to complete the current user story honestly.
+2. Create or reorder a separate slice when the finding establishes an
+   independently useful product capability, engineering foundation, refactor, or
+   quality outcome.
+3. Place a contract in shared reference documentation only when multiple slices
+   or implemented product behavior will reuse it.
+
+Re-run slice selection explicitly when a finding adds another end-to-end
+workflow, participating layer, state owner, storage boundary, architectural
+foundation, or independently testable outcome. Record why the work is inseparable
+from the current story or name the stable delivery boundary that lets it become a
+separate slice.
+
+Do not annex work merely because review discovered it, because implementation
+touches nearby files, or because the current slice can technically carry it. If
+the current slice depends on a newly discovered capability, implement that
+capability first in a preceding slice or explicitly reframe and rename the
+combined slice as a reviewed product decision. Add, reorder, or relabel later
+slices when the delivery sequence changes; existing slice labels are not a reason
+to hide scope expansion.
+
+Line count alone never decides whether to split. The deciding question is whether
+each resulting slice delivers stable value without leaving either user story
+knowingly incomplete.
+
 ## Product-Architecture Framing
 
 When a QA finding, user frustration, or implementation issue points to a broader
@@ -146,6 +177,36 @@ Implementation plans should be decisive, not speculative.
   own. Prefer adopting a durable platform or dependency when the capability
   needs correlation, inspection, replay, persistence, security, or operational
   workflow that would otherwise become custom infrastructure inside Azurite.
+
+### Decision Ownership And Non-Repetition
+
+Each material decision has one authoritative home:
+
+- The product decision and user story own the product outcome and why it matters.
+- Architecture owns exact behavior, responsibility, state, data, and failure
+  semantics.
+- The implementation plan owns the code and documentation changes and their
+  execution order.
+- Verification owns the evidence required to prove behavior and preservation.
+- Acceptance criteria provide a concise completion gate and reference the
+  authoritative contracts instead of reproducing them.
+
+Other sections may provide a short summary or reference, but must not repeat the
+full contract. Tables, enum catalogs, algorithms, failure mappings, concurrency
+rules, and other exact behavior belong in one place.
+
+Integrate adversarial feedback by correcting the authoritative decision and the
+implementation or verification steps it materially changes. Do not preserve the
+review conversation as proposal narrative, add the same finding to every
+section, or turn the reconciled baseline, goals, guardrails, acceptance criteria,
+and handoff into parallel copies of the architecture.
+
+Do not extract text into a reference document merely to shorten a slice. Extract
+only a stable contract that implemented behavior or more than one slice will
+reuse. A plan is sufficiently detailed when an implementer can determine the
+product outcome, ownership, exact behavior, failure semantics, implementation
+boundary, and proof without choosing among unresolved alternatives. Stop adding
+restatements once that condition is met.
 
 ## Sentry Debug Mode
 
