@@ -5,11 +5,15 @@
 - Automated verification: passed on 2026-07-11.
 - Desktop Sentry-enabled QA: passed on 2026-07-11.
 - Desktop Sentry-disabled QA: passed on 2026-07-11.
+- Post-implementation adversarial code review: two save-integrity findings open.
+- Production desktop QA route finding: Back/sidebar regression classification
+  open.
 - Physical Pixel 6 QA: deliberately deferred because Daniel was away from the
   Mac and participating by phone.
-- Completion decision: Slice 7B remains active and is **not complete** until
-  Daniel performs the physical-phone acceptance session with Codex. The phone
-  gate is deferred, not passed or waived.
+- Completion decision: Slice 7B remains active and is **not complete**. Repair
+  and verify both adversarial findings, classify the route finding, and only
+  then perform the physical-phone acceptance session with Codex. The phone gate
+  is deferred, not passed or waived.
 
 This document is the authoritative implementation and QA evidence record for
 Slice 7B. The active slice links here instead of duplicating these results.
@@ -113,16 +117,41 @@ Automated disabled-runtime and throwing-carrier tests additionally prove that
 correlation headers, Fastify request context, URL behavior, conflict behavior,
 and product results do not depend on an initialized SDK.
 
-## Deferred Physical-Phone Completion Gate
+## Remaining Completion Gates
 
-Slice 7B must not be archived or reported complete until Daniel and Codex run
-the physical Pixel 6 acceptance session defined in the active slice. That
-session must record exact phone request and operation IDs for list, read, and a
-successful WYSIWYG save; confirm the marker persists; confirm trace headers and
-an unmasked distinct Replay; and confirm Fastify remains unreachable directly
-over Tailscale.
+### Adversarial Review Repair Gate
+
+The post-implementation adversarial review found two save-result ownership
+defects that must be repaired before phone QA:
+
+1. `applySaveFailure` captures the current editor, awaits latest-draft
+   persistence, and then applies a failure/conflict state copied from the stale
+   pre-await editor. A newer edit made while IndexedDB persistence is pending can
+   therefore be overwritten. The repair must revalidate and mutate the exact
+   current session after the await, with a regression test that pauses draft
+   persistence and edits before settlement.
+2. Save result ownership currently looks up a current editor by note ID. If an
+   old same-note save settles after that note is closed and freshly reopened,
+   the old operation can mutate the new session. The repair must require exact
+   editor-session ownership for result mutation while preserving the intended
+   edit-during-save reconciliation inside the original session.
+
+Production desktop QA also found that browser Back can restore URL and content
+while leaving the wrong sidebar item selected. Classify this against the pre-7B
+baseline. If 7B introduced it through route synchronization, repair and verify
+it in 7B. If it predates 7B, record a separate route-state correctness slice;
+do not annex it to Slice 7C.
+
+### Phone Acceptance After Repair
+
+After both code findings are fixed and the route finding is classified, Daniel
+and Codex must run the physical Pixel 6 acceptance session defined in the active
+slice. That session must record exact phone request and operation IDs for list,
+read, and a successful WYSIWYG save; confirm the marker persists; confirm trace
+headers and an unmasked distinct Replay; and confirm Fastify remains unreachable
+directly over Tailscale.
 
 The phone save must use WYSIWYG. Markdown source Enter remains an explicitly
-unfixed Slice 7C diagnostic target and is not a 7B completion path. After the
-phone evidence passes, update this record, mark the active slice complete, move
-it to `archive/`, and only then promote Slice 7C.
+unfixed Slice 7D diagnostic target and is not a 7B completion path. After the
+repair and phone evidence pass, update this record, mark the active slice
+complete, move it to `archive/`, and only then promote Slice 7C.

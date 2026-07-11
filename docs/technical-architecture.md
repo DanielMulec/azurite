@@ -187,7 +187,7 @@ external or synced directories, moved folders, and the workspace-to-cluster
 terminology migration. Keep durable identity separate from resolution history;
 do not add a transient `missing` identity state to current note responses.
 
-Introduce this resolution result earlier only if Slice 7C or its immediate
+Introduce this resolution result earlier only if Slice 7D or its immediate
 editor-correctness follow-up proves that created, reused, or copied cluster
 identity is required to explain the fresh-cluster recovered-draft behavior.
 
@@ -231,9 +231,9 @@ The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
 loading the rich editor. Do not implement that boundary before Slice 7B is
-complete. Default its delivery until after Slice 7C and the mandatory
-editor-correctness follow-up so diagnostics and repair QA observe the current
-editor lifecycle before its loading order changes.
+complete. Default its delivery until after Slice 7C fidelity, Slice 7D
+diagnostics, and the mandatory editor-correctness follow-up so those repairs and
+their QA observe the current editor lifecycle before its loading order changes.
 
 A focused future performance slice must measure development and built-preview
 cold start, time to application shell, time to editor readiness, emitted chunk
@@ -330,18 +330,18 @@ Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from
 `docs/reference/product-guardrails.md` still applies.
 
-After Slice 7C and its mandatory editor-correctness follow-up, a focused Daily
+After Slice 7D and its mandatory editor-correctness follow-up, a focused Daily
 Observability Operating Profile may establish three explicit modes:
 
 - disabled, which retains the current zero-SDK-runtime baseline;
 - lightweight daily, which may remain permanently enabled for Daniel with
   errors, bounded breadcrumbs, measured trace sampling, and error-triggered or
   modest Replay; and
-- full debug, which retains exhaustive 7B/7C semantic diagnostics, uncensored
+- full debug, which retains exhaustive 7B/7D semantic diagnostics, uncensored
   Replay, high sampling, and bounded rich product payloads behind deliberate
   configuration.
 
-This remains an evidence-gated future decision. Slice 7C must leave usable
+This remains an evidence-gated future decision. Slice 7D must leave usable
 configuration seams and record disabled-versus-full-debug responsiveness and
 event-volume evidence. The later operating-profile slice must measure its actual
 daily candidate before enabling it permanently; it must not weaken full debug or
@@ -372,7 +372,7 @@ that genuinely needs them:
 - derived index, file watching, search, backlinks, and graph storage;
 - PWA service-worker and offline behavior;
 - authentication and hardened Tailscale hosting;
-- a measured lightweight daily Sentry operating profile after Slice 7C and the
+- a measured lightweight daily Sentry operating profile after Slice 7D and the
   mandatory editor-correctness follow-up;
 - production distribution and update strategy;
 - release source-map upload and production observability policy;

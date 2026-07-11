@@ -6,8 +6,9 @@
 - Reporter: Daniel
 - Environment: Pixel 6, Android Chrome, Tailscale MagicDNS Azurite URL
 - QA context: deferred Slice 7A physical-phone and mobile-Replay verification
-- Current disposition: required first product fix after Slice 7C; use Slice 7B
-  correlation and Slice 7C semantic diagnostics to define the durable fix
+- Current disposition: required first product fix after Slice 7D; use Slice 7B
+  correlation, Slice 7C Markdown authority, and Slice 7D semantic diagnostics
+  to define the durable fix
 
 ## Context
 
@@ -47,7 +48,7 @@ The first captured phone screen displayed `Recovered unsaved draft` for
 `index.md` in the newly created disposable cluster. The session did not isolate
 the exact navigation, reload, editor callback, or IndexedDB write that preceded
 that state, so this remains an observation rather than a confirmed separate
-defect. Slice 7C diagnostics should make the recovery transition explainable.
+defect. Slice 7D diagnostics should make the recovery transition explainable.
 
 ## Expected Behavior
 
@@ -68,13 +69,16 @@ defect. Slice 7C diagnostics should make the recovery transition explainable.
 - Slice 7B does not fix the editor. It adds request and note-operation
   correlation so a mobile read or save can be followed across browser and
   Fastify evidence.
-- Slice 7C adds the Milkdown/Crepe, Markdown source, Zustand, and Dexie semantic
+- Slice 7C fixes projection-only false dirty state and establishes the accepted
+  source/WYSIWYG content-change boundary. Its physical-phone smoke does not test
+  or accept Android source input.
+- Slice 7D adds the Milkdown/Crepe, Markdown source, Zustand, and Dexie semantic
   evidence needed to determine why the newline and draft states change.
-- The product fix is the required first delivery after Slice 7C. Its focused
-  editor-correctness slice must use the 7A runtime, 7B correlation, and 7C
-  semantic evidence to identify and repair the durable behavior boundary. No
-  unrelated feature slice should intervene, and completing 7B or 7C must not be
-  reported as fixing this finding.
+- The product fix is the required first delivery after Slice 7D. Its focused
+  editor-correctness slice must use the 7A runtime, 7B correlation, 7C Markdown
+  authority, and 7D semantic evidence to identify and repair the durable
+  behavior boundary. No unrelated feature slice should intervene, and
+  completing 7B, 7C, or 7D must not be reported as fixing this finding.
 
 ## Verification Needed
 

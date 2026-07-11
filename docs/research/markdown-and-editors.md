@@ -113,6 +113,32 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Examples are implementation references, not Azurite architecture;
   adapt them to local component boundaries and tests.
 
+### Milkdown 7.21.2 Listener Plugin Source
+
+- URL: https://github.com/Milkdown/milkdown/blob/v7.21.2/packages/plugins/plugin-listener/src/index.ts
+- Accessed: 2026-07-11
+- Area: Editor lifecycle and Markdown change authority
+- Use when: Deciding whether a Milkdown Markdown callback proves user intent or
+  is only evidence that the editor document changed.
+- Notes: The installed listener initializes previous document and Markdown
+  state, debounces eligible document changes for 200 milliseconds, and exposes
+  current and previous Markdown without the originating transaction.
+- Caveats: This describes the pinned 7.21.2 implementation. Recheck the source
+  and Azurite regression suite before relying on the same lifecycle after a
+  Milkdown upgrade.
+
+### Milkdown 7.21.2 `replaceAll` Source
+
+- URL: https://github.com/Milkdown/milkdown/blob/v7.21.2/packages/utils/src/macro/replace-all.ts
+- Accessed: 2026-07-11
+- Area: Source-to-WYSIWYG synchronization
+- Use when: Distinguishing a programmatic Markdown replacement from a user edit.
+- Notes: With `flush` enabled, `replaceAll` parses Markdown, creates a fresh
+  editor state, and passes it to the view through `updateState`.
+- Caveats: State replacement can reinitialize plugin-local state. Azurite must
+  verify its projection baseline and listener behavior whenever this API or the
+  editor integration changes.
+
 ### Tiptap Markdown
 
 - URL: https://tiptap.dev/docs/editor/markdown

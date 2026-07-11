@@ -1,23 +1,25 @@
-# Slice 7C: Semantic Editor And Persistence Diagnostics
+# Slice 7D: Semantic Editor And Persistence Diagnostics
 
 ## Status
 
-Planned. Promote this document to `docs/slices/active/` only after Slices 7A and
-7B are implemented and their actual runtime and correlation contracts are
-reflected here.
+Planned. Promote this document to `docs/slices/active/` only after Slices 7A,
+7B, and 7C are implemented and their actual runtime, correlation, Markdown
+authority, and dirty-state contracts are reflected here.
 
 The 7B-dependent event and scope references in this plan were aligned on
-2026-07-10 with the revised planned 7B contract. Slice 7C still requires a full
-refresh against the implemented 7B code and completion evidence before
-promotion.
+2026-07-10 with the revised planned 7B contract. Slice 7D still requires a full
+refresh against the completed 7B code and the accepted-change origin seam
+implemented by Slice 7C before promotion.
 
-This slice depends on Slice 7A: Sentry Runtime Delivery Foundation and Slice 7B:
-Request Correlation And Note Route Evidence.
+This slice depends on Slice 7A: Sentry Runtime Delivery Foundation, Slice 7B:
+Request Correlation And Note Route Evidence, and Slice 7C: Markdown Fidelity And
+Honest Dirty State.
 
-Slice 7C completes the full semantic observability promise for the current
-editor and persistence workflow after Slice 7A proves Sentry runtime delivery and
-disabled-mode safety, and Slice 7B proves frontend/backend request correlation
-and note route evidence.
+Slice 7D completes the full semantic observability promise for the current
+editor and persistence workflow after Slice 7A proves Sentry runtime delivery
+and disabled-mode safety, Slice 7B proves frontend/backend request correlation
+and note route evidence, and Slice 7C distinguishes exact Markdown authority
+from editor projection and exposes typed accepted-change origins.
 
 ## Product Decision
 
@@ -46,7 +48,7 @@ guessing from terminal logs or one-off console prints.
 The 2026-07-10 physical-phone session added a second concrete input:
 `docs/qa/mobile-markdown-newline-reversion.md`. Android Enter briefly created a
 source-mode newline and then the controlled value reverted it; the same session
-also surfaced an unexplained recovered-draft state. Slice 7C must make those
+also surfaced an unexplained recovered-draft state. Slice 7D must make those
 transitions explainable without claiming to fix them.
 
 ## User Story
@@ -85,7 +87,7 @@ current questions:
   disposable cluster?
 - Did debug telemetry itself make editing a large note feel worse?
 
-Slice 7C makes those questions answerable without creating a parallel product
+Slice 7D makes those questions answerable without creating a parallel product
 state system or weakening the file-over-app persistence model.
 
 ## Future Workflow Boundary
@@ -103,8 +105,9 @@ Slice 7A runtime foundation and Slice 7B correlation foundation:
 3. URL-owned route state selects a note.
 4. The frontend reads that note through the Slice 7B correlated API boundary.
 5. The Milkdown editor mounts, switches modes, observes focus/selection and
-   transaction context, emits markdown updates, and exposes Crepe block-menu
-   context where available.
+   transaction context, distinguishes accepted source/WYSIWYG changes from
+   synchronization projections, and exposes Crepe block-menu context where
+   available.
 6. Zustand owns live note browser and editor session state.
 7. Dexie owns browser-local draft persistence and recovery state.
 8. Manual save writes markdown through the existing content-hash conflict
@@ -151,7 +154,7 @@ an internal metadata `missing` state through current note responses.
 
 ### Product Layers Participating Now
 
-Slice 7C touches these current layers:
+Slice 7D touches these current layers:
 
 - repository docs and slice notes
 - Slice 7B shared observability constants extended for semantic editor and
@@ -173,7 +176,7 @@ Slice 7C touches these current layers:
 
 ### Product Layers Predictably Needed Soon
 
-Slice 7C leaves explicit seams for:
+Slice 7D leaves explicit seams for:
 
 - create/delete editor and route actions.
 - autosave and future outbox diagnostics.
@@ -191,15 +194,15 @@ Slice 7C leaves explicit seams for:
 
 ### Deliberately Excluded Layers
 
-These layers are excluded from Slice 7C:
+These layers are excluded from Slice 7D:
 
 - creating Sentry projects, adding SDK dependencies, or redoing runtime
   configuration already completed by Slice 7A
 - replacing the Slice 7A Fastify preload, startup, shutdown, config, Replay, or
-  console-capture boundary unless Slice 7C discovers a correctness bug in that
+  console-capture boundary unless Slice 7D discovers a correctness bug in that
   foundation
 - replacing the Slice 7B request ID, note operation ID, request hook, route
-  evidence, or scope-isolation boundary unless Slice 7C discovers a correctness
+  evidence, or scope-isolation boundary unless Slice 7D discovers a correctness
   bug in that foundation
 - fixing the Milkdown block-menu bug itself
 - fixing the mobile Markdown source-mode newline reversion itself
@@ -223,7 +226,7 @@ These layers are excluded from Slice 7C:
 - direct `packages/core` observability hooks, observer interfaces, or Sentry
   imports
 
-The exclusions are stable because Slice 7C's current value is diagnostic
+The exclusions are stable because Slice 7D's current value is diagnostic
 completeness for the existing browser editor, client state, draft persistence,
 API, and server route-boundary workflow. It completes the current observability
 promise without smuggling in new note lifecycle product behavior.
@@ -276,9 +279,9 @@ promise without smuggling in new note lifecycle product behavior.
 - Do not add direct Sentry instrumentation, observer hooks, or telemetry
   contracts to `packages/core`.
 
-## Dependency On Slices 7A And 7B
+## Dependency On Slices 7A, 7B, And 7C
 
-Slice 7C assumes Slice 7A has already delivered:
+Slice 7D assumes Slice 7A has already delivered:
 
 - `@sentry/react` and `@sentry/node` installed in the owning workspaces.
 - Web and server Sentry initialization behind typed config modules.
@@ -290,7 +293,7 @@ Slice 7C assumes Slice 7A has already delivered:
 - Custom server preload and bounded Sentry-enabled shutdown.
 - Direct Sentry calls contained behind web/server observability helpers.
 
-Slice 7C assumes Slice 7B has already delivered:
+Slice 7D assumes Slice 7B has already delivered:
 
 - Request ID and note operation ID propagation through frontend API calls and
   backend request context.
@@ -300,14 +303,28 @@ Slice 7C assumes Slice 7B has already delivered:
   explicit event attributes, and event-local Sentry scope isolation.
 - Overlapping note-read and stale-response tests.
 
-If any of those foundations are missing, Slice 7C should stop and repair the 7A
-or 7B foundation before adding deeper semantic instrumentation.
+Slice 7D assumes Slice 7C has already delivered:
+
+- exact Markdown authority separated from Milkdown's serialized projection;
+- typed accepted source-input and WYSIWYG-document change origins;
+- synchronization checkpoints that do not create dirty state or drafts;
+- one shared dirty-comparison contract for UI, draft, and save decisions; and
+- regression coverage for pristine mount, mode switching, rapid rich edits,
+  source synchronization, stale editor instances, recovery, and conflict
+  discard.
+
+Slice 7D must instrument accepted changes and synchronization truthfully. It
+must not relabel a suppressed projection echo as user input or reintroduce a
+parallel dirty-state decision for telemetry.
+
+If any of those foundations are missing, Slice 7D should stop and repair the 7A,
+7B, or 7C foundation before adding deeper semantic instrumentation.
 
 ## Architecture
 
 ### Semantic Event Contract
 
-Slice 7C extends the shared event vocabulary established by Slice 7B on top of
+Slice 7D extends the shared event vocabulary established by Slice 7B on top of
 the Slice 7A runtime helper surface. Event names remain lower-case dot-separated
 product vocabulary. Event names describe Azurite behavior, not Sentry mechanics.
 
@@ -340,7 +357,7 @@ Frontend semantic events:
 | `recovery.draft.visible`               | note ID, cluster ID, draft updated time                        |
 | `recovery.degraded.visible`            | note ID when known, persistence unavailable reason             |
 
-Slice 7C may enrich Slice 7B note load/save/conflict events with payload context
+Slice 7D may enrich Slice 7B note load/save/conflict events with payload context
 where the volume contract allows it. It must not rename the Slice 7B events or
 fork their attribute shapes.
 
@@ -355,7 +372,7 @@ Backend semantic events:
 | `note.save.failed`                | 7B attributes plus caught error context and payload summary when used |
 | `telemetry.server.test.triggered` | request ID, release, environment, surface, payload test state         |
 
-Slice 7C enriches the truthful 7B note route result that observed a cluster or
+Slice 7D enriches the truthful 7B note route result that observed a cluster or
 filesystem failure. It does not reintroduce a standalone
 `cluster.metadata.failed` event or invent filesystem provenance unavailable at
 the route boundary.
@@ -363,7 +380,7 @@ the route boundary.
 ### Replay Configuration Boundary
 
 Session Replay runs for explicitly enabled local debug sessions. Slice 7A
-installs the runtime Replay configuration. Slice 7C verifies and adjusts the
+installs the runtime Replay configuration. Slice 7D verifies and adjusts the
 current SDK options, through TypeScript types, so replay is useful for editor
 debugging.
 
@@ -441,7 +458,7 @@ deliberate test events, and real failure/conflict/recovery evidence.
 
 ### Telemetry Volume Contract
 
-Uncensored does not mean noisy enough to become useless. Slice 7C defines when
+Uncensored does not mean noisy enough to become useless. Slice 7D defines when
 full payloads are sent.
 
 Volume requirements:
@@ -546,7 +563,7 @@ to `packages/core` in this slice.
 ### File-Line And Refactor Boundary
 
 Several implementation targets are already near the 400-line hard limit. Slice
-7C must split files before adding semantic instrumentation where needed.
+7D must split files before adding semantic instrumentation where needed.
 
 Known pressure points:
 
@@ -593,7 +610,7 @@ Implementation requirements:
 - Add shared result statuses only when they are reusable across web/server
   events.
 - Add beginner-readable TSDoc for exported constants.
-- Add tests proving semantic event names do not drift from this Slice 7C
+- Add tests proving semantic event names do not drift from this Slice 7D
   contract.
 
 ### 3. Add Bounded Payload Helpers
@@ -807,7 +824,7 @@ Required QA:
 
 ## Negative Side-Effect Guardrails
 
-Slice 7C must preserve existing product behavior while adding semantic
+Slice 7D must preserve existing product behavior while adding semantic
 diagnostics.
 
 Existing workflows that must keep working:
@@ -1005,14 +1022,14 @@ Run manual/browser QA:
 - Backend observability enriches route-level evidence from core outcomes/errors,
   and `packages/core` remains Sentry-free with no new observer contract.
 - Sentry-disabled Azurite behaves the same as before Slice 7A, Slice 7B, and
-  Slice 7C.
+  Slice 7D.
 - All negative side-effect guardrails remain true.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
 ## Immediate Handoff To Editor Correctness
 
-The first product slice after 7C must fix the mobile Markdown source-mode
+The first product slice after 7D must fix the mobile Markdown source-mode
 newline reversion recorded in
 `docs/qa/mobile-markdown-newline-reversion.md`. No unrelated feature slice
 should intervene.
@@ -1020,7 +1037,8 @@ should intervene.
 That fix slice must:
 
 - use the Slice 7A runtime, Slice 7B request/note-operation correlation, and
-  Slice 7C editor, Zustand, Dexie, payload, and Replay evidence;
+  Slice 7C Markdown-authority contract together with Slice 7D editor, Zustand,
+  Dexie, payload, and Replay evidence;
 - convert the observed state-transition evidence into a durable ownership and
   lifecycle correction rather than a mobile-keyboard special case;
 - satisfy the acceptance boundary and negative side-effect guardrails in the QA
@@ -1031,24 +1049,24 @@ That fix slice must:
   round-tripping, URL navigation, and Sentry-disabled behavior.
 
 The exact implementation plan should be written from the evidence captured by
-7C. This committed sequence sets the priority and outcome now without guessing
+7D. This committed sequence sets the priority and outcome now without guessing
 at the root cause before the diagnostic foundation exists.
 
-Slice 7C must observe and measure the current statically loaded editor lifecycle
+Slice 7D must observe and measure the current statically loaded editor lifecycle
 rather than introduce the deferred lazy-loading boundary in
 `docs/technical-architecture.md`. Its evidence should leave mount and readiness
 timing understandable so a later focused performance slice can compare the
 loading architectures after the required correctness fix.
 
 If the evidence shows that created, reused, or copied cluster identity
-participates in the recovered-draft failure, the responsible 7C revision or
+participates in the recovered-draft failure, the responsible 7D revision or
 immediate fix must establish and test the separate resolution contract before
 claiming the behavior is understood. If it does not participate, cluster
 lifecycle provenance remains deferred to its dedicated foundation.
 
 ## Completion Note
 
-When Slice 7C is complete, Sentry observability is functionally delivered for
+When Slice 7D is complete, Sentry observability is functionally delivered for
 the current browser, API, editor, client state, IndexedDB draft, and
 filesystem-backed note workflow. Future
 observability work should be framed around the next product capability it
@@ -1058,7 +1076,7 @@ The immediate editor-correctness handoff above takes priority over those later
 capabilities.
 
 After that mandatory fix, a focused Daily Observability Operating Profile may
-use the 7C evidence to compare disabled, lightweight daily, and full-debug
+use the 7D evidence to compare disabled, lightweight daily, and full-debug
 configuration. It may keep the lightweight profile permanently enabled for
 Daniel only when measured editor responsiveness, memory, network, and event
 volume are negligible in daily use. Full debug remains deliberate and
