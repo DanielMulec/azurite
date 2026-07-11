@@ -2,8 +2,8 @@
 
 ## Status
 
-Planned and implementation-ready after reconciliation on 2026-07-10 and focused
-adversarial contract review on 2026-07-11. Keep this document in
+Planned and implementation-ready after reconciliation on 2026-07-10 and two
+focused adversarial contract reviews on 2026-07-11. Keep this document in
 `docs/slices/planned/` until Daniel reviews the revised decisions and explicitly
 approves promotion. Promotion and implementation are separate from this
 planning revision.
@@ -38,10 +38,16 @@ The durable boundary is:
 - a Fastify request decoration owns validated server correlation context;
 - web and server events carry correlation attributes explicitly rather than
   relying on mutable global Sentry scope;
+- observability adapters fail open without changing product return values,
+  errors, callbacks, requests, writes, or state transitions;
+- the browser accepts at most one in-flight manual save per note, while the core
+  serializes concurrent Azurite writes to the same resolved note path across
+  hash validation and atomic replacement;
 - the existing Slice 7A tracing, Replay, preload, console, and shutdown runtime
   remains intact;
 - note list, read, save, conflict, validation, and unexpected route outcomes are
-  observable without changing API bodies or filesystem behavior.
+  observable without changing API bodies, error codes, filesystem boundaries,
+  or successful single-write semantics.
 
 Slice 7B does not instrument Milkdown, Crepe, Zustand snapshots, Dexie draft
 semantics, or rich payloads. Slice 7C will add those layers on this correlation
@@ -58,10 +64,15 @@ When requests overlap, a stale response remains attached to the operation that
 created it. A later note, request, or unrelated runtime event does not inherit
 the earlier operation's metadata.
 
-When Sentry is disabled or correlation ID generation degrades, Azurite still
-lists, reads, edits, saves, detects conflicts, recovers drafts, routes by URL,
-and works through the Tailscale frontend proxy with the same product API
-responses as before this slice.
+When Daniel keeps editing while a manual save is in flight, his newer markdown
+remains dirty and safe without enabling a second concurrent write to the same
+note. When two Azurite clients submit the same old content hash concurrently,
+one write succeeds and the other receives the existing conflict response.
+
+When Sentry is disabled, correlation ID generation degrades, or an enabled
+Sentry carrier throws, Azurite still lists, reads, edits, saves, detects
+conflicts, recovers drafts, routes by URL, and works through the Tailscale
+frontend proxy with the same product API responses as before this slice.
 
 ## Why This Matters
 
@@ -90,6 +101,10 @@ proposal. The implementation must extend these facts:
   add environment, release, and `app.surface`; record helpers emit a structured
   log plus breadcrumb, capture helpers emit an error log plus exception, and
   span helpers add scalar attributes.
+- Enabled adapter calls are not currently guarded against synchronous SDK
+  failures. Record, capture, or span setup can therefore throw into feature code,
+  and a naive span fallback could invoke product work twice. Slice 7B owns the
+  fail-open repair before those helpers surround real note workflows.
 - Browser initialization dynamically imports the enabled runtime before render.
   Replay is explicitly unmasked for local debug sessions.
 - `apps/server/src/sentry-preload.mjs` gates the Node SDK import and initializes
@@ -114,6 +129,16 @@ proposal. The implementation must extend these facts:
   route effect can observe that replacement and request the same note again
   while it is already loading. Slice 7B must coalesce that duplicate system
   reaction into the original startup intent before assigning operation IDs.
+- Editing while a save is in flight currently resets `saveStatus` from
+  `saving` to `idle`, enabling another same-note save with the same expected
+  hash. Older and newer save responses can then update the browser baseline out
+  of user-intent order.
+- `writeWorkspaceNote` currently reads and validates the expected hash before
+  its separate atomic replacement. Concurrent Azurite requests can both validate
+  the same old hash and both succeed. A focused 2026-07-11 reproduction produced
+  two successes in all 40 concurrent same-hash trials. Slice 7B owns in-process,
+  per-note write serialization because truthful save/conflict evidence depends
+  on the content-hash contract remaining true under current multi-client use.
 - `apps/web/src/observability/web-sentry-test-events.ts` deliberately uses a
   separate direct `fetch` for the Slice 7A development diagnostic POST. It is
   not a note-browser API attempt and remains outside browser correlation-header
@@ -139,13 +164,13 @@ proposal. The implementation must extend these facts:
 
 ## Future Workflow Boundary
 
-| Boundary               | Required decision                                                                                                                                                                                                                                                       |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result.                                                                                   |
-| Predictable extensions | Slice 7C editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction.                                                                                                  |
-| Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions, typed `NoteBrowserApi`, web API client, web/server observability adapters, Fastify request hook and note routes, existing core results, tests, and desktop/phone QA.                        |
-| Near-term seams        | Typed API metadata, immutable browser operation context, decorated Fastify request context, shared event/attribute vocabulary, and explicit event attributes leave room for editor session IDs and multiple request attempts per operation.                             |
-| Exclusions             | Editor/draft semantics, rich payloads, retries, autosave, new note lifecycle behavior, cluster-resolution provenance, richer filesystem errors, core observers, and runtime setup can wait because the current workflow gains a complete correlation join without them. |
+| Boundary               | Required decision                                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result, while keeping telemetry fail-open and same-note manual saves ordered.                                                                                   |
+| Predictable extensions | Slice 7C editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction. Future multi-process hosting may extend the same-note write coordinator beyond the current single Azurite server process.                                              |
+| Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions and active-save ownership, narrow Dexie draft reconciliation after save, typed `NoteBrowserApi`, web API client, fail-open web/server observability adapters, Fastify request hook and note routes, core per-note write coordination, tests, and desktop/phone QA. |
+| Near-term seams        | Typed API metadata, immutable browser operation context, ephemeral per-note load/save records, decorated Fastify request context, bounded span descriptors, explicit event attributes, and a keyed core write coordinator leave room for editor session IDs, retries, autosave, and multiple request attempts per operation.                  |
+| Exclusions             | Rich editor/draft instrumentation, payloads, retries, autosave, new note lifecycle behavior, cluster-resolution provenance, richer filesystem errors, core observers, cross-process/advisory locking, and runtime initialization can wait because the current workflow gains a complete in-process correlation and save-ordering boundary.    |
 
 ## Goals
 
@@ -165,6 +190,13 @@ proposal. The implementation must extend these facts:
 - Prevent stale note-list successes and failures from mutating newer list state.
 - Coalesce startup fallback and the resulting same-note URL synchronization into
   one note-load intent, operation ID, request, and in-flight result.
+- Make enabled observability helpers fail open while invoking product span work
+  exactly once and preserving its original return value or error.
+- Accept at most one in-flight browser manual save per note, preserve edits made
+  during that save, and retain closure-owned correlation evidence for its result.
+- Serialize concurrent writes to the same resolved note path inside the current
+  Azurite process so same-hash requests produce one success and one conflict
+  while different notes remain independent.
 - Emit truthful frontend API, note load/save, stale, and route evidence.
 - Emit truthful backend note list/read/save outcomes using the current shared
   API and cluster-identity contracts.
@@ -187,7 +219,12 @@ proposal. The implementation must extend these facts:
 - Do not add full markdown, draft, request-body, response-body, or state payload
   carrier machinery. Slice 7C owns bounded rich payloads.
 - Do not change note response schemas, error response schemas, status codes, or
-  content-hash conflict behavior.
+  error codes. Slice 7B strengthens the existing content-hash conflict guarantee
+  under concurrent Azurite writes without inventing a new API outcome.
+- Do not add cross-process or advisory filesystem locks. Slice 7B makes requests
+  handled by the current single Azurite server process obey the content-hash
+  contract; arbitrary external programs remain outside Azurite's coordination
+  protocol and continue to be observed through the existing hash check.
 - Do not echo correlation IDs in response headers or bodies.
 - Do not treat diagnostic IDs as authentication, authorization, idempotency,
   product identity, or persistence keys.
@@ -224,9 +261,11 @@ Slice 7B reuses the following proven 7A behavior exactly:
 - a frontend bound only to the selected Tailscale interface for phone QA while
   Fastify stays on `127.0.0.1`.
 
-If implementation discovers a real 7A correctness defect, stop and revise this
-plan before changing that foundation. A desire for different helper ergonomics
-is not permission to duplicate the runtime.
+The adversarial review identified one 7A extension-surface defect that becomes a
+product risk in 7B: enabled helper calls are not fail-open. This slice repairs
+that adapter contract before feature instrumentation is added. Any additional
+7A correctness defect still requires a plan revision; a desire for different
+helper ergonomics is not permission to duplicate the runtime.
 
 ## Architecture
 
@@ -434,6 +473,70 @@ for a different note also starts a new operation and makes the older result
 stale. The active-load record is cleared only when the matching in-flight
 operation settles, so an older completion cannot clear a newer active record.
 
+### Manual Save Concurrency Boundary
+
+The current browser can accept two same-note saves with the same expected hash:
+editing during the first save resets `saveStatus` to `idle`, which re-enables the
+Save action. Slice 7B replaces that accidental overlap with explicit ownership.
+
+The note-browser runtime owns an ephemeral active-save record keyed by note ID.
+Each record contains the immutable editor snapshot, note operation context, API
+request metadata, and in-flight promise. It is not persisted in Zustand state,
+URL state, or Dexie.
+
+The browser behavior is exact:
+
+1. The first accepted same-note save creates the operation/request IDs, records
+   the active save, marks the editor as `saving`, and starts one API call.
+2. Editing remains enabled. A patch made during the save increments the editor
+   revision and preserves `saveStatus = saving`, so the newer markdown remains
+   visibly dirty while a second same-note save stays disabled.
+3. A same-note `saveSelectedNote` call while that record is active returns the
+   existing promise and emits no second operation ID, request ID, API call, or
+   lifecycle event.
+4. Success for the saved snapshot advances the returned note, saved markdown,
+   base hash, cluster identity, and list summary without replacing newer current
+   markdown. The latest dirty draft remains persisted and Save becomes available
+   after the matching active record clears.
+5. Conflict preserves and persists the latest current markdown, marks the
+   current editor as conflicted, and never restores the older snapshot.
+6. Unexpected failure preserves the latest current markdown and draft, exposes
+   the failed result after the active record clears, and permits an intentional
+   retry.
+7. A result for a note or editor session that is no longer current cannot mutate
+   the selected editor. A successful result transactionally reconciles only that
+   note's draft: delete it only when its base hash and normalized markdown exactly
+   match the saved snapshot. A different or newer draft remains unchanged and
+   safely re-enters the existing recovery/conflict flow. Conflict/failure also
+   preserves the latest draft unchanged. The operation still emits terminal
+   evidence from the original closure context.
+8. Only the matching promise may clear its active-save record. A completion from
+   another note or older session cannot unlock or overwrite newer work.
+
+Different notes do not share a browser save lock. Their operations may overlap
+and must retain independent context. Draft reconciliation uses one focused Dexie
+transaction keyed by cluster ID and note ID so a late result cannot delete or
+rewrite another note, another editor session, or a newer-baseline record. This is
+save-integrity behavior, not Slice 7C instrumentation. The implementation extends
+the existing save-success, save-failure, save-conflict, draft, and navigation
+tests rather than creating a parallel save state machine.
+
+Browser ordering is not a server integrity boundary. `packages/core` therefore
+owns a keyed in-process write coordinator based on the safely resolved absolute
+note path. The coordinator covers the complete current-markdown read, expected
+hash validation, temporary-file write, atomic replacement, and returned note
+construction. A queued same-path write rereads the file and revalidates its hash
+only after the preceding write settles. Two concurrent requests carrying the
+same old hash therefore produce exactly one success and one existing
+`note_write_conflict`; writes to different paths remain concurrent.
+
+The coordinator retains no telemetry or note content, removes an idle key after
+its final queued task settles, and releases the queue after both success and
+failure. It coordinates every Azurite write in the current Node process. It does
+not claim a portable compare-and-swap against arbitrary external programs that
+do not participate in Azurite's lock; the existing content-hash check remains
+the external-edit protection available at the current filesystem boundary.
+
 ### Route-Source Truth
 
 Slice 7B records only route sources the current app can know honestly:
@@ -511,6 +614,43 @@ then emit an unrelated event. They must prove exact attributes at every helper
 call and absence of correlation residue on the unrelated event. Assertions must
 not merely check that the last operation looks correct.
 
+### Fail-Open Observability Boundary
+
+Sentry is diagnostic infrastructure and must never become a product dependency,
+even after the runtime is enabled. Both adapters enforce these rules:
+
+- Record helpers catch and suppress any SDK failure from scope creation, tags,
+  context, structured logging, or breadcrumbs. They return `void` and never
+  throw into feature code.
+- Capture helpers best-effort the event-local log/context and original exception,
+  but suppress SDK failures. They never replace the product error being handled
+  and never recursively report an observability failure through the same helper.
+- Disabled helpers retain their direct no-op behavior.
+- Span helpers execute the product callback exactly once. They return its exact
+  value or promise and preserve its exact synchronous throw or asynchronous
+  rejection.
+- If span setup throws or returns without invoking the callback, the adapter
+  invokes the callback once outside a span. If the callback already started,
+  the adapter never calls it again.
+- If the callback returned or threw before the SDK itself failed, the stored
+  product result or product error wins. An SDK failure after callback completion
+  is suppressed rather than replacing product behavior.
+
+The span helper tracks whether the callback started and whether it returned or
+threw; it does not implement fallback as a broad `catch { return callback(); }`,
+which could execute a read or save twice. For promise-returning work, the helper
+returns the exact callback promise rather than an SDK-owned replacement promise.
+The wrapper also rejects a late second SDK invocation after fallback has already
+run the product callback, returning or throwing the stored product outcome
+without executing the callback again.
+
+Tests use enabled fake SDKs that throw from `withScope`, tags/context, logger,
+breadcrumb, `captureException`, and `startSpan`. Span tests cover failure before
+callback invocation, failure after callback return, a product callback throw,
+an asynchronously rejected product promise, and an SDK that returns without
+invoking the callback. Every case proves exactly-once product execution and
+unchanged product results/errors.
+
 ### API Compatibility Boundary
 
 The typed API boundary becomes:
@@ -554,6 +694,11 @@ local-only.
 inputs, validated request context, returned shared values, mapped API outcomes,
 duration, and caught errors.
 
+Core does gain the Sentry-free keyed write coordinator defined above. That
+coordinator protects the existing content-hash API contract for concurrent
+requests handled by Azurite; it does not emit events or accept observability
+callbacks.
+
 The current `ClusterIdentity` value permits these truthful attributes:
 
 - `azurite.cluster_identity_status = ready` plus `azurite.cluster_id`; or
@@ -572,9 +717,11 @@ subtype or safe rejected path. Route outcome evidence records the known API code
 and caught error context. A future core contract may add provenance when a real
 product workflow needs it; 7B will not fabricate precision.
 
-Expected invalid input, not-found, and conflict outcomes are structured result
-events, not exceptions. Unexpected `5xx` failures capture the caught error once
-at the route boundary while Fastify/Pino logging remains intact.
+Expected validation, configuration, not-found, and conflict outcomes are
+structured result events, not exceptions. Only mapped
+`note_discovery_failed`, `note_read_failed`, and `note_write_failed` outcomes
+capture the original unexpected caught error once at the route boundary while
+Fastify/Pino logging remains intact.
 
 ### File Decomposition Boundary
 
@@ -587,6 +734,9 @@ implementation must split responsibility before adding instrumentation:
   actions from note-read actions.
 - `apps/web/src/state/note-browser-editor-actions.ts`: extract save actions and
   save-result mapping before adding save evidence.
+- `packages/core/src/write-workspace-note.ts`: keep filesystem write behavior
+  focused and place reusable keyed coordination in a separate Sentry-free
+  module.
 
 The correlation generator, web API evidence, and Fastify correlation hook each
 receive focused modules and tests. `MilkdownEditor.tsx` is untouched in Slice
@@ -651,10 +801,22 @@ retain their existing names. Slice 7B does not rename 7A events.
 | `note.save.conflicted`             | note ID, operation/request IDs when available, expected hash, API conflict code, duration, `conflicted`                            |
 | `note.save.failed`                 | note ID, operation/request IDs when available, API code when available, duration, `failed`                                         |
 
-`api.request.failed` owns capture of the normalized browser request error when it
-is unexpected. The paired note result is recorded without capturing the same
-exception again. Expected HTTP/API outcomes remain structured logs and
-breadcrumbs rather than fake errors.
+Browser exception ownership is exact:
+
+| Browser result                                                                | Carrier behavior                                                                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Any well-formed shared `ApiErrorResponse`, including a known `5xx` code       | Record `api.request.failed` plus the paired semantic result; do not capture a browser exception. |
+| Fetch/network failure                                                         | Capture the normalized browser error once at `api.request.failed`.                               |
+| Response JSON cannot be parsed                                                | Capture the normalized invalid-response error once at `api.request.failed`.                      |
+| Non-success response does not match the shared API error schema               | Capture the normalized invalid-response error once at `api.request.failed`.                      |
+| Successful response does not match the route's shared success-response schema | Capture the normalized invalid-response error once at `api.request.failed`.                      |
+
+The API client retains the existing user-facing `WebApiError`, successful body,
+and shared error-code contracts while adding an internal discriminant sufficient
+to apply this policy. A well-formed backend failure is not captured again in the
+browser merely because its HTTP status is `500`; the server owns the original
+unexpected exception. The paired note result is always recorded without a
+second capture.
 
 The API layer always reports the transport result that actually occurred. At
 the owning Zustand action layer, a stale list or read completion emits
@@ -675,7 +837,7 @@ current semantic failure or mutating newer state.
 | `note.read.invalid`    | request ID/source, operation status/ID when accepted, API code, duration, status code, `invalid`                                   |
 | `note.read.not_found`  | request ID/source, operation ID when accepted, note ID, API code, duration, status code, `not_found`                               |
 | `note.read.failed`     | request ID/source, operation ID when accepted, note ID when known, API code, duration, status code, caught error context, `failed` |
-| `note.save.started`    | request ID/source, operation ID/status when accepted, note ID when valid, expected hash, route, method, `started`                  |
+| `note.save.started`    | request ID/source, operation ID/status when accepted, note ID and expected hash when the body is valid, route, method, `started`   |
 | `note.save.succeeded`  | same IDs, note ID, cluster identity, content hash, duration, status code, `succeeded`                                              |
 | `note.save.invalid`    | request ID/source, operation status/ID when accepted, API code, duration, status code, `invalid`                                   |
 | `note.save.not_found`  | request ID/source, operation ID when accepted, note ID, API code, duration, status code, `not_found`                               |
@@ -687,12 +849,26 @@ event and existing API error code. A handler emits exactly one start and one
 terminal result. It does not additionally emit speculative cluster or filesystem
 events.
 
+Server exception ownership is exact:
+
+| API outcome                                                                                               | Carrier behavior                                                         |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `workspace_not_configured`, `invalid_workspace`, `invalid_note_id`, `invalid_note_save`, `note_not_found` | Structured route result and breadcrumb only; no captured exception.      |
+| `note_write_conflict`                                                                                     | Structured conflicted result and breadcrumb only; no captured exception. |
+| `note_discovery_failed`, `note_read_failed`, `note_write_failed`                                          | Error log plus one capture of the original caught error at the route.    |
+
+Fastify/Pino logging remains intact for every existing path. The browser never
+captures a second copy of a well-formed server API failure.
+
 ### Telemetry Carrier Mapping
 
 Extend the shared Sentry-free runtime event contract with these optional typed
 fields while preserving every existing 7A caller:
 
 ```ts
+type RuntimeSpanName =
+  "api.request" | "note.load" | "note.read" | "note.save" | "notes.list";
+
 type RuntimeSpanOperation =
   | "azurite.runtime"
   | "azurite.api.request"
@@ -720,17 +896,20 @@ type RuntimeSearchTags = Readonly<
 type RuntimeObservabilityEvent = {
   readonly attributes?: RuntimeObservabilityAttributes;
   readonly name: string;
+  readonly spanName?: RuntimeSpanName;
   readonly spanOperation?: RuntimeSpanOperation;
   readonly surface: RuntimeObservabilitySurface;
   readonly tags?: RuntimeSearchTags;
 };
 ```
 
-Existing 7A events omit the new `spanOperation` and `tags` fields and retain
-`azurite.runtime`. The adapters continue to own `app.surface`; callers cannot
-override it through the search-tag map. Adapters apply optional tags only inside
-the existing event-local `withScope` and never install them on a global or
-long-lived scope.
+`RuntimeSpanName` is the bounded union `api.request`, `notes.list`, `note.load`,
+`note.read`, and `note.save`. Existing 7A events omit `spanName`,
+`spanOperation`, and `tags`; their span names continue to default to the existing
+event name and their operation remains `azurite.runtime`. The adapters continue
+to own `app.surface`; callers cannot override it through the search-tag map.
+Adapters apply optional tags only inside the existing event-local `withScope`
+and never install them on a global or long-lived scope.
 
 The existing capture helpers retain their `error: unknown` parameter as the one
 caught-error source. They normalize it into `RuntimeCaughtErrorContext`, set it
@@ -744,31 +923,38 @@ original thrown value still goes to `captureException`.
 
 Span operation mapping is exact:
 
-| Work measured                             | Span operation           |
-| ----------------------------------------- | ------------------------ |
-| Existing Slice 7A runtime/test work       | `azurite.runtime`        |
-| Browser `api.request.*` transport         | `azurite.api.request`    |
-| Browser list/load/save semantic operation | `azurite.note.operation` |
-| Server list/read/save route work          | `azurite.server.route`   |
+| Work measured                             | Span name                              | Span operation           |
+| ----------------------------------------- | -------------------------------------- | ------------------------ |
+| Existing Slice 7A runtime/test work       | existing event name                    | `azurite.runtime`        |
+| Browser `api.request.*` transport         | `api.request`                          | `azurite.api.request`    |
+| Browser list/load/save semantic operation | `notes.list`, `note.load`, `note.save` | `azurite.note.operation` |
+| Server list/read/save route work          | `notes.list`, `note.read`, `note.save` | `azurite.server.route`   |
 
-The semantic event name remains the span name. Span attributes use the same
-explicit scalar attributes as the paired lifecycle evidence; tags and caught
-error context are event carriers and are not copied into span attributes.
+Spans are lifecycle-neutral measurements, not a second result-event channel.
+They receive immutable start-known scalar attributes: surface, identifiers,
+note ID when known, UI sequence when applicable, route, method, route source,
+and expected hash when known. Terminal result, response status, duration,
+returned hash, cluster identity, note count, API code, and stale disposition
+remain on the structured terminal event. Tags and caught-error context are event
+carriers and are not copied into span attributes. This avoids pretending a span
+created before its callback already knows a terminal result.
 
 - Structured logs are the primary record for every event above.
 - `recordWebRuntimeEvent` and `recordServerRuntimeEvent` provide the matching
   chronological breadcrumb for non-exception lifecycle/results.
 - Web API, note operation, and server route spans measure the work with the
-  exact operations above and carry the same explicit scalar attributes. Nested
-  spans do not replace semantic IDs.
+  exact names/operations and start-known attributes above. Nested spans do not
+  replace semantic IDs or terminal structured events.
 - Event-local tags are limited to searchable identifiers and bounded dimensions:
   surface, route, result, request ID, operation ID when present, and API code
   when present. They are never installed globally.
 - Event-local context and structured attributes carry note ID, cluster identity,
   hashes, UI sequence, duration, header status, and caught error context.
 - Captured exceptions are reserved for terminal ID-generation exceptions,
-  unexpected web request failures, and unexpected server failures. Expected
-  invalid input, not-found, and conflict states are not captured as exceptions.
+  browser network/malformed-response failures, and server
+  `note_discovery_failed`, `note_read_failed`, or `note_write_failed` outcomes.
+  Well-formed API responses and expected validation, configuration, not-found,
+  and conflict states are not captured as exceptions.
 - Full markdown, drafts, Zustand snapshots, request/response payloads, and local
   filesystem path enrichment remain Slice 7C work. Existing caught error stacks
   remain eligible diagnostic data.
@@ -787,7 +973,23 @@ error context are event carriers and are not copied into span attributes.
 - Add shared tests for exact names, enum values, UUID acceptance/rejection, and
   header constants.
 
-### 2. Add The Browser Correlation Helper
+### 2. Make Observability Adapters Fail Open
+
+- Add one small internal best-effort boundary to both 7A adapters without
+  changing feature-facing imports or adding a second runtime.
+- Make record and capture helpers suppress SDK carrier failures without
+  recursively reporting them or changing product control flow.
+- Make span helpers return the exact product callback result/promise, preserve
+  the exact product throw/rejection, and execute the callback exactly once when
+  SDK setup fails before invocation, fails after invocation, or does not invoke
+  the callback.
+- Preserve disabled synchronous no-op behavior and every existing 7A carrier,
+  Replay, preload, tracing, and shutdown guarantee.
+- Test throwing enabled fakes across scope, tags/context, logger, breadcrumb,
+  capture, and span calls, including before/after callback and synchronous/
+  asynchronous product failures.
+
+### 3. Add The Browser Correlation Helper
 
 - Implement the native-attempt then `getRandomValues` UUID-v4 algorithm, branded
   validation, failure reasons, and recovered/terminal exception behavior exactly
@@ -800,7 +1002,7 @@ error context are event carriers and are not copied into span attributes.
 - Emit one bounded generation-failure event per failed requested identifier; do
   not retry in a loop or fall back to weak randomness.
 
-### 3. Clarify Zustand Sequence Ownership
+### 4. Clarify Zustand Sequence Ownership
 
 - Rename both runtime counters, context methods, action parameters, and tests
   from request IDs to request sequences.
@@ -810,7 +1012,7 @@ error context are event carriers and are not copied into span attributes.
   preserve the newer result in both completion orderings.
 - Do not persist request, operation, or sequence values in Dexie or URL state.
 
-### 4. Extend The Typed Browser API Boundary
+### 5. Extend The Typed Browser API Boundary
 
 - Make `ApiRequestMetadata` an explicit parameter on all three `NoteBrowserApi`
   methods.
@@ -819,18 +1021,31 @@ error context are event carriers and are not copied into span attributes.
   `Content-Type`, method, body, response parsing, and `WebApiError` behavior.
 - Instrument the centralized API request start/result and span once so actions
   do not duplicate transport evidence.
+- Classify well-formed shared API errors as structured evidence only. Capture
+  network, JSON parsing, malformed error-envelope, and invalid success-payload
+  failures once at the browser API boundary.
 - Test GET/PUT headers, missing degraded IDs, parsed success, every existing API
-  error, network failure, and unchanged response/body types.
+  error, every unexpected browser failure class, and unchanged response/body
+  types.
 - Prove the direct Slice 7A diagnostic POST remains outside note-browser
   correlation headers and retains its existing behavior.
 
-### 5. Add Browser Note And Route Evidence
+### 6. Add Browser Note, Route, And Save Evidence
 
 - Split route and editor action modules before they approach 401 lines.
 - Create note operation context in read/reload/save actions and retain it in the
   async closure.
 - Register startup fallback as active before URL replacement and coalesce the
   resulting same-note URL synchronization onto that in-flight operation.
+- Add the per-note active-save record. Preserve `saving` through newer edits,
+  coalesce an attempted same-note save onto the existing promise, and clear only
+  the matching record after its terminal state transition.
+- Extend current save success/conflict/failure mapping so newer markdown and its
+  draft survive while the returned baseline, conflict, or failure state remains
+  truthful.
+- Add focused transactional draft reconciliation for a successful save that
+  settles after navigation: clear only an exact base-hash-and-markdown snapshot
+  match and preserve every differing or newer record.
 - Emit the exact route, note-list, note-load, save, conflict, failure, and stale
   events.
 - Preserve URL ownership, startup replacement, list navigation, browser history,
@@ -840,8 +1055,13 @@ error context are event carriers and are not copied into span attributes.
   one operation, request, API call, start event, and terminal event. Test rapid
   overlapping reads so stale evidence uses the stale closure rather than
   current Zustand state.
+- Test editing during save, a blocked second same-note save, success/conflict/
+  failure after newer edits, navigation or another-note work during save,
+  exact-delete/differing-preserve draft reconciliation, matching
+  active-record cleanup, and independent correlation contexts for saves to
+  different notes.
 
-### 6. Add Fastify Request Correlation
+### 7. Add Fastify Request Correlation
 
 - Implement shared-header parsing and server UUID fallback in a Sentry-free
   module.
@@ -857,7 +1077,18 @@ error context are event carriers and are not copied into span attributes.
   occurs before the application hook and is not covered by the unchanged
   note-response guarantee.
 
-### 7. Split And Instrument Note Routes
+### 8. Serialize Core Writes And Instrument Note Routes
+
+- Add a Sentry-free keyed core coordinator for resolved absolute note paths.
+  Queue same-path tasks, allow different paths to proceed independently, and
+  remove idle keys after success or failure.
+- Move the current read, expected-hash validation, atomic replacement, and
+  returned-note construction inside the keyed task so every queued write
+  rereads and revalidates after its predecessor settles.
+- Test two concurrent same-hash writes produce exactly one success and one
+  `note_write_conflict`, the winning content remains on disk, failures release
+  the queue, idle keys are removed, and different notes are not globally
+  serialized.
 
 - Decompose `notes-route.ts` by registration, handlers, errors, and evidence
   before adding behavior.
@@ -865,28 +1096,31 @@ error context are event carriers and are not copied into span attributes.
   and save handlers.
 - Emit exactly one start and one truthful terminal route event with the current
   API error and cluster-identity contracts.
-- Wrap route work in server spans and preserve Pino logs.
-- Capture unexpected caught errors once; do not create fake cluster provenance,
-  filesystem-boundary detail, or exceptions for expected results.
-- Keep `packages/core` untouched unless a non-observability correctness defect
-  is independently discovered and the plan is revised first.
+- Wrap route work in lifecycle-neutral server spans and preserve Pino logs.
+- Apply the exact server exception table: stable configuration, validation,
+  not-found, and conflict outcomes are structured only; discovery/read/write
+  failures capture the original unexpected error once.
+- Keep `packages/core` Sentry- and telemetry-free while including the reviewed
+  write-ordering correctness repair above.
 
-### 8. Prove Carrier And Scope Isolation
+### 9. Prove Carrier, Failure, And Scope Isolation
 
 - Extend both 7A adapters only as needed for selected event-local tags and
-  caught-error context, plus the exact bounded span operations; direct SDK calls
-  remain inside the adapter modules.
+  caught-error context, exact bounded span names/operations, and fail-open
+  carrier behavior; direct SDK calls remain inside the adapter modules.
 - Assert logs, breadcrumbs, spans, tags, context, and exceptions against the
   exact event mapping.
-- Run overlapping browser note lists, overlapping browser note reads, and two
-  concurrent Fastify requests with different identifiers.
+- Run overlapping browser note lists, overlapping browser note reads,
+  independent different-note saves, and concurrent Fastify requests with
+  different identifiers. Same-note browser saves remain serialized; concurrent
+  same-hash server saves prove one success and one conflict.
 - Emit a runtime test event afterward and prove it contains no note, request,
   operation, sequence, hash, route-source, or API-error residue in its own tags,
   attributes, contexts, or span. Prior chronological breadcrumbs may remain as
   intentional history.
 - Preserve all existing 7A helper, preload, tracing, Replay, and shutdown tests.
 
-### 9. Run Desktop And Physical-Phone Acceptance QA
+### 10. Run Desktop And Physical-Phone Acceptance QA
 
 - Use a disposable two-note cluster and an explicit Sentry-enabled debug run.
 - Keep Vite bound only to the selected Tailscale interface and Fastify on
@@ -905,6 +1139,9 @@ observability-specific protections:
 
 - Browser cryptographic-ID failure must degrade evidence, never block or alter a
   note request.
+- Enabled Sentry scope, log, breadcrumb, capture, or span failure must degrade
+  evidence only. Product callbacks execute exactly once and preserve their
+  original result, throw, or rejection.
 - A client-supplied correlation header is diagnostic input only; it must not
   authorize work, change note selection, bypass validation, select a workspace,
   or become an idempotency key.
@@ -921,15 +1158,25 @@ observability-specific protections:
 - A startup URL replacement must not turn one fallback intent into a second
   same-note load. Same-note in-flight synchronization reuses the original
   operation, while force reload remains a new intent.
+- Editing during a manual save must preserve the newer dirty markdown without
+  enabling a second same-note request. The terminal save result must use its
+  original operation context and must not restore an older editor snapshot.
+- A successful save settling after navigation may clear only a draft matching
+  its saved base hash and normalized markdown. It must preserve every differing,
+  newer-baseline, or different-note recovery record.
+- Concurrent same-hash writes handled by one Azurite server process must not both
+  succeed. Same-path coordination produces one success and one conflict,
+  different notes remain independent, failures release the queue, and idle lock
+  keys do not leak.
 - Each lifecycle emits at most one start and one terminal semantic result at its
   owning layer; nested API/operation/route evidence must not become an event
   storm.
 - Route evidence must not claim cluster read/create provenance, filesystem
   rejection details, route-history source, or other facts unavailable at its
   boundary.
-- Sentry failure, latency, or disabled state must not change API response
-  shapes, status codes, filesystem writes, draft behavior, navigation, or
-  conflict protection.
+- Sentry failure, latency, or disabled state must not change callback count, API
+  response shapes, status codes, filesystem writes, draft behavior, navigation,
+  or conflict protection.
 - Phone QA must preserve the current network boundary: frontend on the selected
   Tailscale interface, backend local-only behind the Vite proxy.
 - The known mobile editor findings remain recorded and unfixed; a WYSIWYG save
@@ -955,6 +1202,9 @@ Targeted tests must prove:
 - native throw/invalid recovery through fallback plus exact terminal ID-kind and
   failure-reason evidence;
 - no weak-randomness fallback and non-blocking unavailable-crypto behavior;
+- enabled web/server SDK failures across every record, capture, and span carrier
+  never escape into feature code; span callbacks execute exactly once and keep
+  synchronous values/errors plus asynchronous fulfillment/rejection unchanged;
 - sequence-counter renames preserve list/read staleness semantics, and stale
   list successes/failures preserve the newer result in both orderings;
 - explicit `NoteBrowserApi` metadata at all production and test call sites;
@@ -970,6 +1220,14 @@ Targeted tests must prove:
 - route-source values only at truthful emission points;
 - frontend start/result attributes for read, stale read, save, conflict, and
   failure, plus list success/failure/staleness;
+- editing during a save keeps newer markdown dirty and the second same-note save
+  unavailable; the original success/conflict/failure retains its IDs and cannot
+  restore the older snapshot;
+- same-note programmatic save calls share one active promise and emit one
+  operation/request lifecycle, while different-note saves remain isolated;
+- save completion after navigation transactionally deletes only an exact saved
+  base-hash-and-markdown match and preserves every differing or newer-baseline
+  Dexie record;
 - Fastify decoration ordering and fresh immutable context per request;
 - valid, missing, invalid, comma-joined, whitespace, bounded overlong, non-v4,
   and defensive array-valued correlation input handling without duplicate
@@ -980,15 +1238,23 @@ Targeted tests must prove:
 - server fallback request IDs and omission of untrusted operation IDs;
 - backend list/read/save success, invalid, not-found, conflict, workspace, and
   unexpected-failure events;
+- two concurrent same-hash core and Fastify saves yield one `200` success and one
+  `409` conflict with distinct request/operation IDs; the winner remains on disk,
+  failures release the per-path queue, and different paths remain concurrent;
 - ready and unavailable cluster identity attributes without invented provenance;
-- expected results produce no fake captured exception;
-- unexpected errors are captured once and Pino behavior remains intact;
+- every well-formed shared API error is structured-only in the browser, while
+  network, JSON, malformed-envelope, and invalid-success failures are captured
+  once there;
+- expected server configuration, validation, not-found, and conflict results
+  produce no captured exception; discovery/read/write failures capture the
+  original error once and Pino behavior remains intact;
 - overlapping browser operations and concurrent Fastify requests never exchange
   correlation context;
 - the next unrelated runtime event has no residual operation tags, attributes,
   context, or span data while prior breadcrumbs remain valid history;
-- exact `azurite.runtime`, `azurite.api.request`, `azurite.note.operation`, and
-  `azurite.server.route` span-operation mapping, event-local search tags, and
+- exact lifecycle-neutral span names, `azurite.runtime`,
+  `azurite.api.request`, `azurite.note.operation`, and `azurite.server.route`
+  operation mapping, start-known attributes, event-local search tags, and
   `azurite.error` caught-error context;
 - direct Sentry imports remain confined to initialization/adapter modules;
 - `packages/core` remains Sentry- and telemetry-free;
@@ -1008,6 +1274,7 @@ operation ID and show these joins:
 | Manual save       | `note.save.started`, `api.request.started/succeeded`, `note.save.succeeded` | `note.save.started/succeeded`                  | Same request and operation IDs across both surfaces; expected and returned hashes, `PUT`, status `200`, durations, and result visible.                                                    |
 | Save conflict     | `note.save.started`, `api.request.failed`, `note.save.conflicted`           | `note.save.started/conflicted`                 | Same IDs across both surfaces; existing conflict API code, expected hash, status `409`, and no fake exception visible.                                                                    |
 | Overlapping reads | Two distinct load/API contexts and one `stale_ignored` result               | Corresponding independent server read contexts | Stale event carries its original IDs/note/sequence; current operation remains distinct; unrelated test event has no residue.                                                              |
+| Edit during save  | One save/API lifecycle while newer markdown remains dirty                   | One corresponding server save lifecycle        | A second same-note save is not accepted; the first operation keeps its IDs and advances only the saved baseline without replacing newer markdown.                                         |
 
 At least one sampled read or save should still show the 7A Sentry trace, but a
 trace is corroborating evidence rather than the semantic acceptance key. Replay
@@ -1037,13 +1304,15 @@ The phone QA record must explicitly say that Markdown source Enter was not used
 as the save path because its newline reversion remains scheduled for diagnosis
 in 7C and repair immediately afterward.
 
-### Sentry-Disabled Evidence
+### Sentry-Disabled And Carrier-Failure Evidence
 
 Start without enabled Sentry configuration and prove:
 
 - no Sentry or Replay runtime is required for browser or server startup;
 - correlation headers and Fastify context do not change note list/read/save
   results;
+- an enabled runtime whose SDK carrier throws still cannot alter note
+  list/read/save results or execute product work twice;
 - note URL navigation, browser history, WYSIWYG/Markdown mode switching, manual
   save, conflict handling, draft recovery, and stale-response behavior match the
   pre-7B app;
@@ -1069,14 +1338,21 @@ Start without enabled Sentry configuration and prove:
   remain unchanged.
 - Frontend and backend emit the exact shared lifecycle/result events with
   explicit correlation attributes.
+- Enabled observability helpers fail open: record/capture failures never escape,
+  and span callbacks execute exactly once with unchanged product results/errors.
 - Cluster identity evidence reflects only `ready` or `unavailable`; no event
   invents read/create or filesystem-rejection provenance.
-- Expected invalid, not-found, and conflict outcomes are not fake exceptions;
-  unexpected failures are captured once with useful context.
+- Well-formed browser API errors and expected server configuration, validation,
+  not-found, and conflict outcomes are not fake exceptions. Browser
+  network/malformed-response failures and unexpected server discovery/read/write
+  failures are captured once at their owning boundary with useful context.
 - Overlapping browser operations, concurrent server requests, stale responses,
   and the next unrelated event prove correlation isolation.
 - Stale list successes and failures cannot replace newer state, and startup URL
   replacement cannot create a duplicate same-note operation.
+- Editing during save cannot start a second same-note request or lose newer
+  markdown. Concurrent same-hash writes in the current Azurite process produce
+  one success and one conflict; different note paths remain independent.
 - Existing 7A preload, tracing, Replay, console, shutdown, and disabled-mode
   behavior remains intact.
 - Existing routing, save, conflict, draft, recovery, filesystem, and Tailscale
@@ -1100,7 +1376,13 @@ Slice 7C may rely on these completed 7B truths:
   IDs, editor session IDs, cluster IDs, and hashes have distinct ownership;
 - browser operation context is closure-owned and explicit, not global scope;
 - backend correlation context is request-decorated, immutable, and validated;
+- web and server observability helpers fail open without becoming product
+  control flow, and product work wrapped by spans executes exactly once;
 - note read/save/conflict evidence joins browser and server by shared IDs;
+- same-note browser saves and core writes have explicit in-process ordering,
+  while different-note work retains independent correlation context;
+- successful saves settling after navigation clear only an exact matching draft;
+  differing recovery data remains intact;
 - list/read/save route outcomes carry truthful cluster identity and API result
   context;
 - event-local helper scopes and explicit attributes remain isolated under
@@ -1114,14 +1396,15 @@ Slice 7C may rely on these completed 7B truths:
   the domain-level resolution result described in
   `docs/technical-architecture.md`; otherwise defer it to the future Cluster
   Opening And Lifecycle Foundation;
-- full payload, editor session, Milkdown/Crepe, Zustand, Dexie, coalescing, and
-  Replay-usefulness behavior remains intentionally unimplemented;
+- full payload capture, editor-session, Milkdown/Crepe, Zustand/Dexie lifecycle
+  instrumentation, high-frequency editor-telemetry coalescing, and
+  Replay-usefulness behavior remain intentionally unimplemented;
 - the mobile Markdown newline reversion and recovered-draft observation remain
   active diagnostic targets, followed immediately by the required
   editor-correctness slice.
 
 ## Open Questions
 
-None after the 2026-07-11 adversarial contract review. If implementation
+None after the two 2026-07-11 adversarial contract reviews. If implementation
 evidence contradicts one of these decisions, pause, update this planned slice
 with the new evidence, and obtain review before changing the architecture.
