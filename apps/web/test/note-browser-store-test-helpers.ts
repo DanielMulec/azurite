@@ -278,3 +278,15 @@ function getSaveStatus(
 ): EditorSession["saveStatus"] {
   return recovery === "conflict" ? "conflict" : "idle";
 }
+
+/** Returns one expected mock call with a useful failure for missing evidence. */
+export function requireMockCall<Arguments extends readonly unknown[]>(
+  calls: readonly Arguments[],
+  index: number,
+): Arguments {
+  const call = calls[index];
+  if (call === undefined) {
+    throw new Error(`Expected mock call ${String(index + 1)} to exist.`);
+  }
+  return call;
+}

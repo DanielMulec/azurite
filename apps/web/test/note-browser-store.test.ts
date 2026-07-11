@@ -298,7 +298,9 @@ describe("note browser store degraded recovery", () => {
       status: "ready",
     });
   });
+});
 
+describe("note browser store draft write degradation", () => {
   it("surfaces failed draft writes as degraded recovery state", async () => {
     const store = createLoadedStore({
       draftPersistence: {

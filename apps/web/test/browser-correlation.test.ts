@@ -143,8 +143,15 @@ function lastCapturedError(): unknown {
 }
 
 function lastCapturedFailureReason(): unknown {
-  const event = vi.mocked(captureWebRuntimeError).mock.calls.at(-1)?.[1];
-  return event?.attributes?.[
+  const call = vi.mocked(captureWebRuntimeError).mock.calls.at(-1);
+  if (call === undefined) {
+    return undefined;
+  }
+  const attributes = call[1].attributes;
+  if (attributes === undefined) {
+    return undefined;
+  }
+  return attributes[
     runtimeObservabilityAttributeNames.correlationFailureReason
   ];
 }

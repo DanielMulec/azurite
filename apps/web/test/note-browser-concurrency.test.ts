@@ -14,6 +14,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   readyClusterIdentity,
+  requireMockCall,
 } from "./note-browser-store-test-helpers.js";
 
 describe("note load operation ownership", () => {
@@ -44,13 +45,15 @@ describe("note load operation ownership", () => {
 
     expect(navigation.replaceSelectedNote).toHaveBeenCalledOnce();
     expect(readNote).toHaveBeenCalledOnce();
-    const metadata = readNote.mock.calls[0]?.[1];
-    expect(requestIdSchema.safeParse(metadata?.requestId).success).toBe(true);
+    const metadata = requireMockCall(readNote.mock.calls, 0)[1];
+    expect(requestIdSchema.safeParse(metadata.requestId).success).toBe(true);
     expect(
-      noteOperationIdSchema.safeParse(metadata?.noteOperationId).success,
+      noteOperationIdSchema.safeParse(metadata.noteOperationId).success,
     ).toBe(true);
   });
+});
 
+describe("overlapping note-list ownership", () => {
   it("keeps newer list success and failure state in both stale orderings", async () => {
     const first = createDeferred<ListNotesResponse>();
     const second = createDeferred<ListNotesResponse>();
@@ -87,11 +90,13 @@ describe("note load operation ownership", () => {
       message: "current failure",
       status: "error",
     });
-    expect(listNotes.mock.calls[0]?.[0].requestId).not.toBe(
-      listNotes.mock.calls[1]?.[0].requestId,
+    expect(requireMockCall(listNotes.mock.calls, 0)[0].requestId).not.toBe(
+      requireMockCall(listNotes.mock.calls, 1)[0].requestId,
     );
   });
+});
 
+describe("explicit note reload ownership", () => {
   it("creates fresh operation and request IDs for explicit reloads", async () => {
     const readNote = vi.fn<NoteBrowserApi["readNote"]>(() =>
       Promise.resolve({
@@ -127,10 +132,10 @@ describe("manual save operation ownership", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: { currentMarkdown: "# Newer edit", saveStatus: "saving" },
     });
-    const metadata = saveNote.mock.calls[0]?.[1];
-    expect(requestIdSchema.safeParse(metadata?.requestId).success).toBe(true);
+    const metadata = requireMockCall(saveNote.mock.calls, 0)[1];
+    expect(requestIdSchema.safeParse(metadata.requestId).success).toBe(true);
     expect(
-      noteOperationIdSchema.safeParse(metadata?.noteOperationId).success,
+      noteOperationIdSchema.safeParse(metadata.noteOperationId).success,
     ).toBe(true);
 
     deferred.resolve({
@@ -142,7 +147,9 @@ describe("manual save operation ownership", () => {
       editor: { currentMarkdown: "# Newer edit", saveStatus: "idle" },
     });
   });
+});
 
+describe("saved draft reconciliation after navigation", () => {
   it("deletes only an exact saved draft after navigation", async () => {
     const drafts = createMemoryDraftPersistence();
     const deferred = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
@@ -165,7 +172,9 @@ describe("manual save operation ownership", () => {
     ).toBeUndefined();
     expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
   });
+});
 
+describe("newer draft reconciliation after navigation", () => {
   it("preserves a different late draft after navigation", async () => {
     const drafts = createMemoryDraftPersistence();
     const deferred = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
@@ -198,7 +207,9 @@ describe("manual save operation ownership", () => {
       markdown: "# Newer recovery",
     });
   });
+});
 
+describe("overlapping different-note saves", () => {
   it("allows different-note saves with independent correlation contexts", async () => {
     const homeSave = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const projectSave =
@@ -214,8 +225,8 @@ describe("manual save operation ownership", () => {
     const second = store.getState().saveSelectedNote();
 
     expect(saveNote).toHaveBeenCalledTimes(2);
-    expect(saveNote.mock.calls[0]?.[1]).not.toEqual(
-      saveNote.mock.calls[1]?.[1],
+    expect(requireMockCall(saveNote.mock.calls, 0)[1]).not.toEqual(
+      requireMockCall(saveNote.mock.calls, 1)[1],
     );
     projectSave.resolve({
       clusterIdentity: readyClusterIdentity,

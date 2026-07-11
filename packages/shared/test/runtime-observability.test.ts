@@ -12,7 +12,7 @@ import {
   type RuntimeObservabilityEvent,
 } from "../src/index.js";
 
-describe("runtime observability contract", () => {
+describe("runtime observability event contract", () => {
   it("exports the exact Slice 7A and 7B event vocabulary", () => {
     expect(runtimeObservabilityEventNames).toEqual({
       apiRequestFailed: "api.request.failed",
@@ -48,6 +48,11 @@ describe("runtime observability contract", () => {
       traceHeadersSeen: "telemetry.runtime.trace_headers.seen",
       webTestTriggered: "telemetry.web.test.triggered",
     });
+  });
+});
+
+describe("runtime observability status and span contract", () => {
+  it("exports the exact Slice 7B status, route, and span vocabulary", () => {
     expect(runtimeResultStatuses).toEqual({
       conflicted: "conflicted",
       failed: "failed",
@@ -134,7 +139,9 @@ describe("fail-open runtime span execution", () => {
     expect(runFailOpenRuntimeSpan(() => undefined, callback)).toBe("fallback");
     expect(callback).toHaveBeenCalledTimes(1);
   });
+});
 
+describe("fail-open runtime span result preservation", () => {
   it("preserves the original product throw", () => {
     const error = new Error("product failure");
     const callback = vi.fn(() => {

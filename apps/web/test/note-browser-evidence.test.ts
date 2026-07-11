@@ -16,6 +16,7 @@ import {
   createNote,
   createSeededStore,
   readyClusterIdentity,
+  requireMockCall,
 } from "./note-browser-store-test-helpers.js";
 
 afterEach(() => {
@@ -48,30 +49,27 @@ describe("overlapping browser evidence", () => {
     });
     await staleLoad;
 
-    const firstMetadata = readNote.mock.calls[0]?.[1];
-    const secondMetadata = readNote.mock.calls[1]?.[1];
+    const firstMetadata = requireMockCall(readNote.mock.calls, 0)[1];
+    const secondMetadata = requireMockCall(readNote.mock.calls, 1)[1];
     const staleAttributes = findEventAttributes(
       info,
       runtimeObservabilityEventNames.noteLoadStaleIgnored,
     );
     expect(staleAttributes).toMatchObject({
       "azurite.note_id": "index.md",
-      "azurite.note_operation_id": firstMetadata?.noteOperationId,
-      "azurite.request_id": firstMetadata?.requestId,
+      "azurite.note_operation_id": firstMetadata.noteOperationId,
+      "azurite.request_id": firstMetadata.requestId,
       "azurite.stale_completion": "succeeded",
       "azurite.ui_request_sequence": 1,
     });
     expect(staleAttributes["azurite.request_id"]).not.toBe(
-      secondMetadata?.requestId,
+      secondMetadata.requestId,
     );
 
     recordWebRuntimeEvent({ name: "unrelated.runtime", surface: "web" });
-    expect(findEventAttributes(info, "unrelated.runtime")).not.toEqual(
-      expect.objectContaining({
-        "azurite.note_id": expect.anything(),
-        "azurite.request_id": expect.anything(),
-      }),
-    );
+    const unrelatedAttributes = findEventAttributes(info, "unrelated.runtime");
+    expect(unrelatedAttributes).not.toHaveProperty("azurite.note_id");
+    expect(unrelatedAttributes).not.toHaveProperty("azurite.request_id");
   });
 });
 

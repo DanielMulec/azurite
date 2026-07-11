@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { apiErrorCodes } from "@azurite/shared";
+import {
+  apiErrorCodes,
+  noteOperationIdSchema,
+  requestIdSchema,
+} from "@azurite/shared";
 import { WebApiError } from "../src/api-client.js";
 import type { DraftReadResult } from "../src/persistence/draft-database.js";
 import { createNoteBrowserStore } from "../src/state/note-browser-store.js";
@@ -12,6 +16,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   readyClusterIdentity,
+  requireMockCall,
   toSummary,
 } from "./note-browser-store-test-helpers.js";
 
@@ -43,17 +48,16 @@ describe("note browser store stale save success hardening", () => {
     });
     await save;
 
-    expect(api.saveNote).toHaveBeenCalledWith(
-      {
-        expectedContentHash: "sha256-home",
-        markdown: "# Home\nSaved snapshot",
-        noteId: "index.md",
-      },
-      {
-        noteOperationId: expect.any(String),
-        requestId: expect.any(String),
-      },
-    );
+    const saveCall = requireMockCall(vi.mocked(api.saveNote).mock.calls, 0);
+    expect(saveCall[0]).toEqual({
+      expectedContentHash: "sha256-home",
+      markdown: "# Home\nSaved snapshot",
+      noteId: "index.md",
+    });
+    expect(
+      noteOperationIdSchema.safeParse(saveCall[1].noteOperationId).success,
+    ).toBe(true);
+    expect(requestIdSchema.safeParse(saveCall[1].requestId).success).toBe(true);
     expect(store.getState().noteState).toMatchObject({
       editor: {
         baseContentHash: "sha256-saved",

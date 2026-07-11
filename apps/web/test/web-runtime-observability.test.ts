@@ -23,7 +23,9 @@ describe("web runtime observability helpers", () => {
       ),
     ).toBe("completed");
   });
+});
 
+describe("enabled web runtime observability", () => {
   it("maps extensible events to structured carriers", () => {
     const fake = createFakeSdk();
     installWebSentryRuntime(
@@ -75,7 +77,9 @@ describe("web runtime observability helpers", () => {
       expect.objectContaining({ message: "deliberate", name: "Error" }),
     );
   });
+});
 
+describe("web runtime observability failure isolation", () => {
   it("suppresses enabled SDK carrier failures", () => {
     const fake = createFakeSdk();
     fake.sdk.withScope = () => {
