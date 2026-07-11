@@ -151,40 +151,6 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: It does not turn markdown into HTML by itself; pair with the rest of
   the unified pipeline.
 
-### remark-rehype
-
-- URL: https://unifiedjs.com/explore/package/remark-rehype/
-- Accessed: 2026-07-07
-- Area: Markdown rendering pipeline
-- Use when: Converting parsed markdown syntax trees into HTML syntax trees for
-  browser rendering.
-- Notes: Bridges the remark markdown ecosystem to the rehype HTML ecosystem so
-  HTML-oriented plugins can run after markdown parsing.
-- Caveats: Sanitization still needs an explicit rehype sanitizer before output
-  reaches the DOM.
-
-### rehype-sanitize
-
-- URL: https://github.com/rehypejs/rehype-sanitize
-- Accessed: 2026-07-07
-- Area: Markdown rendering security
-- Use when: Rendering markdown-derived HTML into the PWA.
-- Notes: Sanitizes HTML syntax trees by dropping anything not explicitly allowed.
-- Caveats: Sanitization schemas need tests, especially if raw HTML or syntax
-  highlighting is enabled later.
-
-### rehype-stringify
-
-- URL: https://unifiedjs.com/explore/package/rehype-stringify/
-- Accessed: 2026-07-07
-- Area: Markdown rendering pipeline
-- Use when: Serializing a sanitized HTML syntax tree into an HTML string for the
-  approved read-only markdown renderer.
-- Notes: Works inside the unified pipeline after rehype plugins have transformed
-  or sanitized the HTML tree.
-- Caveats: Only stringify sanitized trees that have passed through the approved
-  sanitizer.
-
 ### Tailwind CSS Vite Plugin
 
 - URL: https://tailwindcss.com/docs
@@ -346,48 +312,6 @@ the entry template live in `docs/research-sources.md`.
 - Notes: Tailscale Serve can proxy a local service to devices in the user's
   tailnet and recommends localhost binding when relying on identity headers.
 - Caveats: Do not confuse Serve with Funnel, which is for broader public access.
-
-### Vue Introduction
-
-- URL: https://vuejs.org/guide/introduction
-- Accessed: 2026-07-07
-- Area: Frontend framework alternatives
-- Use when: Reconsidering the frontend framework.
-- Notes: Vue is a component framework built on standard HTML, CSS, and
-  JavaScript.
-- Caveats: No current product requirement outweighs React's ecosystem advantage
-  for Azurite's first slices.
-
-### Svelte Documentation
-
-- URL: https://svelte.dev/
-- Accessed: 2026-07-07
-- Area: Frontend framework alternatives
-- Use when: Reconsidering the frontend framework or researching compiler-based
-  UI approaches.
-- Notes: Svelte compiles components into efficient browser JavaScript.
-- Caveats: Evaluate editor and markdown ecosystem fit before any switch.
-
-### SolidJS Documentation
-
-- URL: https://www.solidjs.com/docs/latest
-- Accessed: 2026-07-07
-- Area: Frontend framework alternatives
-- Use when: Reconsidering the frontend framework or researching fine-grained
-  reactivity.
-- Notes: Solid is a declarative and efficient JavaScript UI library.
-- Caveats: Its ecosystem is smaller than React's for editor-heavy applications.
-
-### Next.js Documentation
-
-- URL: https://nextjs.org/docs
-- Accessed: 2026-07-07
-- Area: Future commercial or hosted web surface
-- Use when: Evaluating whether a hosted SaaS, public product, or marketing
-  surface should use Next.js.
-- Notes: Next.js is a React framework for full-stack web applications with
-  routing, server features, and framework-level optimizations.
-- Caveats: It is not required for the first local-first PWA slice.
 
 ### React Arborist
 

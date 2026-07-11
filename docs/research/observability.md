@@ -80,29 +80,6 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Source-map upload requires Sentry auth configuration and belongs in a
   future release-observability slice, not the first local debug setup.
 
-### Sentry Pricing
-
-- URL: https://sentry.io/pricing/
-- Accessed: 2026-07-08
-- Area: Observability service cost
-- Use when: Checking whether Sentry's hosted plans fit solo/development
-  observability needs.
-- Notes: Sentry advertises a free Developer plan and event-based pricing across
-  errors, traces, replays, and logs.
-- Caveats: Re-check before adoption because quotas, included volumes, and
-  billing behavior can change.
-
-### Sentry Self-Hosted
-
-- URL: https://develop.sentry.dev/self-hosted/
-- Accessed: 2026-07-08
-- Area: Self-hosted observability
-- Use when: Comparing hosted Sentry with self-hosted Sentry for development
-  observability operations.
-- Notes: Sentry documents self-hosted deployment and source availability.
-- Caveats: Self-hosted Sentry is operationally heavier than Azurite's current
-  development needs and uses Sentry's source-available licensing model.
-
 ### Sentry Fastify
 
 - URL: https://docs.sentry.io/platforms/javascript/guides/fastify/
@@ -145,18 +122,6 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Backend Sentry logs should capture complete debugging context when
   Sentry debug mode is enabled. Keep local Fastify logging behavior intact.
 
-### Zustand Devtools Middleware
-
-- URL: https://github.com/pmndrs/zustand#redux-devtools
-- Accessed: 2026-07-08
-- Area: Frontend state debugging
-- Use when: Inspecting Zustand actions, state transitions, and store snapshots
-  during editor persistence QA.
-- Notes: Zustand can connect to the Redux DevTools extension, name stores, log
-  action types, and disable devtools through configuration.
-- Caveats: For explicit debug sessions, Zustand state capture may include full
-  editor and draft state when that helps diagnose behavior.
-
 ### Dexie Debug And DBCore
 
 - URL: https://dexie.org/docs/Dexie/Dexie.debug
@@ -193,39 +158,3 @@ the entry template live in `docs/research-sources.md`.
   Playwright's console event API can capture frontend console output.
 - Caveats: Trace artifacts from Daniel-owned QA may contain real app state; that
   is acceptable when the trace is created for debugging.
-
-### OpenReplay Session Replay
-
-- URL: https://docs.openreplay.com/en/home/
-- Accessed: 2026-07-08
-- Area: Self-hosted session replay
-- Use when: Evaluating a self-hosted replay alternative for browser debugging.
-- Notes: OpenReplay documents an open-source, self-hosted session replay stack
-  with tracker SDK setup and plugins.
-- Caveats: A full replay stack is heavier than a focused editor diagnostics
-  slice. This source is only relevant if Sentry stops satisfying Azurite's
-  debugging needs.
-
-### OpenReplay Zustand Plugin
-
-- URL: https://docs.openreplay.com/en/plugins/zustand/
-- Accessed: 2026-07-08
-- Area: Frontend state replay
-- Use when: Comparing packaged Zustand mutation/state capture against custom
-  Azurite diagnostics.
-- Notes: OpenReplay's Zustand plugin captures mutations and state for replay
-  sessions and supports filters/transformers.
-- Caveats: This source is only relevant if Azurite evaluates an OpenReplay
-  alternative to Sentry's uncensored debug telemetry.
-
-### rrweb
-
-- URL: https://github.com/rrweb-io/rrweb
-- Accessed: 2026-07-08
-- Area: Session replay foundation
-- Use when: Evaluating low-level session replay capture without adopting a full
-  hosted observability product.
-- Notes: rrweb records and replays DOM state changes and user interactions, and
-  underpins several replay products.
-- Caveats: Raw replay capture requires storage, export, and review tooling to be
-  useful, so it is heavier than using Sentry for the current debug workflow.
