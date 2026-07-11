@@ -58,7 +58,9 @@ describe("createBrowserCorrelationId", () => {
       expect(captureWebRuntimeError).not.toHaveBeenCalled();
     },
   );
+});
 
+describe("browser correlation failure evidence", () => {
   it("reports missing crypto once without weak randomness", () => {
     const weakRandom = vi.spyOn(Math, "random");
     vi.stubGlobal("crypto", undefined);
@@ -85,13 +87,8 @@ describe("createBrowserCorrelationId", () => {
     expect(
       createBrowserCorrelationId(correlationIdKinds.noteOperation),
     ).toBeUndefined();
-    expect(recordWebRuntimeEvent).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          [runtimeObservabilityAttributeNames.correlationFailureReason]:
-            correlationFailureReasons.randomValuesUnavailable,
-        }),
-      }),
+    expect(lastRecordedFailureReason()).toBe(
+      correlationFailureReasons.randomValuesUnavailable,
     );
 
     const fallbackError = new Error("secure bytes failed");
@@ -104,17 +101,14 @@ describe("createBrowserCorrelationId", () => {
     expect(
       createBrowserCorrelationId(correlationIdKinds.request),
     ).toBeUndefined();
-    expect(captureWebRuntimeError).toHaveBeenLastCalledWith(
-      fallbackError,
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          [runtimeObservabilityAttributeNames.correlationFailureReason]:
-            correlationFailureReasons.randomValuesFailed,
-        }),
-      }),
+    expect(lastCapturedError()).toBe(fallbackError);
+    expect(lastCapturedFailureReason()).toBe(
+      correlationFailureReasons.randomValuesFailed,
     );
   });
+});
 
+describe("browser correlation fallback validation", () => {
   it("rejects invalid fallback output without exposing the candidate", () => {
     vi.stubGlobal("crypto", {
       getRandomValues: () => new Uint8Array(0),
@@ -136,3 +130,21 @@ describe("createBrowserCorrelationId", () => {
     });
   });
 });
+
+function lastRecordedFailureReason(): unknown {
+  const call = vi.mocked(recordWebRuntimeEvent).mock.calls.at(-1);
+  return call?.[0].attributes?.[
+    runtimeObservabilityAttributeNames.correlationFailureReason
+  ];
+}
+
+function lastCapturedError(): unknown {
+  return vi.mocked(captureWebRuntimeError).mock.calls.at(-1)?.[0];
+}
+
+function lastCapturedFailureReason(): unknown {
+  const event = vi.mocked(captureWebRuntimeError).mock.calls.at(-1)?.[1];
+  return event?.attributes?.[
+    runtimeObservabilityAttributeNames.correlationFailureReason
+  ];
+}

@@ -66,7 +66,9 @@ describe("note route evidence", () => {
       expect(fake.captureException).not.toHaveBeenCalled();
     });
   });
+});
 
+describe("expected note route evidence", () => {
   it("records expected invalid, missing, and conflict results without capture", async () => {
     await withWorkspace(async (workspacePath) => {
       await writeFile(path.join(workspacePath, "index.md"), "# Changed\n");

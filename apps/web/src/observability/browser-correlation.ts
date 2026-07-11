@@ -118,7 +118,11 @@ function trySecureByteFallback(
   if (typeof getRandomValues !== "function") {
     return { reason: correlationFailureReasons.randomValuesUnavailable };
   }
-  return invokeSecureByteFallback(crypto, getRandomValues, kind);
+  return invokeSecureByteFallback(
+    crypto,
+    getRandomValues as (...arguments_: unknown[]) => unknown,
+    kind,
+  );
 }
 
 function invokeSecureByteFallback(

@@ -57,7 +57,9 @@ describe("API request evidence", () => {
     );
     expect(captureWebRuntimeError).not.toHaveBeenCalled();
   });
+});
 
+describe("API request failure evidence", () => {
   it.each([
     ["network", () => Promise.reject(new Error("offline"))],
     [
@@ -85,7 +87,9 @@ describe("API request evidence", () => {
       }),
     );
   });
+});
 
+describe("API request span evidence", () => {
   it("uses the exact API span name and operation", async () => {
     vi.stubGlobal(
       "fetch",

@@ -26,7 +26,9 @@ describe("server runtime observability helpers", () => {
       recordServerRuntimeEvent({ name: "future.7b.event", surface: "server" });
     }).not.toThrow();
   });
+});
 
+describe("enabled server runtime observability", () => {
   it("maps extensible events to logs, breadcrumbs, spans, and errors", () => {
     const fake = createFakeSdk();
     installServerSentryRuntime(
@@ -80,7 +82,9 @@ describe("server runtime observability helpers", () => {
       expect.objectContaining({ message: "deliberate", name: "Error" }),
     );
   });
+});
 
+describe("server runtime observability failure isolation", () => {
   it("suppresses enabled SDK carrier failures", () => {
     const fake = createFakeSdk();
     fake.sdk.withScope = () => {

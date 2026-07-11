@@ -190,20 +190,20 @@ export function recordRouteEvidence(
 }
 
 /** Records an operation start and runs work inside its neutral semantic span. */
-export function runBrowserOperation<Result>(
-  input: {
-    readonly callback: () => Result;
-    readonly eventName: string;
-    readonly evidence: BrowserOperationEvidence;
-    readonly spanName: RuntimeSpanName;
-    readonly startAttributes: RuntimeObservabilityAttributes;
-  },
-): Result {
+export function runBrowserOperation<Result>(input: {
+  readonly callback: () => Result;
+  readonly eventName: string;
+  readonly evidence: BrowserOperationEvidence;
+  readonly spanName: RuntimeSpanName;
+  readonly startAttributes: RuntimeObservabilityAttributes;
+}): Result {
   const attributes = baseAttributes(input.evidence, {
     ...input.startAttributes,
     [attributeNames.resultStatus]: results.started,
   });
-  recordWebRuntimeEvent(createEvent(input.evidence, input.eventName, attributes));
+  recordWebRuntimeEvent(
+    createEvent(input.evidence, input.eventName, attributes),
+  );
   return runWebRuntimeSpan(
     {
       attributes,
@@ -265,11 +265,14 @@ function createEvent(
 ): RuntimeObservabilityEvent {
   const apiCode = attributes[attributeNames.apiErrorCode];
   const result = attributes[attributeNames.resultStatus];
-  return {
+  const event = {
     attributes,
     name,
     surface: "web",
-    tags: compactTags({
+  } as const;
+  return withEventTags(
+    event,
+    compactTags({
       [attributeNames.apiErrorCode]:
         typeof apiCode === "string" ? apiCode : undefined,
       [attributeNames.noteOperationId]: evidence.metadata.noteOperationId,
@@ -277,7 +280,14 @@ function createEvent(
       [attributeNames.resultStatus]:
         typeof result === "string" ? result : undefined,
     }),
-  };
+  );
+}
+
+function withEventTags(
+  event: Omit<RuntimeObservabilityEvent, "tags">,
+  tags: RuntimeObservabilityEvent["tags"],
+): RuntimeObservabilityEvent {
+  return tags === undefined ? event : { ...event, tags };
 }
 
 function compactTags(

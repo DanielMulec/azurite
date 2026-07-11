@@ -48,7 +48,7 @@ type RequestLifecycle = {
   readonly startedAt: number;
 };
 type ApiEventInput = {
-  readonly apiErrorCode?: ApiErrorCode;
+  readonly apiErrorCode?: ApiErrorCode | undefined;
   readonly attributes: RuntimeObservabilityAttributes;
   readonly metadata: ApiRequestMetadata;
   readonly name: string;

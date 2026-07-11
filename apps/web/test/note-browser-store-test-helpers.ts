@@ -149,11 +149,16 @@ function draftMatchesSnapshot(
   snapshot: Parameters<
     DraftPersistence["deleteDraftIfSavedSnapshotMatches"]
   >[0],
-): boolean {
-  if (draft === undefined || draft.baseContentHash !== snapshot.baseContentHash) {
+): draft is DraftRecord {
+  if (
+    draft === undefined ||
+    draft.baseContentHash !== snapshot.baseContentHash
+  ) {
     return false;
   }
-  return normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown);
+  return (
+    normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown)
+  );
 }
 
 function normalizeMarkdown(markdown: string): string {

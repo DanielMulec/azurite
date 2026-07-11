@@ -196,7 +196,9 @@ describe("PUT /api/notes/content success", () => {
       await expect(readFile(notePath, "utf8")).resolves.toBe("# Updated\n");
     });
   });
+});
 
+describe("PUT /api/notes/content concurrent success", () => {
   it("serializes concurrent same-hash requests into one success and conflict", async () => {
     await withTemporaryWorkspace(async ({ workspacePath }) => {
       const notePath = path.join(workspacePath, "index.md");
