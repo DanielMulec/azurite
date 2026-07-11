@@ -118,7 +118,44 @@ describe("server runtime observability failure isolation", () => {
       captureServerRuntimeError(new Error("product"), event);
     }).not.toThrow();
   });
+});
 
+describe("server runtime scope carrier isolation", () => {
+  it("continues through throwing tag and context carriers", () => {
+    const fake = createFakeSdk();
+    fake.sdk.withScope = (callback) => {
+      callback({
+        setContext: () => {
+          throw new Error("context failed");
+        },
+        setTag: () => {
+          throw new Error("tag failed");
+        },
+      });
+    };
+    installServerSentryRuntime(
+      fake.sdk,
+      parseServerSentryConfig({
+        SENTRY_DSN: "https://public@example.invalid/1",
+        SENTRY_ENABLED: "true",
+      }),
+    );
+    const event = {
+      name: "scope.failure",
+      surface: "server",
+      tags: { "azurite.request_id": "request" },
+    } as const;
+
+    expect(() => {
+      recordServerRuntimeEvent(event);
+      captureServerRuntimeError(new Error("product"), event);
+    }).not.toThrow();
+    expect(fake.info).toHaveBeenCalledOnce();
+    expect(fake.captureException).toHaveBeenCalledOnce();
+  });
+});
+
+describe("server runtime span carrier isolation", () => {
   it("executes span work once across enabled SDK failures", () => {
     const fake = createFakeSdk();
     const callback = vi.fn(() => "product-result");

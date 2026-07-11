@@ -45,14 +45,12 @@ export async function applySaveResponse(
 }
 
 /** Applies a failed save to the latest same-note editor without restoring text. */
-export async function applySaveFailure(
-  input: {
-    readonly context: StoreContext;
-    readonly editor: EditorSession;
-    readonly error: unknown;
-    readonly persistLatestDraft: () => Promise<unknown>;
-  },
-): Promise<void> {
+export async function applySaveFailure(input: {
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly error: unknown;
+  readonly persistLatestDraft: () => Promise<unknown>;
+}): Promise<void> {
   const currentEditor = getCurrentEditorForNote(
     input.editor.note.id,
     input.context,

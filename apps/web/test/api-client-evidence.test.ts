@@ -4,6 +4,7 @@ import {
   apiErrorCodes,
   requestIdSchema,
   runtimeObservabilityEventNames,
+  type RuntimeObservabilityEvent,
 } from "@azurite/shared";
 import { listNotes, WebApiError } from "../src/api-client.js";
 import {
@@ -28,35 +29,38 @@ afterEach(() => {
 });
 
 describe("API request evidence", () => {
-  it("records a well-formed API failure without capturing it", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({
-              error: {
-                code: apiErrorCodes.workspaceNotConfigured,
-                message: "Workspace path is not configured.",
-              },
-            }),
-            { status: 500 },
+  it.each(Object.values(apiErrorCodes))(
+    "records well-formed %s API failure without capturing it",
+    async (code) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error: {
+                  code,
+                  message: "Safe API failure.",
+                },
+              }),
+              { status: 500 },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await expect(listNotes(metadata)).rejects.toMatchObject({
-      code: apiErrorCodes.workspaceNotConfigured,
-      failureKind: "api_response",
-    });
-    expect(recordWebRuntimeEvent).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        name: runtimeObservabilityEventNames.apiRequestFailed,
-      }),
-    );
-    expect(captureWebRuntimeError).not.toHaveBeenCalled();
-  });
+      await expect(listNotes(metadata)).rejects.toMatchObject({
+        code,
+        failureKind: "api_response",
+      });
+      expect(recordWebRuntimeEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          name: runtimeObservabilityEventNames.apiRequestFailed,
+        }),
+      );
+      expect(captureWebRuntimeError).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("API request failure evidence", () => {
@@ -110,6 +114,23 @@ describe("API request span evidence", () => {
     );
 
     await listNotes(metadata);
+    expect(
+      recordedEvent(runtimeObservabilityEventNames.apiRequestStarted)
+        .attributes,
+    ).toMatchObject({
+      "azurite.request_id": metadata.requestId,
+      "azurite.result_status": "started",
+      "http.method": "GET",
+      "http.route": "/api/notes",
+    });
+    expect(
+      recordedEvent(runtimeObservabilityEventNames.apiRequestSucceeded)
+        .attributes,
+    ).toMatchObject({
+      "azurite.request_id": metadata.requestId,
+      "azurite.result_status": "succeeded",
+      "http.response.status_code": 200,
+    });
     expect(runWebRuntimeSpan).toHaveBeenCalledWith(
       expect.objectContaining({
         spanName: "api.request",
@@ -119,3 +140,13 @@ describe("API request span evidence", () => {
     );
   });
 });
+
+function recordedEvent(name: string): RuntimeObservabilityEvent {
+  const call = vi
+    .mocked(recordWebRuntimeEvent)
+    .mock.calls.find(([event]) => event.name === name);
+  if (call === undefined) {
+    throw new Error(`Expected ${name} evidence.`);
+  }
+  return call[0];
+}

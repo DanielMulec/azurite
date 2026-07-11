@@ -188,13 +188,45 @@ export function runFailOpenRuntimeSpan<Result>(
   callback: () => Result,
 ): Result {
   const execution = new RuntimeSpanExecution(callback);
+  let carrierResult: unknown;
 
   try {
-    startSpan(execution.run);
+    carrierResult = startSpan(execution.run);
   } catch {
     // Product outcomes are selected below; SDK failures never replace them.
   }
-  return execution.result();
+  return finishRuntimeSpanExecution(execution, carrierResult);
+}
+
+function finishRuntimeSpanExecution<Result>(
+  execution: RuntimeSpanExecution<Result>,
+  carrierResult: unknown,
+): Result {
+  try {
+    const productResult = execution.result();
+    settleDistinctCarrierResult(carrierResult, productResult);
+    return productResult;
+  } catch (error) {
+    settleIgnoredCarrierResult(carrierResult);
+    throw error;
+  }
+}
+
+function settleDistinctCarrierResult(
+  carrierResult: unknown,
+  productResult: unknown,
+): void {
+  if (carrierResult !== productResult) {
+    settleIgnoredCarrierResult(carrierResult);
+  }
+}
+
+function settleIgnoredCarrierResult(carrierResult: unknown): void {
+  try {
+    void Promise.resolve(carrierResult).catch(() => undefined);
+  } catch {
+    // A hostile carrier return value cannot affect the product outcome.
+  }
 }
 
 class RuntimeSpanExecution<Result> {

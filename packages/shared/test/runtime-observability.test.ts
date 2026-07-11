@@ -177,6 +177,31 @@ describe("fail-open runtime span result preservation", () => {
     await rejection;
     expect(callback).toHaveBeenCalledTimes(1);
   });
+});
+
+describe("fail-open runtime span carrier settlement", () => {
+  it("settles a distinct rejected carrier promise without replacing work", async () => {
+    const productPromise = Promise.resolve("product-result");
+    let rejectCarrier: ((error: unknown) => void) | undefined;
+    const carrierPromise = new Promise<never>((_resolve, reject) => {
+      rejectCarrier = reject;
+    });
+
+    const result = runFailOpenRuntimeSpan(
+      (guarded) => {
+        void guarded();
+        return carrierPromise;
+      },
+      () => productPromise,
+    );
+
+    expect(result).toBe(productPromise);
+    rejectCarrier?.(new Error("carrier wrapper failed"));
+    await expect(result).resolves.toBe("product-result");
+    await new Promise<void>((resolve) => {
+      queueMicrotask(resolve);
+    });
+  });
 
   it("does not rerun work when the SDK invokes its callback late", () => {
     let lateCallback: (() => string) | undefined;

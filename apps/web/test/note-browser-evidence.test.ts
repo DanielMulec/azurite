@@ -73,6 +73,42 @@ describe("overlapping browser evidence", () => {
   });
 });
 
+describe("stale failed browser evidence", () => {
+  it("keeps the failed read attached to its original closure", async () => {
+    const info = installFakeRuntime();
+    const home = createDeferred<ReturnType<NoteBrowserApi["readNote"]>>();
+    const project = createDeferred<ReturnType<NoteBrowserApi["readNote"]>>();
+    const readNote = vi.fn<NoteBrowserApi["readNote"]>((noteId) =>
+      noteId === "index.md" ? home.promise : project.promise,
+    );
+    const store = createSeededStore({ api: createApi({ readNote }) });
+
+    const staleLoad = store.getState().selectNote("index.md");
+    const currentLoad = store.getState().selectNote("Projects/azurite.md");
+    project.resolve({
+      clusterIdentity: readyClusterIdentity,
+      note: createNote("Projects/azurite.md", "# Project", "sha256-project"),
+    });
+    await currentLoad;
+    home.reject(new Error("stale read failed"));
+    await staleLoad;
+
+    const firstMetadata = requireMockCall(readNote.mock.calls, 0)[1];
+    expect(
+      findEventAttributes(
+        info,
+        runtimeObservabilityEventNames.noteLoadStaleIgnored,
+      ),
+    ).toMatchObject({
+      "azurite.note_id": "index.md",
+      "azurite.note_operation_id": firstMetadata.noteOperationId,
+      "azurite.request_id": firstMetadata.requestId,
+      "azurite.stale_completion": "failed",
+      "azurite.ui_request_sequence": 1,
+    });
+  });
+});
+
 function installFakeRuntime() {
   const info = vi.fn();
   const sdk: WebSentrySdk = {

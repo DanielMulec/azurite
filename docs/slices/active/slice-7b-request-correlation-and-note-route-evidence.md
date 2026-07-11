@@ -2,11 +2,21 @@
 
 ## Status
 
-Planned and implementation-ready after reconciliation on 2026-07-10 and two
-focused adversarial contract reviews on 2026-07-11. Keep this document in
-`docs/slices/planned/` until Daniel reviews the revised decisions and explicitly
-approves promotion. Promotion and implementation are separate from this
-planning revision.
+Active. Daniel approved implementation after reconciliation on 2026-07-10 and
+two focused adversarial contract reviews on 2026-07-11. Implementation,
+automated verification, and desktop enabled/disabled Sentry QA passed on
+2026-07-11.
+
+Physical Pixel 6 QA is deliberately deferred because Daniel was away from the
+Mac and participating by phone. Slice 7B is not complete, must remain in
+`docs/slices/active/`, and must not be archived until Daniel and Codex complete
+the exact physical-phone acceptance session in this document. The phone gate is
+deferred, not passed or waived.
+
+The authoritative implementation and desktop QA record is
+`docs/qa/slice-7b-request-correlation.md`. Keep concrete commands, IDs, hashes,
+event joins, and the remaining phone gate there rather than duplicating them
+through this plan.
 
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop

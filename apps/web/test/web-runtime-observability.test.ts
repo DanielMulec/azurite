@@ -113,7 +113,44 @@ describe("web runtime observability failure isolation", () => {
       captureWebRuntimeError(new Error("product"), event);
     }).not.toThrow();
   });
+});
 
+describe("web runtime scope carrier isolation", () => {
+  it("continues through throwing tag and context carriers", () => {
+    const fake = createFakeSdk();
+    fake.sdk.withScope = (callback) => {
+      callback({
+        setContext: () => {
+          throw new Error("context failed");
+        },
+        setTag: () => {
+          throw new Error("tag failed");
+        },
+      });
+    };
+    installWebSentryRuntime(
+      fake.sdk,
+      parseWebSentryConfig({
+        VITE_SENTRY_DSN: "https://public@example.invalid/1",
+        VITE_SENTRY_ENABLED: "true",
+      }),
+    );
+    const event = {
+      name: "scope.failure",
+      surface: "web",
+      tags: { "azurite.request_id": "request" },
+    } as const;
+
+    expect(() => {
+      recordWebRuntimeEvent(event);
+      captureWebRuntimeError(new Error("product"), event);
+    }).not.toThrow();
+    expect(fake.info).toHaveBeenCalledOnce();
+    expect(fake.captureException).toHaveBeenCalledOnce();
+  });
+});
+
+describe("web runtime span carrier isolation", () => {
   it("executes span work once across enabled SDK failures", () => {
     const fake = createFakeSdk();
     const callback = vi.fn(() => "product-result");

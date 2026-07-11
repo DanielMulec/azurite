@@ -122,7 +122,9 @@ function matchesSavedSnapshot(
   if (draft.baseContentHash !== snapshot.baseContentHash) {
     return false;
   }
-  return normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown);
+  return (
+    normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown)
+  );
 }
 
 function normalizeMarkdown(markdown: string): string {

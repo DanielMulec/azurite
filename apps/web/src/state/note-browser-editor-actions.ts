@@ -139,7 +139,9 @@ export function saveSelectedNoteAction(context: StoreContext): Promise<void> {
   return promise;
 }
 
-function getActiveSavePromise(context: StoreContext): Promise<void> | undefined {
+function getActiveSavePromise(
+  context: StoreContext,
+): Promise<void> | undefined {
   const noteState = context.get().noteState;
   if (noteState.status !== "ready") {
     return undefined;

@@ -131,10 +131,42 @@ Current note writes:
 - accept only validated workspace-relative markdown note IDs;
 - require the expected content hash;
 - reject stale writes with the shared conflict response;
+- serialize same-path writes within one Azurite server process so concurrent
+  same-hash attempts cannot both succeed, while different paths remain
+  independent;
 - preserve dominant existing line endings;
 - write a temporary file in the target directory and rename it over the
   original;
 - never expose absolute filesystem paths in browser responses.
+
+### Request And Note-Operation Correlation
+
+Azurite owns semantic correlation independently of Sentry sampling. Shared
+branded UUID-v4 contracts keep three identities distinct:
+
+- one request ID identifies one HTTP attempt;
+- one note-operation ID identifies one browser load or manual-save intent and
+  may span future retry attempts; and
+- numeric Zustand request sequences exist only for stale-result ownership in
+  the current browser session.
+
+The browser creates IDs with cryptographically secure platform APIs and sends
+them through shared correlation headers. ID-generation failure degrades
+evidence without blocking the request. Fastify validates each header into a
+fresh immutable request context, creates a server request ID when client input
+is absent or invalid, and omits an invalid operation ID. Correlation input is
+diagnostic only: it never authorizes work, selects a cluster or note, changes a
+response, or acts as an idempotency key.
+
+Browser operation context remains closure-owned, and server context remains
+request-owned. Startup same-note synchronization reuses one load intent;
+overlapping reads retain independent context and stale completions cannot
+replace newer state. Manual save is single-flight per note in the browser.
+Editing during an active save preserves newer dirty markdown while the original
+snapshot settles, and successful save cleanup removes only an exact matching
+recovery draft. Core's keyed write coordinator provides the corresponding
+same-path in-process conflict guarantee without introducing Sentry or telemetry
+into `packages/core`.
 
 ### Cluster Resolution And Filesystem Error Evolution
 
@@ -255,8 +287,12 @@ uses a bounded `400ms` follow-up flush to deliver that result. Its `1500ms`
 fallback remains longer than both budgets together. Disabled shutdown retains
 the original `500ms` fallback and performs no Sentry work.
 
-Typed helpers in `packages/shared`, `apps/web`, and `apps/server` form the
-extension seam for planned correlation and semantic diagnostics. Direct Sentry
+Typed helpers in `packages/shared`, `apps/web`, and `apps/server` implement
+request/note-operation correlation and form the extension seam for planned
+semantic diagnostics. They emit bounded list, load, save, API, and server-route
+lifecycles with exact IDs and outcome attributes. Runtime adapters are
+fail-open: SDK record, scope, capture, or span-carrier failure cannot alter a
+product callback's count, identity, result, throw, or rejection. Direct Sentry
 calls stay inside runtime adapter modules. Operational configuration and proof
 steps live in `docs/runbooks/sentry-debug.md`.
 

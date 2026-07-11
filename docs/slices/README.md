@@ -17,11 +17,12 @@ truth.
 ## Current Sequence
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
-2. Planned: Slice 7B, request correlation and note-route evidence. Its plan was
-   reconciled on 2026-07-10 against the implemented 7A runtime, desktop and
-   physical-phone evidence, and mobile editor findings, then hardened through a
-   focused adversarial contract review on 2026-07-11. It awaits Daniel's review
-   before promotion and implementation.
+2. Active: Slice 7B, request correlation and note-route evidence. Implementation,
+   automated verification, and desktop enabled/disabled Sentry QA passed on
+   2026-07-11. It remains incomplete and unarchived until Daniel and Codex
+   complete the deliberately deferred physical Pixel 6 acceptance session.
+   Exact current evidence lives in
+   `docs/qa/slice-7b-request-correlation.md`.
 3. Planned: Slice 7C, semantic editor and persistence diagnostics.
 4. Required immediately after 7C: a focused editor-correctness slice that uses
    the 7A runtime, 7B correlation, and 7C semantic evidence to fix the mobile
