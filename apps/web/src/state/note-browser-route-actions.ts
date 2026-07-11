@@ -44,6 +44,11 @@ type RouteSyncInput = {
   readonly notes: readonly { readonly id: string }[];
   readonly routeNoteId: string | undefined;
 };
+type ListCompletion = {
+  readonly context: StoreContext;
+  readonly evidence: BrowserOperationEvidence;
+  readonly requestSequence: number;
+};
 
 /** Loads note summaries and synchronizes the selected note from the URL. */
 export async function loadNotesAction(
@@ -61,7 +66,9 @@ export async function loadNotesAction(
     callback: async () => {
       try {
         const response = await context.api.listNotes(metadata);
-        if (!applyListSuccess(response, evidence, requestSequence, context)) {
+        if (
+          !applyListSuccess(response, { context, evidence, requestSequence })
+        ) {
           return;
         }
         await syncRouteNoteAction(
@@ -70,7 +77,7 @@ export async function loadNotesAction(
           context,
         );
       } catch (error) {
-        applyListFailure(error, evidence, requestSequence, context);
+        applyListFailure(error, { context, evidence, requestSequence });
       }
     },
     evidence,
@@ -104,17 +111,38 @@ export async function syncRouteNoteAction(
 export function selectNoteAction(
   noteId: string,
   context: StoreContext,
-  options: SelectNoteOptions = {},
+  options?: SelectNoteOptions,
 ): Promise<void> {
-  const coalescedPromise = getCoalescedLoadPromise(noteId, options, context);
+  const resolvedOptions = resolveSelectNoteOptions(options);
+  const coalescedPromise = getCoalescedLoadPromise(
+    noteId,
+    resolvedOptions,
+    context,
+  );
   if (coalescedPromise !== undefined) {
     return coalescedPromise;
   }
 
-  if (shouldSkipNoteSelection(noteId, context, options)) {
+  if (shouldSkipNoteSelection(noteId, context, resolvedOptions)) {
     return Promise.resolve();
   }
 
+  return startSelectedNoteLoad(noteId, context, resolvedOptions);
+}
+
+const emptySelectNoteOptions: SelectNoteOptions = Object.freeze({});
+
+function resolveSelectNoteOptions(
+  options: SelectNoteOptions | undefined,
+): SelectNoteOptions {
+  return options ?? emptySelectNoteOptions;
+}
+
+function startSelectedNoteLoad(
+  noteId: string,
+  context: StoreContext,
+  options: SelectNoteOptions,
+): Promise<void> {
   const requestSequence = startNoteLoad(noteId, context);
   const metadata = createNoteRequestMetadata();
   const routeSource = options.routeSource ?? noteRouteSources.noteList;
@@ -257,35 +285,30 @@ const routeEventNames: Readonly<Record<string, string | undefined>> = {
 
 function applyListSuccess(
   response: Awaited<ReturnType<StoreContext["api"]["listNotes"]>>,
-  evidence: BrowserOperationEvidence,
-  requestSequence: number,
-  context: StoreContext,
+  completion: ListCompletion,
 ): boolean {
-  if (!context.isCurrentNotesRequest(requestSequence)) {
-    recordListResult(evidence, { staleCompletion: staleSucceeded });
+  if (!completion.context.isCurrentNotesRequest(completion.requestSequence)) {
+    recordListResult(completion.evidence, { staleCompletion: staleSucceeded });
     return false;
   }
-  recordListResult(evidence, {
+  recordListResult(completion.evidence, {
     clusterIdentity: response.clusterIdentity,
     noteCount: response.notes.length,
   });
-  applyClusterIdentity(response.clusterIdentity, context);
-  context.set({ notesState: { data: response.notes, status: "ready" } });
+  applyClusterIdentity(response.clusterIdentity, completion.context);
+  completion.context.set({
+    notesState: { data: response.notes, status: "ready" },
+  });
   return true;
 }
 
-function applyListFailure(
-  error: unknown,
-  evidence: BrowserOperationEvidence,
-  requestSequence: number,
-  context: StoreContext,
-): void {
-  if (!context.isCurrentNotesRequest(requestSequence)) {
-    recordListResult(evidence, { staleCompletion: staleFailed });
+function applyListFailure(error: unknown, completion: ListCompletion): void {
+  if (!completion.context.isCurrentNotesRequest(completion.requestSequence)) {
+    recordListResult(completion.evidence, { staleCompletion: staleFailed });
     return;
   }
-  recordListResult(evidence, { error });
-  context.set({
+  recordListResult(completion.evidence, { error });
+  completion.context.set({
     notesState: { message: getErrorMessage(error), status: "error" },
   });
 }

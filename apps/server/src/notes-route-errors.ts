@@ -80,11 +80,7 @@ export function createReadNoteError(error: unknown): SafeNoteRouteError {
 /** Maps note save failures onto the existing safe API contract. */
 export function createSaveNoteError(error: unknown): SafeNoteRouteError {
   if (error instanceof WorkspaceResolutionError) {
-    return safeError(
-      apiErrorCodes.invalidWorkspace,
-      "Configured workspace path is not a readable directory.",
-      500,
-    );
+    return invalidWorkspaceError();
   }
   if (error instanceof NoteResolutionError) {
     return noteResolutionError(error);
@@ -99,6 +95,14 @@ export function createSaveNoteError(error: unknown): SafeNoteRouteError {
   return safeError(
     apiErrorCodes.noteWriteFailed,
     "Unable to save workspace note.",
+    500,
+  );
+}
+
+function invalidWorkspaceError(): SafeNoteRouteError {
+  return safeError(
+    apiErrorCodes.invalidWorkspace,
+    "Configured workspace path is not a readable directory.",
     500,
   );
 }

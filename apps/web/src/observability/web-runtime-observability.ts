@@ -69,10 +69,10 @@ export function recordWebRuntimeEvent(event: RuntimeObservabilityEvent): void {
 
   const attributes = createRuntimeAttributes(event, runtime.config);
   const usedScope = tryWithScope(runtime.sdk, (scope) => {
-      applyEventScope(scope, event, attributes);
-      bestEffort(() => {
-        runtime.sdk.logger.info(event.name, attributes, { scope });
-      });
+    applyEventScope(scope, event, attributes);
+    bestEffort(() => {
+      runtime.sdk.logger.info(event.name, attributes, { scope });
+    });
   });
   if (!usedScope) {
     bestEffort(() => {
@@ -103,16 +103,16 @@ export function captureWebRuntimeError(
   const attributes = createRuntimeAttributes(event, runtime.config);
   const errorContext = createCaughtErrorContext(error);
   const usedScope = tryWithScope(runtime.sdk, (scope) => {
-      applyEventScope(scope, event, attributes);
-      bestEffort(() => {
-        scope.setContext("azurite.error", { ...errorContext });
-      });
-      bestEffort(() => {
-        runtime.sdk.logger.error(event.name, attributes, { scope });
-      });
-      bestEffort(() => {
-        runtime.sdk.captureException(error);
-      });
+    applyEventScope(scope, event, attributes);
+    bestEffort(() => {
+      scope.setContext("azurite.error", { ...errorContext });
+    });
+    bestEffort(() => {
+      runtime.sdk.logger.error(event.name, attributes, { scope });
+    });
+    bestEffort(() => {
+      runtime.sdk.captureException(error);
+    });
   });
   if (!usedScope) {
     bestEffort(() => {
@@ -231,35 +231,47 @@ function createCaughtErrorContextUnsafe(
   }
 
   const code = readErrorCode(error);
-  return removeUndefinedErrorContext({
+  const context = addErrorCode(
+    {
+      message: error.message,
+      name: error.name,
+    },
     code,
-    message: error.message,
-    name: error.name,
-    stack: typeof error.stack === "string" ? error.stack : undefined,
-  });
+  );
+  return addErrorStack(context, error.stack);
 }
 
-function removeUndefinedErrorContext(
-  context: RuntimeCaughtErrorContext & { readonly code?: string | undefined; readonly stack?: string | undefined },
+function addErrorCode(
+  context: RuntimeCaughtErrorContext,
+  code: string | undefined,
 ): RuntimeCaughtErrorContext {
-  return Object.fromEntries(
-    Object.entries(context).filter(([, value]) => value !== undefined),
-  ) as RuntimeCaughtErrorContext;
+  return code === undefined ? context : { ...context, code };
+}
+
+function addErrorStack(
+  context: RuntimeCaughtErrorContext,
+  stack: string | undefined,
+): RuntimeCaughtErrorContext {
+  return stack === undefined ? context : { ...context, stack };
 }
 
 function readErrorCode(error: Error): string | undefined {
   try {
     const code = (error as Error & { readonly code?: unknown }).code;
-    if (typeof code === "string") {
-      return code;
-    }
-    if (typeof code === "number") {
-      return String(code);
-    }
-    return undefined;
+    return normalizeErrorCode(code);
   } catch {
     return undefined;
   }
+}
+
+function normalizeErrorCode(code: unknown): string | undefined {
+  if (typeof code === "string") {
+    return code;
+  }
+  if (typeof code === "number") {
+    return String(code);
+  }
+  return undefined;
 }
 
 function tryWithScope(

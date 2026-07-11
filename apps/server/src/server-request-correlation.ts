@@ -62,22 +62,36 @@ export function createServerRequestCorrelation(
   const parsedOperationId = parseNoteOperationIdHeader(
     headers[correlationHeaderNames.noteOperationId],
   );
-  const requestId =
-    parsedRequestId.status === "accepted"
-      ? parsedRequestId.value
-      : requestIdSchema.parse(randomUUID());
 
   return Object.freeze({
-    ...(parsedOperationId.status === "accepted"
-      ? { noteOperationId: parsedOperationId.value }
-      : {}),
+    ...acceptedOperationId(parsedOperationId),
     noteOperationIdStatus: parsedOperationId.status,
-    requestId,
-    requestIdSource:
-      parsedRequestId.status === "accepted"
-        ? requestIdSources.client
-        : parsedRequestId.status === "invalid"
-          ? requestIdSources.serverInvalid
-          : requestIdSources.serverMissing,
+    requestId: resolveRequestId(parsedRequestId),
+    requestIdSource: resolveRequestIdSource(parsedRequestId.status),
   });
+}
+
+function acceptedOperationId(
+  parsed: ReturnType<typeof parseNoteOperationIdHeader>,
+): Pick<ServerRequestCorrelation, "noteOperationId"> {
+  return parsed.status === "accepted" ? { noteOperationId: parsed.value } : {};
+}
+
+function resolveRequestId(
+  parsed: ReturnType<typeof parseRequestIdHeader>,
+): RequestId {
+  return parsed.status === "accepted"
+    ? parsed.value
+    : requestIdSchema.parse(randomUUID());
+}
+
+function resolveRequestIdSource(
+  status: ReturnType<typeof parseRequestIdHeader>["status"],
+): ServerRequestCorrelation["requestIdSource"] {
+  if (status === "accepted") {
+    return requestIdSources.client;
+  }
+  return status === "invalid"
+    ? requestIdSources.serverInvalid
+    : requestIdSources.serverMissing;
 }

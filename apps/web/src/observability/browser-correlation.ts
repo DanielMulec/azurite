@@ -22,6 +22,7 @@ type GenerationFailureReason =
 type GenerationResult =
   | { readonly id: CorrelationId }
   | { readonly error?: unknown; readonly reason?: GenerationFailureReason };
+type GenerationFailure = Exclude<GenerationResult, { readonly id: CorrelationId }>;
 
 /** Generates one secure branded browser correlation ID without blocking work. */
 export function createBrowserCorrelationId(
@@ -54,13 +55,22 @@ function readCryptoCapability():
   | { readonly error?: unknown; readonly reason: "crypto_unavailable" } {
   try {
     const crypto: unknown = Reflect.get(globalThis, "crypto");
-    if (typeof crypto === "object" && crypto !== null) {
-      return { crypto: crypto as Crypto };
-    }
-    return { reason: correlationFailureReasons.cryptoUnavailable };
+    return validateCryptoCapability(crypto);
   } catch (error) {
     return { error, reason: correlationFailureReasons.cryptoUnavailable };
   }
+}
+
+function validateCryptoCapability(
+  value: unknown,
+): { readonly crypto: Crypto } | { readonly reason: "crypto_unavailable" } {
+  if (typeof value !== "object") {
+    return { reason: correlationFailureReasons.cryptoUnavailable };
+  }
+  if (value === null) {
+    return { reason: correlationFailureReasons.cryptoUnavailable };
+  }
+  return { crypto: value as Crypto };
 }
 
 function tryNativeUuid(
@@ -73,12 +83,20 @@ function tryNativeUuid(
       return {};
     }
     const candidate: unknown = Reflect.apply(randomUUID, crypto, []);
-    return typeof candidate === "string"
-      ? parsedResult(kind, candidate)
-      : {};
+    return parseNativeUuid(kind, candidate);
   } catch (error) {
     return { error };
   }
+}
+
+function parseNativeUuid(
+  kind: CorrelationIdKind,
+  candidate: unknown,
+): GenerationResult {
+  if (typeof candidate !== "string") {
+    return {};
+  }
+  return parsedResult(kind, candidate);
 }
 
 function trySecureByteFallback(
@@ -120,15 +138,35 @@ function createFallbackId(
   value: unknown,
   kind: CorrelationIdKind,
 ): GenerationResult {
-  if (!(value instanceof Uint8Array) || value.length !== 16) {
+  if (!isUuidByteArray(value)) {
     return { reason: correlationFailureReasons.uuidInvalid };
   }
-  value[6] = ((value[6] ?? 0) & 0x0f) | 0x40;
-  value[8] = ((value[8] ?? 0) & 0x3f) | 0x80;
-  const result = parsedResult(kind, formatUuid(value));
-  return "id" in result
-    ? result
-    : { reason: correlationFailureReasons.uuidInvalid };
+  applyUuidVersionBits(value);
+  return requireParsedId(parsedResult(kind, formatUuid(value)));
+}
+
+function isUuidByteArray(value: unknown): value is Uint8Array {
+  if (!(value instanceof Uint8Array)) {
+    return false;
+  }
+  return value.length === 16;
+}
+
+function applyUuidVersionBits(value: Uint8Array): void {
+  value[6] = (readByte(value, 6) & 0x0f) | 0x40;
+  value[8] = (readByte(value, 8) & 0x3f) | 0x80;
+}
+
+function readByte(value: Uint8Array, index: number): number {
+  const byte = value[index];
+  return byte === undefined ? 0 : byte;
+}
+
+function requireParsedId(result: GenerationResult): GenerationResult {
+  if ("id" in result) {
+    return result;
+  }
+  return { reason: correlationFailureReasons.uuidInvalid };
 }
 
 function finishGeneration(
@@ -139,10 +177,23 @@ function finishGeneration(
   if ("id" in fallback) {
     return fallback.id;
   }
-  const reason =
-    fallback.reason ?? correlationFailureReasons.randomValuesUnavailable;
-  reportFailure(kind, reason, fallback.error ?? nativeError);
+  reportFailure(
+    kind,
+    readFailureReason(fallback),
+    readFailureError(fallback, nativeError),
+  );
   return undefined;
+}
+
+function readFailureReason(result: GenerationFailure): GenerationFailureReason {
+  return result.reason ?? correlationFailureReasons.randomValuesUnavailable;
+}
+
+function readFailureError(
+  result: GenerationFailure,
+  nativeError: unknown,
+): unknown {
+  return result.error ?? nativeError;
 }
 
 function parsedResult(

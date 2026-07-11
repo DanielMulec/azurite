@@ -27,6 +27,15 @@ type SelectedNoteRequest = {
   readonly context: StoreContext;
   readonly evidence: BrowserOperationEvidence;
 };
+type SelectedNoteTarget = {
+  readonly noteId: string;
+  readonly requestSequence: number;
+};
+type LoadedNoteInput = SelectedNoteTarget & {
+  readonly clusterIdentity: ReadNoteResponse["clusterIdentity"];
+  readonly context: StoreContext;
+  readonly note: NoteContentWithHash;
+};
 type DraftLookupResult =
   | { readonly draft: DraftRecord | undefined; readonly status: "ready" }
   | {
@@ -39,36 +48,27 @@ export async function readSelectedNote(
   evidence: BrowserOperationEvidence,
   context: StoreContext,
 ): Promise<void> {
-  const noteId = evidence.noteId;
-  const requestSequence = evidence.requestSequence;
-  if (noteId === undefined || requestSequence === undefined) {
+  const target = readEvidenceTarget(evidence);
+  if (target === undefined) {
     return;
   }
+  await readSelectedNoteTarget({ context, evidence }, target);
+}
+
+async function readSelectedNoteTarget(
+  request: SelectedNoteRequest,
+  target: SelectedNoteTarget,
+): Promise<void> {
   try {
-    const response = await context.api.readNote(noteId, evidence.metadata);
-    const applied = await applySelectedNoteResponse(response, {
-      context,
-      evidence,
-    });
-    recordLoadResult(
-      evidence,
-      applied
-        ? {
-            clusterIdentity: response.clusterIdentity,
-            contentHash: response.note.contentHash,
-            markdownLength: response.note.markdown.length,
-          }
-        : { staleCompletion: staleSucceeded },
+    const response = await request.context.api.readNote(
+      target.noteId,
+      request.evidence.metadata,
     );
+    const applied = await applySelectedNoteResponse(response, request);
+    recordReadSuccess(response, applied, request.evidence);
   } catch (error) {
-    const applied = await applySelectedNoteFailure(error, {
-      context,
-      evidence,
-    });
-    recordLoadResult(
-      evidence,
-      applied ? { error } : { staleCompletion: staleFailed },
-    );
+    const applied = await applySelectedNoteFailure(error, request);
+    recordReadFailure(error, applied, request.evidence);
   }
 }
 
@@ -78,14 +78,15 @@ export async function recoverMissingRouteNote(
   context: StoreContext,
 ): Promise<void> {
   const requestSequence = startMissingNoteLoad(noteId, context);
-  await applyMissingNoteDraft({
-    context,
-    evidence: createBrowserOperationEvidence({
-      metadata: Object.freeze({}),
-      noteId,
-      requestSequence,
-    }),
+  const evidence = createBrowserOperationEvidence({
+    metadata: Object.freeze({}),
+    noteId,
+    requestSequence,
   });
+  await applyMissingNoteDraft(
+    { context, evidence },
+    { noteId, requestSequence },
+  );
 }
 
 async function applySelectedNoteResponse(
@@ -99,12 +100,12 @@ async function applySelectedNoteResponse(
   ) {
     return false;
   }
-  return await applyLoadedNote(
-    response.clusterIdentity,
-    response.note,
-    target.requestSequence,
-    request.context,
-  );
+  return await applyLoadedNote({
+    clusterIdentity: response.clusterIdentity,
+    context: request.context,
+    note: response.note,
+    ...target,
+  });
 }
 
 async function applySelectedNoteFailure(
@@ -112,14 +113,24 @@ async function applySelectedNoteFailure(
   request: SelectedNoteRequest,
 ): Promise<boolean> {
   const target = readEvidenceTarget(request.evidence);
+  if (target === undefined) {
+    return false;
+  }
+  return applyCurrentSelectedNoteFailure(error, request, target);
+}
+
+async function applyCurrentSelectedNoteFailure(
+  error: unknown,
+  request: SelectedNoteRequest,
+  target: SelectedNoteTarget,
+): Promise<boolean> {
   if (
-    target === undefined ||
     !request.context.isCurrentNoteRequest(target.requestSequence, target.noteId)
   ) {
     return false;
   }
   if (isNoteNotFoundError(error)) {
-    return await applyMissingNoteDraft(request);
+    return await applyMissingNoteDraft(request, target);
   }
   request.context.set({
     noteState: { message: getErrorMessage(error), status: "error" },
@@ -127,21 +138,21 @@ async function applySelectedNoteFailure(
   return true;
 }
 
-async function applyLoadedNote(
-  clusterIdentity: ReadNoteResponse["clusterIdentity"],
-  note: NoteContentWithHash,
-  requestSequence: number,
-  context: StoreContext,
-): Promise<boolean> {
-  const draftLookup = await readDraftForCurrentCluster(note.id, context);
-  if (!context.isCurrentNoteRequest(requestSequence, note.id)) {
+async function applyLoadedNote(input: LoadedNoteInput): Promise<boolean> {
+  const draftLookup = await readDraftForCurrentCluster(
+    input.note.id,
+    input.context,
+  );
+  if (
+    !input.context.isCurrentNoteRequest(input.requestSequence, input.note.id)
+  ) {
     return false;
   }
-  const draft = applyDraftLookupResult(draftLookup, context);
-  applyClusterIdentity(clusterIdentity, context);
-  context.set({
+  const draft = applyDraftLookupResult(draftLookup, input.context);
+  applyClusterIdentity(input.clusterIdentity, input.context);
+  input.context.set({
     noteState: {
-      editor: createEditorSession(note, draft, context),
+      editor: createEditorSession(input.note, draft, input.context),
       status: "ready",
     },
   });
@@ -150,11 +161,8 @@ async function applyLoadedNote(
 
 async function applyMissingNoteDraft(
   request: SelectedNoteRequest,
+  target: SelectedNoteTarget,
 ): Promise<boolean> {
-  const target = readEvidenceTarget(request.evidence);
-  if (target === undefined) {
-    return false;
-  }
   const draftLookup = await readDraftForCurrentCluster(
     target.noteId,
     request.context,
@@ -228,8 +236,40 @@ function applyDraftLookupResult(
 
 function readEvidenceTarget(
   evidence: BrowserOperationEvidence,
-): { readonly noteId: string; readonly requestSequence: number } | undefined {
-  return evidence.noteId === undefined || evidence.requestSequence === undefined
-    ? undefined
-    : { noteId: evidence.noteId, requestSequence: evidence.requestSequence };
+): SelectedNoteTarget | undefined {
+  if (evidence.noteId === undefined) {
+    return undefined;
+  }
+  if (evidence.requestSequence === undefined) {
+    return undefined;
+  }
+  return { noteId: evidence.noteId, requestSequence: evidence.requestSequence };
+}
+
+function recordReadSuccess(
+  response: ReadNoteResponse,
+  applied: boolean,
+  evidence: BrowserOperationEvidence,
+): void {
+  if (!applied) {
+    recordLoadResult(evidence, { staleCompletion: staleSucceeded });
+    return;
+  }
+  recordLoadResult(evidence, {
+    clusterIdentity: response.clusterIdentity,
+    contentHash: response.note.contentHash,
+    markdownLength: response.note.markdown.length,
+  });
+}
+
+function recordReadFailure(
+  error: unknown,
+  applied: boolean,
+  evidence: BrowserOperationEvidence,
+): void {
+  if (!applied) {
+    recordLoadResult(evidence, { staleCompletion: staleFailed });
+    return;
+  }
+  recordLoadResult(evidence, { error });
 }
