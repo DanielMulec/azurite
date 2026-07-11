@@ -119,8 +119,23 @@ conflict contract, and preserves the intentional edit across reload.
 | Current workflow       | Read exact Markdown from disk or a valid recovery draft, project it into one session-owned Crepe instance, switch between WYSIWYG and source without inventing an edit, commit accepted content before transitions, persist only real dirty drafts, and manually save through the existing conflict contract.  |
 | Predictable extensions | Autosave, external file watching, diff/conflict UI, source/WYSIWYG diagnostics, future editor loading, and multi-client editing all need to distinguish authoritative content from rendered or serialized projections and flush pending editor work before ownership changes.                                  |
 | Participating layers   | Milkdown/Crepe lifecycle and serialization, React editor and transition coordination, Zustand editor session, Save toolbar, Dexie draft scheduling/persistence and reconciliation, existing note API and content-hash save contract, Vitest, and real-browser QA.                                              |
-| Near-term seams        | A focused Markdown-authority controller; a React-owned active-editor transition and durability gate; typed accepted-change origins (`source_input` and `wysiwyg_document`); one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                  |
+| Near-term seams        | A focused Markdown-authority controller; a React-owned active-editor transition and durability gate; typed accepted-change origins (`source_input` and `wysiwyg_document`); one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                   |
 | Exclusions             | Token-level Markdown reconciliation, automatic legacy-draft classification, new persistence formats, editor replacement, route selection behavior, block-menu behavior, mobile newline repair, observability payloads, and bundle loading can wait because none is required to stop projection-only mutations. |
+
+### Scope Re-selection Result
+
+The asynchronous handoff freeze and typed durability result remain inside 7C.
+They use the existing React, Zustand, route, and Dexie boundaries and are
+required to make “commit before replacement” true; omitting either permits a
+debounced edit to disappear during the exact note/history workflow this slice
+claims to preserve. The narrow URL replacement after a failed durability gate
+only cancels that unsafe transition. It does not repair the separately tracked
+general Back/sidebar selection divergence.
+
+No new product state owner, persistence format, route capability, or editor
+integration is annexed. If implementation cannot satisfy the handoff through
+these existing boundaries, the Scope Re-selection Triggers apply instead of
+silently expanding 7C.
 
 ## Authoritative Markdown Contract
 
@@ -130,18 +145,18 @@ not create competing definitions.
 
 ### State Terms
 
-| Term                           | Meaning                                                                                                                                                                                                                                                     |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor session                 | One store-owned editing lifetime identified by `sessionKey`. It owns at most one Crepe instance. Ordinary Markdown, mode, recovery, draft, and save-status rerenders remain inside that lifetime.                                                           |
-| Saved baseline                 | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                        |
-| Authoritative current Markdown | Exact content Azurite currently attributes to disk, a recovered draft, source input, or an accepted WYSIWYG document change. This is Zustand's `currentMarkdown`.                                                                                           |
-| Synchronization checkpoint     | A controller-local pair: exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes. |
-| Latest WYSIWYG projection      | The most recent projection accepted or synchronously read from the active Crepe instance. It suppresses duplicate listener and transition commits without replacing the synchronization checkpoint.                                                         |
-| Accepted content change        | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.              |
-| Synchronization                | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Synchronization never becomes dirty by itself.                                                                           |
-| Handoff freeze                 | A React-owned, temporary non-interactive state entered after the outgoing editor's live Markdown is committed and before a destructive asynchronous note/route transition waits for durability. It prevents new input from appearing in a session that is already being handed off.                           |
-| Durability gate                | The result required before an in-app note/route transition may supersede dirty authority: either the editor is clean or the exact current dirty Markdown was written successfully to its scoped draft. An unavailable dirty-draft write fails the gate.                                                        |
-| Legacy ambiguous draft         | A valid draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite preserves it because automatic classification could delete real work.                                        |
+| Term                           | Meaning                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor session                 | One store-owned editing lifetime identified by `sessionKey`. It owns at most one Crepe instance. Ordinary Markdown, mode, recovery, draft, and save-status rerenders remain inside that lifetime.                                                                                   |
+| Saved baseline                 | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                                                |
+| Authoritative current Markdown | Exact content Azurite currently attributes to disk, a recovered draft, source input, or an accepted WYSIWYG document change. This is Zustand's `currentMarkdown`.                                                                                                                   |
+| Synchronization checkpoint     | A controller-local pair: exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes.                         |
+| Latest WYSIWYG projection      | The most recent projection accepted or synchronously read from the active Crepe instance. It suppresses duplicate listener and transition commits without replacing the synchronization checkpoint.                                                                                 |
+| Accepted content change        | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.                                      |
+| Synchronization                | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Synchronization never becomes dirty by itself.                                                                                                   |
+| Handoff freeze                 | A React-owned, temporary non-interactive state entered after the outgoing editor's live Markdown is committed and before a destructive asynchronous note/route transition waits for durability. It prevents new input from appearing in a session that is already being handed off. |
+| Durability gate                | The result required before an in-app note/route transition may supersede dirty authority: either the editor is clean or the exact current dirty Markdown was written successfully to its scoped draft. An unavailable dirty-draft write fails the gate.                             |
+| Legacy ambiguous draft         | A valid draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite preserves it because automatic classification could delete real work.                                                                |
 
 ### Required Transitions
 
@@ -220,6 +235,10 @@ not create competing definitions.
      gate before starting the store action that may eventually replace the
      session. The outgoing editor remains mounted but cannot accept pointer,
      keyboard, touch, or IME input while the gate or note read is pending.
+   - Resolve same-note selection as a no-op before entering the handoff freeze.
+     While one handoff is pending for a session, additional destructive requests
+     reuse that gate and preserve the latest requested route target; they do not
+     close, unfreeze, or recommit the outgoing controller independently.
    - Continue a destructive transition only when the outgoing content is clean or
      the exact dirty authority has been written successfully to its scoped draft.
      Once the gate succeeds, close the outgoing controller before starting the
@@ -448,6 +467,9 @@ Implementation requirements:
   editor surface, resolve the typed dirty-draft durability result, close the
   controller, and only then start the existing asynchronous store transition.
   Prevent pointer, keyboard, touch, and IME editing while frozen.
+- Keep one handoff operation per `sessionKey`. Same-note selection returns before
+  freezing, while overlapping note/history requests reuse the active gate and
+  hand the latest route target to the existing stale-request ownership logic.
 - Change the pending-draft flush boundary to return whether current authority is
   `clean`, `durable`, or `unavailable`. A dirty `unavailable` result cancels
   selection/history synchronization and unfreezes the same editor session.
@@ -541,6 +563,9 @@ Implementation requirements:
 - Add a deferred-note-read case that holds the replacement response, proves the
   outgoing editor is non-interactive after its commit, resolves inside the
   listener debounce window, and confirms the exact committed edit is durable.
+- Prove same-note selection never freezes or closes the active controller, and
+  overlapping frozen note/history requests reuse one gate and finish on the
+  latest route target without reactivating the outgoing editor.
 - Simulate unavailable dirty-draft persistence for sidebar selection and
   Back/Forward. Prove the store transition does not start, the URL remains or is
   restored to the active note, the same editor and Undo history are unfrozen,
@@ -720,9 +745,9 @@ production preview:
    unavailable, failure is visible, and no content callback/draft is invented.
    Run this harness through Vite development and its optimized harness build.
 10. Make one deliberate WYSIWYG edit and switch immediately to Markdown; confirm
-   the edit is present, dirty, recoverable, saveable, and durable. Record any
-   broader Milkdown syntax normalization honestly as the accepted real-edit
-   boundary.
+    the edit is present, dirty, recoverable, saveable, and durable. Record any
+    broader Milkdown syntax normalization honestly as the accepted real-edit
+    boundary.
 11. Repeat an immediate WYSIWYG edit before Save, sidebar selection, Back,
     Forward, reload, `visibilitychange`, and `pagehide`; confirm the public
     pre-transition commit runs before the old session is destroyed and the edit
