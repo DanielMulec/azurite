@@ -1,54 +1,55 @@
 import {
-  listWorkspaceNotes,
-  NoteResolutionError,
-  NoteWriteError,
   readOrCreateClusterIdentity,
   readWorkspaceNote,
   writeWorkspaceNote,
-  WorkspaceResolutionError,
 } from "@azurite/core";
 import {
   apiErrorCodes,
   apiQueryParameters,
   apiRoutes,
-  createApiErrorResponse,
-  listNotesResponseSchema,
   noteIdInputSchema,
   readNoteResponseSchema,
+  runtimeObservabilityAttributeNames as attributeNames,
+  runtimeObservabilityEventNames as eventNames,
+  runtimeResultStatuses as results,
+  runtimeSpanNames,
   saveNoteInputSchema,
   saveNoteResponseSchema,
-  type ApiErrorResponse,
+  type ApiErrorCode,
+  type ClusterIdentity,
+  type RuntimeObservabilityAttributes,
   type SaveNoteInput,
 } from "@azurite/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import {
+  createServerRouteAttributes,
+  readSafeApiErrorCode,
+  recordServerRouteResult,
+  runServerNoteRoute,
+} from "./note-route-observability.js";
+import { registerNotesListRoute } from "./notes-list-route.js";
+import {
+  createReadNoteError,
+  createSaveNoteError,
+  invalidNoteIdError,
+  invalidNoteSaveError,
+  isUnexpectedNoteRouteError,
+  type SafeNoteRouteError,
+  workspaceNotConfiguredError,
+} from "./notes-route-errors.js";
 import type { ServerOptions } from "./server-options.js";
-
-type SafeErrorResult = {
-  readonly body: ApiErrorResponse;
-  readonly statusCode: number;
-};
 
 type NoteContentQuery = Partial<
   Record<typeof apiQueryParameters.noteId, unknown>
 >;
-
 type NoteContentRequest = FastifyRequest<{
   readonly Querystring: NoteContentQuery;
 }>;
-
-type SaveNoteRequest = FastifyRequest<{
-  readonly Body: unknown;
-}>;
-
+type SaveNoteRequest = FastifyRequest<{ readonly Body: unknown }>;
 type NotesRouteContext = {
   readonly options: ServerOptions;
   readonly server: FastifyInstance;
-};
-
-type ReadNoteRequest = {
-  readonly noteId: string;
-  readonly workspacePath: string;
 };
 
 /** Registers note API routes while keeping filesystem work inside core. */
@@ -57,320 +58,304 @@ export function registerNotesRoute(
   options: ServerOptions,
 ): void {
   const context = { options, server };
-
-  registerNoteListRoute(context);
-  registerNoteContentRoute(context);
-}
-
-function registerNoteListRoute(context: NotesRouteContext): void {
-  context.server.get(apiRoutes.notes, async (_request, reply) =>
-    handleNoteListRequest(context, reply),
-  );
-}
-
-function registerNoteContentRoute(context: NotesRouteContext): void {
-  context.server.get<{ Querystring: NoteContentQuery }>(
+  registerNotesListRoute(server, options);
+  server.get<{ Querystring: NoteContentQuery }>(
     apiRoutes.noteContent,
-    async (request, reply) => handleNoteContentRequest(context, request, reply),
+    async (request, reply) => handleNoteReadRequest(context, request, reply),
   );
-  context.server.put<{ Body: unknown }>(
-    apiRoutes.noteContent,
-    async (request, reply) => handleSaveNoteRequest(context, request, reply),
+  server.put<{ Body: unknown }>(apiRoutes.noteContent, async (request, reply) =>
+    handleNoteSaveRequest(context, request, reply),
   );
 }
 
-async function handleNoteListRequest(
-  context: NotesRouteContext,
-  reply: FastifyReply,
-) {
-  if (context.options.workspacePath === undefined) {
-    return sendWorkspaceNotConfigured(reply);
-  }
-
-  try {
-    const clusterIdentity = await readOrCreateClusterIdentity(
-      context.options.workspacePath,
-    );
-    const notes = await listWorkspaceNotes(context.options.workspacePath);
-    return await reply.send(
-      listNotesResponseSchema.parse({ clusterIdentity, notes }),
-    );
-  } catch (error) {
-    const safeError = createDiscoveryError(error);
-    context.server.log.error({ error }, "Failed to list workspace notes.");
-    return reply.status(safeError.statusCode).send(safeError.body);
-  }
-}
-
-async function handleNoteContentRequest(
+function handleNoteReadRequest(
   context: NotesRouteContext,
   request: NoteContentRequest,
   reply: FastifyReply,
 ) {
-  const workspacePath = context.options.workspacePath;
-
-  if (workspacePath === undefined) {
-    return sendWorkspaceNotConfigured(reply);
-  }
-
   const noteId = parseNoteIdQuery(request.query);
+  const startedAt = performance.now();
+  const startAttributes = createServerRouteAttributes(
+    request,
+    "GET",
+    apiRoutes.noteContent,
+    {
+      [attributeNames.noteId]: noteId,
+      [attributeNames.resultStatus]: results.started,
+    },
+  );
+  return runServerNoteRoute(
+    request,
+    {
+      attributes: startAttributes,
+      eventName: eventNames.noteReadStarted,
+      spanName: runtimeSpanNames.noteRead,
+    },
+    async () => {
+      if (context.options.workspacePath === undefined) {
+        return sendReadError(
+          request,
+          reply,
+          workspaceNotConfiguredError(),
+          startedAt,
+        );
+      }
+      if (noteId === undefined) {
+        return sendReadError(request, reply, invalidNoteIdError(), startedAt);
+      }
 
-  if (noteId === undefined) {
-    return sendInvalidNoteId(reply);
-  }
-
-  return sendNoteContent(context, reply, { noteId, workspacePath });
+      try {
+        const clusterIdentity = await readOrCreateClusterIdentity(
+          context.options.workspacePath,
+        );
+        const note = await readWorkspaceNote(
+          context.options.workspacePath,
+          noteId,
+        );
+        recordServerRouteResult(
+          request,
+          eventNames.noteReadSucceeded,
+          terminalAttributes(startedAt, 200, results.succeeded, {
+            ...clusterAttributes(clusterIdentity),
+            [attributeNames.contentHash]: note.contentHash,
+            [attributeNames.markdownLength]: note.markdown.length,
+            [attributeNames.noteId]: note.id,
+          }),
+        );
+        return await reply.send(
+          readNoteResponseSchema.parse({ clusterIdentity, note }),
+        );
+      } catch (error) {
+        const safeError = createReadNoteError(error);
+        if (safeError.statusCode >= 500) {
+          context.server.log.error({ error }, "Failed to read workspace note.");
+        }
+        return sendReadError(
+          request,
+          reply,
+          safeError,
+          startedAt,
+          error,
+          noteId,
+        );
+      }
+    },
+  );
 }
 
-async function handleSaveNoteRequest(
+function handleNoteSaveRequest(
   context: NotesRouteContext,
   request: SaveNoteRequest,
   reply: FastifyReply,
 ) {
-  const workspacePath = context.options.workspacePath;
-
-  if (workspacePath === undefined) {
-    return sendWorkspaceNotConfigured(reply);
-  }
-
   const saveInput = parseSaveNoteBody(request.body);
+  const startedAt = performance.now();
+  const startAttributes = createServerRouteAttributes(
+    request,
+    "PUT",
+    apiRoutes.noteContent,
+    {
+      [attributeNames.expectedContentHash]: saveInput?.expectedContentHash,
+      [attributeNames.noteId]: saveInput?.noteId,
+      [attributeNames.resultStatus]: results.started,
+    },
+  );
+  return runServerNoteRoute(
+    request,
+    {
+      attributes: startAttributes,
+      eventName: eventNames.noteSaveStarted,
+      spanName: runtimeSpanNames.noteSave,
+    },
+    async () => {
+      if (context.options.workspacePath === undefined) {
+        return sendSaveError(
+          request,
+          reply,
+          workspaceNotConfiguredError(),
+          startedAt,
+          saveInput,
+        );
+      }
+      if (saveInput === undefined) {
+        return sendSaveError(
+          request,
+          reply,
+          invalidNoteSaveError(),
+          startedAt,
+          saveInput,
+        );
+      }
 
-  if (saveInput === undefined) {
-    return sendInvalidNoteSave(reply);
-  }
-
-  return sendSavedNote(context, reply, { saveInput, workspacePath });
+      try {
+        const clusterIdentity = await readOrCreateClusterIdentity(
+          context.options.workspacePath,
+        );
+        const note = await writeWorkspaceNote(
+          context.options.workspacePath,
+          saveInput,
+        );
+        recordServerRouteResult(
+          request,
+          eventNames.noteSaveSucceeded,
+          terminalAttributes(startedAt, 200, results.succeeded, {
+            ...clusterAttributes(clusterIdentity),
+            [attributeNames.contentHash]: note.contentHash,
+            [attributeNames.noteId]: note.id,
+          }),
+        );
+        return await reply.send(
+          saveNoteResponseSchema.parse({ clusterIdentity, note }),
+        );
+      } catch (error) {
+        const safeError = createSaveNoteError(error);
+        if (safeError.statusCode >= 500) {
+          context.server.log.error({ error }, "Failed to save workspace note.");
+        }
+        return sendSaveError(
+          request,
+          reply,
+          safeError,
+          startedAt,
+          saveInput,
+          error,
+        );
+      }
+    },
+  );
 }
 
-async function sendNoteContent(
-  context: NotesRouteContext,
+function sendReadError(
+  request: FastifyRequest,
   reply: FastifyReply,
-  request: ReadNoteRequest,
+  safeError: SafeNoteRouteError,
+  startedAt: number,
+  error?: unknown,
+  noteId?: string,
 ) {
-  try {
-    const clusterIdentity = await readOrCreateClusterIdentity(
-      request.workspacePath,
-    );
-    const note = await readWorkspaceNote(request.workspacePath, request.noteId);
-    return await reply.send(
-      readNoteResponseSchema.parse({ clusterIdentity, note }),
-    );
-  } catch (error) {
-    const safeError = createReadNoteError(error);
-    logUnexpectedReadNoteError(context.server, error, safeError);
-    return reply.status(safeError.statusCode).send(safeError.body);
-  }
+  const code = readSafeApiErrorCode(safeError.body);
+  const status =
+    code === apiErrorCodes.invalidNoteId
+      ? results.invalid
+      : code === apiErrorCodes.noteNotFound
+        ? results.notFound
+        : results.failed;
+  const eventName =
+    status === results.invalid
+      ? eventNames.noteReadInvalid
+      : status === results.notFound
+        ? eventNames.noteReadNotFound
+        : eventNames.noteReadFailed;
+  return sendRouteError(
+    request,
+    reply,
+    eventName,
+    safeError,
+    startedAt,
+    error,
+    { [attributeNames.noteId]: noteId },
+    status,
+  );
 }
 
-async function sendSavedNote(
-  context: NotesRouteContext,
+function sendSaveError(
+  request: FastifyRequest,
   reply: FastifyReply,
-  request: SaveNoteRouteRequest,
+  safeError: SafeNoteRouteError,
+  startedAt: number,
+  saveInput: SaveNoteInput | undefined,
+  error?: unknown,
 ) {
-  try {
-    const clusterIdentity = await readOrCreateClusterIdentity(
-      request.workspacePath,
-    );
-    const note = await writeWorkspaceNote(
-      request.workspacePath,
-      request.saveInput,
-    );
-    return await reply.send(
-      saveNoteResponseSchema.parse({ clusterIdentity, note }),
-    );
-  } catch (error) {
-    const safeError = createSaveNoteError(error);
-    logUnexpectedSaveNoteError(context.server, error, safeError);
-    return reply.status(safeError.statusCode).send(safeError.body);
+  const code = readSafeApiErrorCode(safeError.body);
+  const [eventName, status] = saveErrorEvent(code);
+  return sendRouteError(
+    request,
+    reply,
+    eventName,
+    safeError,
+    startedAt,
+    error,
+    {
+      [attributeNames.expectedContentHash]: saveInput?.expectedContentHash,
+      [attributeNames.noteId]: saveInput?.noteId,
+    },
+    status,
+  );
+}
+
+function sendRouteError(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  eventName: string,
+  safeError: SafeNoteRouteError,
+  startedAt: number,
+  error?: unknown,
+  extra: RuntimeObservabilityAttributes = {},
+  status: string = results.failed,
+) {
+  const code = readSafeApiErrorCode(safeError.body);
+  recordServerRouteResult(
+    request,
+    eventName,
+    terminalAttributes(startedAt, safeError.statusCode, status, {
+      ...extra,
+      [attributeNames.apiErrorCode]: code,
+    }),
+    error !== undefined && isUnexpectedNoteRouteError(code) ? error : undefined,
+  );
+  return reply.status(safeError.statusCode).send(safeError.body);
+}
+
+function saveErrorEvent(code: ApiErrorCode): readonly [string, string] {
+  if (
+    code === apiErrorCodes.invalidNoteId ||
+    code === apiErrorCodes.invalidNoteSave
+  ) {
+    return [eventNames.noteSaveInvalid, results.invalid];
   }
+  if (code === apiErrorCodes.noteNotFound) {
+    return [eventNames.noteSaveNotFound, results.notFound];
+  }
+  if (code === apiErrorCodes.noteWriteConflict) {
+    return [eventNames.noteSaveConflicted, results.conflicted];
+  }
+  return [eventNames.noteSaveFailed, results.failed];
+}
+
+function terminalAttributes(
+  startedAt: number,
+  statusCode: number,
+  resultStatus: string,
+  attributes: RuntimeObservabilityAttributes = {},
+): RuntimeObservabilityAttributes {
+  return {
+    ...attributes,
+    [attributeNames.durationMs]: Math.max(0, performance.now() - startedAt),
+    [attributeNames.httpResponseStatusCode]: statusCode,
+    [attributeNames.resultStatus]: resultStatus,
+  };
+}
+
+function clusterAttributes(
+  identity: ClusterIdentity,
+): RuntimeObservabilityAttributes {
+  return identity.status === "ready"
+    ? {
+        [attributeNames.clusterId]: identity.clusterId,
+        [attributeNames.clusterIdentityStatus]: identity.status,
+      }
+    : {
+        [attributeNames.clusterIdentityReason]: identity.reason,
+        [attributeNames.clusterIdentityStatus]: identity.status,
+      };
 }
 
 function parseNoteIdQuery(query: NoteContentQuery): string | undefined {
-  const parsedInput = noteIdInputSchema.safeParse(query);
-
-  if (!parsedInput.success) {
-    return undefined;
-  }
-
-  return parsedInput.data.noteId;
+  const parsed = noteIdInputSchema.safeParse(query);
+  return parsed.success ? parsed.data.noteId : undefined;
 }
 
 function parseSaveNoteBody(body: unknown): SaveNoteInput | undefined {
-  const parsedInput = saveNoteInputSchema.safeParse(body);
-
-  if (!parsedInput.success) {
-    return undefined;
-  }
-
-  return parsedInput.data;
+  const parsed = saveNoteInputSchema.safeParse(body);
+  return parsed.success ? parsed.data : undefined;
 }
-
-function sendWorkspaceNotConfigured(reply: FastifyReply) {
-  return reply
-    .status(500)
-    .send(
-      createApiErrorResponse(
-        apiErrorCodes.workspaceNotConfigured,
-        "Workspace path is not configured.",
-      ),
-    );
-}
-
-function sendInvalidNoteId(reply: FastifyReply) {
-  return reply
-    .status(400)
-    .send(
-      createApiErrorResponse(
-        apiErrorCodes.invalidNoteId,
-        "Note ID must be a relative markdown path.",
-      ),
-    );
-}
-
-function sendInvalidNoteSave(reply: FastifyReply) {
-  return reply
-    .status(400)
-    .send(
-      createApiErrorResponse(
-        apiErrorCodes.invalidNoteSave,
-        "Save request must include a note ID, markdown, and content hash.",
-      ),
-    );
-}
-
-function createDiscoveryError(error: unknown): SafeErrorResult {
-  if (error instanceof WorkspaceResolutionError) {
-    return {
-      body: createApiErrorResponse(
-        apiErrorCodes.invalidWorkspace,
-        "Configured workspace path is not a readable directory.",
-      ),
-      statusCode: 500,
-    };
-  }
-
-  return {
-    body: createApiErrorResponse(
-      apiErrorCodes.noteDiscoveryFailed,
-      "Unable to list workspace notes.",
-    ),
-    statusCode: 500,
-  };
-}
-
-function createReadNoteError(error: unknown): SafeErrorResult {
-  if (error instanceof WorkspaceResolutionError) {
-    return {
-      body: createApiErrorResponse(
-        apiErrorCodes.invalidWorkspace,
-        "Configured workspace path is not a readable directory.",
-      ),
-      statusCode: 500,
-    };
-  }
-
-  if (error instanceof NoteResolutionError) {
-    return createNoteResolutionError(error);
-  }
-
-  return {
-    body: createApiErrorResponse(
-      apiErrorCodes.noteReadFailed,
-      "Unable to read workspace note.",
-    ),
-    statusCode: 500,
-  };
-}
-
-function createSaveNoteError(error: unknown): SafeErrorResult {
-  if (error instanceof WorkspaceResolutionError) {
-    return {
-      body: createApiErrorResponse(
-        apiErrorCodes.invalidWorkspace,
-        "Configured workspace path is not a readable directory.",
-      ),
-      statusCode: 500,
-    };
-  }
-
-  return createSaveNoteFileError(error);
-}
-
-function createSaveNoteFileError(error: unknown): SafeErrorResult {
-  if (error instanceof NoteResolutionError) {
-    return createNoteResolutionError(error);
-  }
-
-  if (error instanceof NoteWriteError) {
-    return createNoteWriteError(error);
-  }
-
-  return {
-    body: createApiErrorResponse(
-      apiErrorCodes.noteWriteFailed,
-      "Unable to save workspace note.",
-    ),
-    statusCode: 500,
-  };
-}
-
-function createNoteResolutionError(
-  error: NoteResolutionError,
-): SafeErrorResult {
-  if (error.code === apiErrorCodes.invalidNoteId) {
-    return {
-      body: createApiErrorResponse(
-        apiErrorCodes.invalidNoteId,
-        "Note ID must be a relative markdown path.",
-      ),
-      statusCode: 400,
-    };
-  }
-
-  return {
-    body: createApiErrorResponse(
-      apiErrorCodes.noteNotFound,
-      "Requested note was not found.",
-    ),
-    statusCode: 404,
-  };
-}
-
-function createNoteWriteError(error: NoteWriteError): SafeErrorResult {
-  return {
-    body: createApiErrorResponse(
-      error.code,
-      "The note changed on disk before Azurite could save it.",
-    ),
-    statusCode: 409,
-  };
-}
-
-function logUnexpectedReadNoteError(
-  server: FastifyInstance,
-  error: unknown,
-  safeError: SafeErrorResult,
-): void {
-  if (safeError.statusCode < 500) {
-    return;
-  }
-
-  server.log.error({ error }, "Failed to read workspace note.");
-}
-
-function logUnexpectedSaveNoteError(
-  server: FastifyInstance,
-  error: unknown,
-  safeError: SafeErrorResult,
-): void {
-  if (safeError.statusCode < 500) {
-    return;
-  }
-
-  server.log.error({ error }, "Failed to save workspace note.");
-}
-
-type SaveNoteRouteRequest = {
-  readonly saveInput: SaveNoteInput;
-  readonly workspacePath: string;
-};

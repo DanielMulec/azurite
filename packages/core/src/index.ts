@@ -1,6 +1,7 @@
 export * from "./cluster-metadata.js";
 export * from "./content-hash.js";
 export * from "./discover-markdown-files.js";
+export * from "./keyed-task-coordinator.js";
 export * from "./note-id-resolution.js";
 export * from "./note-metadata.js";
 export * from "./note-summaries.js";

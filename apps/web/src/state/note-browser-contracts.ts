@@ -1,4 +1,5 @@
 import type {
+  ApiRequestMetadata,
   ListNotesResponse,
   ReadNoteResponse,
   SaveNoteInput,
@@ -8,13 +9,38 @@ import type { StoreApi } from "zustand/vanilla";
 
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type { EditorSession } from "./note-browser-types.js";
 import type { NoteBrowserSnapshot } from "./note-browser-types.js";
+
+/** Ephemeral ownership for one in-flight note load. */
+export type ActiveNoteLoad = {
+  readonly metadata: ApiRequestMetadata;
+  readonly noteId: string;
+  readonly promise: Promise<void>;
+  readonly requestSequence: number;
+  readonly routeSource: string;
+};
+
+/** Ephemeral ownership for one in-flight manual save. */
+export type ActiveNoteSave = {
+  readonly editor: EditorSession;
+  readonly metadata: ApiRequestMetadata;
+  readonly promise: Promise<void>;
+};
 
 /** Server API boundary used by the note browser store actions. */
 export type NoteBrowserApi = {
-  readonly listNotes: () => Promise<ListNotesResponse>;
-  readonly readNote: (noteId: string) => Promise<ReadNoteResponse>;
-  readonly saveNote: (input: SaveNoteInput) => Promise<SaveNoteResponse>;
+  readonly listNotes: (
+    metadata: ApiRequestMetadata,
+  ) => Promise<ListNotesResponse>;
+  readonly readNote: (
+    noteId: string,
+    metadata: ApiRequestMetadata,
+  ) => Promise<ReadNoteResponse>;
+  readonly saveNote: (
+    input: SaveNoteInput,
+    metadata: ApiRequestMetadata,
+  ) => Promise<SaveNoteResponse>;
 };
 
 /** Router adapter used by store actions without importing router internals. */
@@ -45,15 +71,27 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
 export type StoreContext = {
   readonly api: NoteBrowserApi;
   readonly draftPersistence: DraftPersistence;
+  readonly clearActiveNoteLoad: (promise: Promise<void>) => void;
+  readonly clearActiveNoteSave: (
+    noteId: string,
+    promise: Promise<void>,
+  ) => void;
   readonly get: () => NoteBrowserStore;
+  readonly getActiveNoteLoad: (noteId: string) => ActiveNoteLoad | undefined;
+  readonly getActiveNoteSave: (noteId: string) => ActiveNoteSave | undefined;
   readonly getLatestRouteNoteId: () => string | undefined;
-  readonly isCurrentNoteRequest: (requestId: number, noteId: string) => boolean;
-  readonly isCurrentNotesRequest: (requestId: number) => boolean;
+  readonly isCurrentNoteRequest: (
+    requestSequence: number,
+    noteId: string,
+  ) => boolean;
+  readonly isCurrentNotesRequest: (requestSequence: number) => boolean;
   readonly nextEditorSessionKey: (
     noteId: string,
     contentHash: string,
   ) => string;
-  readonly nextNoteRequestId: () => number;
-  readonly nextNotesRequestId: () => number;
+  readonly nextNoteRequestSequence: () => number;
+  readonly nextNotesRequestSequence: () => number;
   readonly set: StoreApi<NoteBrowserStore>["setState"];
+  readonly setActiveNoteLoad: (load: ActiveNoteLoad) => void;
+  readonly setActiveNoteSave: (noteId: string, save: ActiveNoteSave) => void;
 };

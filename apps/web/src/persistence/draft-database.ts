@@ -33,6 +33,14 @@ export type DraftWriteResult =
       readonly status: "unavailable";
     };
 
+/** Snapshot that a successful save may remove only when it still matches. */
+export type SavedDraftSnapshot = {
+  readonly baseContentHash: string;
+  readonly clusterId: string;
+  readonly markdown: string;
+  readonly noteId: string;
+};
+
 /** Dexie database that owns Azurite's browser-local durable state. */
 export class AzuriteBrowserDatabase extends Dexie {
   drafts!: Table<DraftRecord, string>;
@@ -51,6 +59,9 @@ export type DraftPersistence = {
     clusterId: string,
     noteId: string,
   ) => Promise<DraftWriteResult>;
+  readonly deleteDraftIfSavedSnapshotMatches: (
+    snapshot: SavedDraftSnapshot,
+  ) => Promise<DraftWriteResult>;
   readonly readDraft: (
     clusterId: string,
     noteId: string,
@@ -67,9 +78,55 @@ export function createDraftPersistence(
   return {
     deleteDraft: (clusterId, noteId) =>
       deleteDraft(database, clusterId, noteId),
+    deleteDraftIfSavedSnapshotMatches: (snapshot) =>
+      deleteDraftIfSavedSnapshotMatches(database, snapshot),
     readDraft: (clusterId, noteId) => readDraft(database, clusterId, noteId),
     writeDraft: (draft) => writeDraft(database, draft),
   };
+}
+
+async function deleteDraftIfSavedSnapshotMatches(
+  database: AzuriteBrowserDatabase,
+  snapshot: SavedDraftSnapshot,
+): Promise<DraftWriteResult> {
+  const draftId = createDraftRecordId(snapshot.clusterId, snapshot.noteId);
+
+  try {
+    await database.transaction("rw", database.drafts, async () => {
+      const storedDraft: unknown = await database.drafts.get(draftId);
+      const validation = validateStoredDraftRecord(storedDraft);
+      if (isMatchingSavedDraft(validation, snapshot)) {
+        await database.drafts.delete(draftId);
+      }
+    });
+    return { status: "ok" };
+  } catch (error) {
+    return unavailableDraftWriteResult(classifyPersistenceError(error));
+  }
+}
+
+function isMatchingSavedDraft(
+  validation: ReturnType<typeof validateStoredDraftRecord>,
+  snapshot: SavedDraftSnapshot,
+): boolean {
+  if (validation.status !== "valid") {
+    return false;
+  }
+  return matchesSavedSnapshot(validation.record, snapshot);
+}
+
+function matchesSavedSnapshot(
+  draft: DraftRecord,
+  snapshot: SavedDraftSnapshot,
+): boolean {
+  if (draft.baseContentHash !== snapshot.baseContentHash) {
+    return false;
+  }
+  return normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown);
+}
+
+function normalizeMarkdown(markdown: string): string {
+  return markdown.replace(/\r\n/g, "\n");
 }
 
 async function readDraft(

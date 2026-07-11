@@ -1,156 +1,319 @@
 import {
   apiErrorResponseSchema,
   apiRoutes,
+  correlationHeaderNames,
   createNoteContentRoute,
   createSaveNoteRoute,
   listNotesResponseSchema,
   readNoteResponseSchema,
+  runtimeObservabilityAttributeNames,
+  runtimeObservabilityEventNames,
+  runtimeResultStatuses,
+  runtimeSpanNames,
+  runtimeSpanOperations,
   saveNoteResponseSchema,
   type ApiErrorCode,
+  type ApiRequestMetadata,
   type ListNotesResponse,
   type ReadNoteResponse,
+  type RuntimeObservabilityAttributes,
+  type RuntimeObservabilityEvent,
   type SaveNoteInput,
   type SaveNoteResponse,
 } from "@azurite/shared";
+import type { z } from "zod";
 
+import {
+  captureWebRuntimeError,
+  recordWebRuntimeEvent,
+  runWebRuntimeSpan,
+} from "./observability/web-runtime-observability.js";
+
+type WebApiFailureKind = "api_response" | "invalid_response" | "network";
 type WebApiErrorOptions = {
   readonly code?: ApiErrorCode;
+  readonly failureKind?: WebApiFailureKind;
   readonly statusCode?: number;
 };
 
 /** Error type used by the web app for safe user-facing API failures. */
 export class WebApiError extends Error {
   readonly code: ApiErrorCode | undefined;
+  readonly failureKind: WebApiFailureKind;
   readonly statusCode: number | undefined;
 
   constructor(message: string, options: WebApiErrorOptions = {}) {
     super(message);
     this.code = options.code;
+    this.failureKind = options.failureKind ?? "invalid_response";
     this.statusCode = options.statusCode;
     this.name = "WebApiError";
   }
 }
 
 /** Lists note summaries from the configured local Azurite workspace. */
-export async function listNotes(): Promise<ListNotesResponse> {
-  const payload = await requestJson(apiRoutes.notes);
-  const parsedPayload = listNotesResponseSchema.safeParse(payload);
-
-  if (!parsedPayload.success) {
-    throw createInvalidPayloadError();
-  }
-
-  return parsedPayload.data;
+export function listNotes(
+  metadata: ApiRequestMetadata,
+): Promise<ListNotesResponse> {
+  return requestJson(apiRoutes.notes, "GET", metadata, listNotesResponseSchema);
 }
 
 /** Reads one markdown note from the configured local Azurite workspace. */
-export async function readNote(noteId: string): Promise<ReadNoteResponse> {
-  const payload = await requestJson(createNoteContentRoute(noteId));
-  const parsedPayload = readNoteResponseSchema.safeParse(payload);
-
-  if (!parsedPayload.success) {
-    throw createInvalidPayloadError();
-  }
-
-  return parsedPayload.data;
+export function readNote(
+  noteId: string,
+  metadata: ApiRequestMetadata,
+): Promise<ReadNoteResponse> {
+  return requestJson(
+    createNoteContentRoute(noteId),
+    "GET",
+    metadata,
+    readNoteResponseSchema,
+    apiRoutes.noteContent,
+  );
 }
 
 /** Saves one existing markdown note through the local Azurite API. */
-export async function saveNote(
+export function saveNote(
   input: SaveNoteInput,
+  metadata: ApiRequestMetadata,
 ): Promise<SaveNoteResponse> {
-  const payload = await requestJson(createSaveNoteRoute(), {
-    body: JSON.stringify(input),
-    method: "PUT",
-  });
-  const parsedPayload = saveNoteResponseSchema.safeParse(payload);
-
-  if (!parsedPayload.success) {
-    throw createInvalidPayloadError();
-  }
-
-  return parsedPayload.data;
+  return requestJson(
+    createSaveNoteRoute(),
+    "PUT",
+    metadata,
+    saveNoteResponseSchema,
+    apiRoutes.noteContent,
+    JSON.stringify(input),
+  );
 }
 
-async function requestJson(
-  routePath: string,
-  request: JsonRequest = {},
-): Promise<unknown> {
+function requestJson<Schema extends z.ZodType>(
+  requestPath: string,
+  method: "GET" | "PUT",
+  metadata: ApiRequestMetadata,
+  schema: Schema,
+  routePattern = requestPath,
+  body?: string,
+): Promise<z.infer<Schema>> {
+  const startedAt = performance.now();
+  const startAttributes = createRequestAttributes(
+    metadata,
+    method,
+    routePattern,
+  );
+  recordWebRuntimeEvent(
+    createApiEvent(
+      runtimeObservabilityEventNames.apiRequestStarted,
+      startAttributes,
+      metadata,
+    ),
+  );
+
+  return runWebRuntimeSpan(
+    {
+      attributes: startAttributes,
+      name: runtimeObservabilityEventNames.apiRequestStarted,
+      spanName: runtimeSpanNames.apiRequest,
+      spanOperation: runtimeSpanOperations.apiRequest,
+      surface: "web",
+    },
+    async () => {
+      try {
+        const response = await fetchProductResponse(
+          requestPath,
+          createFetchRequest(body, method, metadata),
+        );
+        const payload = await parseResponse(response);
+        const parsedPayload = schema.safeParse(payload);
+
+        if (!parsedPayload.success) {
+          throw createInvalidPayloadError(response.status);
+        }
+
+        recordWebRuntimeEvent(
+          createApiEvent(
+            runtimeObservabilityEventNames.apiRequestSucceeded,
+            {
+              ...startAttributes,
+              [runtimeObservabilityAttributeNames.durationMs]:
+                elapsed(startedAt),
+              [runtimeObservabilityAttributeNames.httpResponseStatusCode]:
+                response.status,
+              [runtimeObservabilityAttributeNames.resultStatus]:
+                runtimeResultStatuses.succeeded,
+            },
+            metadata,
+          ),
+        );
+        return parsedPayload.data;
+      } catch (error) {
+        const apiError = normalizeRequestError(error);
+        const event = createApiEvent(
+          runtimeObservabilityEventNames.apiRequestFailed,
+          {
+            ...startAttributes,
+            [runtimeObservabilityAttributeNames.apiErrorCode]: apiError.code,
+            [runtimeObservabilityAttributeNames.durationMs]: elapsed(startedAt),
+            [runtimeObservabilityAttributeNames.httpResponseStatusCode]:
+              apiError.statusCode,
+            [runtimeObservabilityAttributeNames.resultStatus]:
+              runtimeResultStatuses.failed,
+          },
+          metadata,
+          apiError.code,
+        );
+
+        if (apiError.failureKind === "api_response") {
+          recordWebRuntimeEvent(event);
+        } else {
+          captureWebRuntimeError(apiError, event);
+        }
+        throw apiError;
+      }
+    },
+  );
+}
+
+async function fetchProductResponse(
+  path: string,
+  request: RequestInit,
+): Promise<Response> {
   try {
-    const response = await fetch(routePath, createFetchRequest(request));
-
-    return await parseResponse(response);
-  } catch (error) {
-    throw normalizeRequestError(error);
+    return await fetch(path, request);
+  } catch {
+    throw new WebApiError("Could not reach the local Azurite server.", {
+      failureKind: "network",
+    });
   }
 }
 
-function createFetchRequest(request: JsonRequest): RequestInit {
-  if (request.body === undefined) {
-    return {
-      headers: createRequestHeaders(request),
-    };
-  }
-
+function createFetchRequest(
+  body: string | undefined,
+  method: "GET" | "PUT",
+  metadata: ApiRequestMetadata,
+): RequestInit {
   return {
-    body: request.body,
-    headers: createRequestHeaders(request),
-    method: request.method,
+    ...(body === undefined ? {} : { body, method }),
+    headers: createRequestHeaders(body, metadata),
   };
 }
 
-function createRequestHeaders(request: JsonRequest): Record<string, string> {
-  if (request.body === undefined) {
-    return { Accept: "application/json" };
-  }
-
+function createRequestHeaders(
+  body: string | undefined,
+  metadata: ApiRequestMetadata,
+): Record<string, string> {
   return {
     Accept: "application/json",
-    "Content-Type": "application/json",
+    ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    ...(metadata.noteOperationId === undefined
+      ? {}
+      : {
+          [correlationHeaderNames.noteOperationId]: metadata.noteOperationId,
+        }),
+    ...(metadata.requestId === undefined
+      ? {}
+      : { [correlationHeaderNames.requestId]: metadata.requestId }),
   };
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
-  const payload = await readJsonPayload(response);
+  let payload: unknown;
+  try {
+    payload = (await response.json()) as unknown;
+  } catch {
+    throw createInvalidPayloadError(response.status);
+  }
 
   if (response.ok) {
     return payload;
   }
 
-  throw createHttpError(response, payload);
-}
-
-async function readJsonPayload(response: Response): Promise<unknown> {
-  return (await response.json()) as unknown;
-}
-
-function createHttpError(response: Response, payload: unknown): WebApiError {
   const parsedError = apiErrorResponseSchema.safeParse(payload);
-
   if (parsedError.success) {
-    return new WebApiError(parsedError.data.error.message, {
+    throw new WebApiError(parsedError.data.error.message, {
       code: parsedError.data.error.code,
+      failureKind: "api_response",
       statusCode: response.status,
     });
   }
 
-  return new WebApiError("Azurite returned an unexpected error response.", {
+  throw new WebApiError("Azurite returned an unexpected error response.", {
+    failureKind: "invalid_response",
     statusCode: response.status,
   });
 }
 
-function createInvalidPayloadError(): WebApiError {
-  return new WebApiError("Azurite returned an unexpected response shape.");
+function createInvalidPayloadError(statusCode?: number): WebApiError {
+  return new WebApiError("Azurite returned an unexpected response shape.", {
+    failureKind: "invalid_response",
+    ...(statusCode === undefined ? {} : { statusCode }),
+  });
 }
 
 function normalizeRequestError(error: unknown): WebApiError {
-  if (error instanceof WebApiError) {
-    return error;
-  }
-
-  return new WebApiError("Could not reach the local Azurite server.");
+  return error instanceof WebApiError
+    ? error
+    : new WebApiError("Could not reach the local Azurite server.", {
+        failureKind: "network",
+      });
 }
 
-type JsonRequest =
-  | { readonly body: string; readonly method: "PUT" }
-  | { readonly body?: undefined; readonly method?: undefined };
+function createRequestAttributes(
+  metadata: ApiRequestMetadata,
+  method: "GET" | "PUT",
+  route: string,
+): RuntimeObservabilityAttributes {
+  return {
+    [runtimeObservabilityAttributeNames.httpMethod]: method,
+    [runtimeObservabilityAttributeNames.httpRoute]: route,
+    [runtimeObservabilityAttributeNames.noteOperationId]:
+      metadata.noteOperationId,
+    [runtimeObservabilityAttributeNames.requestId]: metadata.requestId,
+    [runtimeObservabilityAttributeNames.resultStatus]:
+      runtimeResultStatuses.started,
+  };
+}
+
+function createApiEvent(
+  name: string,
+  attributes: RuntimeObservabilityAttributes,
+  metadata: ApiRequestMetadata,
+  apiErrorCode?: ApiErrorCode,
+): RuntimeObservabilityEvent {
+  const route = attributes[runtimeObservabilityAttributeNames.httpRoute];
+  const resultStatus =
+    attributes[runtimeObservabilityAttributeNames.resultStatus];
+  return {
+    attributes,
+    name,
+    surface: "web" as const,
+    tags: {
+      ...(apiErrorCode === undefined
+        ? {}
+        : { [runtimeObservabilityAttributeNames.apiErrorCode]: apiErrorCode }),
+      ...(typeof route === "string"
+        ? { [runtimeObservabilityAttributeNames.httpRoute]: route }
+        : {}),
+      ...(metadata.noteOperationId === undefined
+        ? {}
+        : {
+            [runtimeObservabilityAttributeNames.noteOperationId]:
+              metadata.noteOperationId,
+          }),
+      ...(metadata.requestId === undefined
+        ? {}
+        : {
+            [runtimeObservabilityAttributeNames.requestId]: metadata.requestId,
+          }),
+      ...(typeof resultStatus === "string"
+        ? {
+            [runtimeObservabilityAttributeNames.resultStatus]: resultStatus,
+          }
+        : {}),
+    },
+  };
+}
+
+function elapsed(startedAt: number): number {
+  return Math.max(0, performance.now() - startedAt);
+}

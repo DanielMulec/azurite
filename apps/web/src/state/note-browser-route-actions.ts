@@ -1,17 +1,13 @@
-import type { NoteContentWithHash, ReadNoteResponse } from "@azurite/shared";
+import {
+  noteRouteSources,
+  runtimeObservabilityAttributeNames,
+  runtimeObservabilityEventNames,
+  runtimeSpanNames,
+} from "@azurite/shared";
 
-import type {
-  DraftPersistenceUnavailableReason,
-  DraftReadResult,
-} from "../persistence/draft-database.js";
-import type { DraftRecord } from "../persistence/draft-records.js";
 import {
   applyClusterIdentity,
-  createEditorSession,
-  degradeDraftRecovery,
   getErrorMessage,
-  getReadyClusterId,
-  isNoteNotFoundError,
   isSelectedNoteReady,
   keepRenderedNoteWhileLoading,
 } from "./note-browser-action-utils.js";
@@ -19,9 +15,27 @@ import type {
   RouteNavigation,
   StoreContext,
 } from "./note-browser-contracts.js";
+import {
+  createBrowserOperationEvidence,
+  recordListResult,
+  recordRouteEvidence,
+  runBrowserOperation,
+  staleFailed,
+  staleSucceeded,
+  type BrowserOperationEvidence,
+} from "./note-browser-evidence.js";
+import {
+  createNoteRequestMetadata,
+  createRequestMetadata,
+} from "./note-operation-metadata.js";
+import {
+  readSelectedNote,
+  recoverMissingRouteNote,
+} from "./note-browser-read-actions.js";
 
 type SelectNoteOptions = {
   readonly forceReload?: boolean;
+  readonly routeSource?: (typeof noteRouteSources)[keyof typeof noteRouteSources];
 };
 
 type RouteSyncInput = {
@@ -31,49 +45,39 @@ type RouteSyncInput = {
   readonly routeNoteId: string | undefined;
 };
 
-type SelectedNoteRequest = {
-  readonly context: StoreContext;
-  readonly noteId: string;
-  readonly requestId: number;
-};
-
-type DraftLookupResult =
-  | {
-      readonly draft: DraftRecord | undefined;
-      readonly status: "ready";
-    }
-  | {
-      readonly reason: DraftPersistenceUnavailableReason;
-      readonly status: "unavailable";
-    };
-
 /** Loads note summaries and synchronizes the selected note from the URL. */
 export async function loadNotesAction(
   navigation: RouteNavigation,
   context: StoreContext,
 ): Promise<void> {
-  const requestId = context.nextNotesRequestId();
+  const requestSequence = context.nextNotesRequestSequence();
+  const metadata = createRequestMetadata();
+  const evidence = createBrowserOperationEvidence({
+    metadata,
+    requestSequence,
+  });
   context.set({ notesState: { status: "loading" } });
-
-  try {
-    const response = await context.api.listNotes();
-
-    if (!context.isCurrentNotesRequest(requestId)) {
-      return;
-    }
-
-    applyClusterIdentity(response.clusterIdentity, context);
-    context.set({ notesState: { data: response.notes, status: "ready" } });
-    await syncRouteNoteAction(
-      context.getLatestRouteNoteId(),
-      navigation,
-      context,
-    );
-  } catch (error) {
-    context.set({
-      notesState: { message: getErrorMessage(error), status: "error" },
-    });
-  }
+  return runBrowserOperation(
+    evidence,
+    runtimeObservabilityEventNames.notesListStarted,
+    runtimeSpanNames.notesList,
+    {},
+    async () => {
+      try {
+        const response = await context.api.listNotes(metadata);
+        if (!applyListSuccess(response, evidence, requestSequence, context)) {
+          return;
+        }
+        await syncRouteNoteAction(
+          context.getLatestRouteNoteId(),
+          navigation,
+          context,
+        );
+      } catch (error) {
+        applyListFailure(error, evidence, requestSequence, context);
+      }
+    },
+  );
 }
 
 /** Synchronizes the selected-note state from typed route search params. */
@@ -97,17 +101,58 @@ export async function syncRouteNoteAction(
 }
 
 /** Selects and loads one note while guarding against stale responses. */
-export async function selectNoteAction(
+export function selectNoteAction(
   noteId: string,
   context: StoreContext,
   options: SelectNoteOptions = {},
 ): Promise<void> {
-  if (shouldSkipNoteSelection(noteId, context, options)) {
-    return;
+  const coalescedPromise = getCoalescedLoadPromise(noteId, options, context);
+  if (coalescedPromise !== undefined) {
+    return coalescedPromise;
   }
 
-  const requestId = startNoteLoad(noteId, context);
-  await readSelectedNote(noteId, requestId, context);
+  if (shouldSkipNoteSelection(noteId, context, options)) {
+    return Promise.resolve();
+  }
+
+  const requestSequence = startNoteLoad(noteId, context);
+  const metadata = createNoteRequestMetadata();
+  const routeSource = options.routeSource ?? noteRouteSources.noteList;
+  recordSelectionRoute(noteId, routeSource);
+  const evidence = createBrowserOperationEvidence({
+    metadata,
+    noteId,
+    requestSequence,
+    routeSource,
+  });
+  const promise = runBrowserOperation(
+    evidence,
+    runtimeObservabilityEventNames.noteLoadStarted,
+    runtimeSpanNames.noteLoad,
+    { [runtimeObservabilityAttributeNames.routeSource]: routeSource },
+    () => readSelectedNote(evidence, context),
+  ).finally(() => {
+    context.clearActiveNoteLoad(promise);
+  });
+  context.setActiveNoteLoad({
+    metadata,
+    noteId,
+    promise,
+    requestSequence,
+    routeSource,
+  });
+  return promise;
+}
+
+function getCoalescedLoadPromise(
+  noteId: string,
+  options: SelectNoteOptions,
+  context: StoreContext,
+): Promise<void> | undefined {
+  if (options.forceReload === true) {
+    return undefined;
+  }
+  return context.getActiveNoteLoad(noteId)?.promise;
 }
 
 async function syncReadyRouteNote(input: RouteSyncInput): Promise<void> {
@@ -139,8 +184,11 @@ async function selectStartupNote(
     return;
   }
 
+  const selection = selectNoteAction(firstNoteId, context, {
+    routeSource: noteRouteSources.startupFallback,
+  });
   navigation.replaceSelectedNote(firstNoteId);
-  await selectNoteAction(firstNoteId, context);
+  await selection;
 }
 
 async function syncExplicitRouteNote(
@@ -149,10 +197,17 @@ async function syncExplicitRouteNote(
   context: StoreContext,
 ): Promise<void> {
   if (notes.some((note) => note.id === noteId)) {
-    await selectNoteAction(noteId, context);
+    await selectNoteAction(noteId, context, {
+      routeSource: noteRouteSources.urlSync,
+    });
     return;
   }
 
+  recordRouteEvidence(
+    runtimeObservabilityEventNames.noteRouteSynchronized,
+    noteId,
+    noteRouteSources.urlSync,
+  );
   await recoverMissingRouteNote(noteId, context);
 }
 
@@ -172,177 +227,63 @@ function shouldSkipNoteSelection(
 }
 
 function startNoteLoad(noteId: string, context: StoreContext): number {
-  const requestId = context.nextNoteRequestId();
+  const requestSequence = context.nextNoteRequestSequence();
   context.set((state) => ({
     noteState: keepRenderedNoteWhileLoading(state.noteState),
     selectedNoteId: noteId,
   }));
 
-  return requestId;
+  return requestSequence;
 }
 
-async function readSelectedNote(
-  noteId: string,
-  requestId: number,
+function recordSelectionRoute(noteId: string, routeSource: string): void {
+  const eventName = routeEventNames[routeSource];
+  if (eventName === undefined) {
+    return;
+  }
+  recordRouteEvidence(eventName, noteId, routeSource);
+}
+
+const routeEventNames: Readonly<Record<string, string | undefined>> = {
+  [noteRouteSources.noteList]:
+    runtimeObservabilityEventNames.noteRouteNavigationRequested,
+  [noteRouteSources.startupFallback]:
+    runtimeObservabilityEventNames.noteRouteNavigationRequested,
+  [noteRouteSources.urlSync]:
+    runtimeObservabilityEventNames.noteRouteSynchronized,
+};
+
+function applyListSuccess(
+  response: Awaited<ReturnType<StoreContext["api"]["listNotes"]>>,
+  evidence: BrowserOperationEvidence,
+  requestSequence: number,
   context: StoreContext,
-): Promise<void> {
-  try {
-    const response = await context.api.readNote(noteId);
-    await applySelectedNoteResponse(response, { context, noteId, requestId });
-  } catch (error) {
-    await applySelectedNoteFailure(error, { context, noteId, requestId });
+): boolean {
+  if (!context.isCurrentNotesRequest(requestSequence)) {
+    recordListResult(evidence, { staleCompletion: staleSucceeded });
+    return false;
   }
-}
-
-async function applySelectedNoteResponse(
-  response: ReadNoteResponse,
-  request: SelectedNoteRequest,
-): Promise<void> {
-  if (
-    !request.context.isCurrentNoteRequest(request.requestId, request.noteId)
-  ) {
-    return;
-  }
-
-  applyClusterIdentity(response.clusterIdentity, request.context);
-  await applyLoadedNote(response.note, request.requestId, request.context);
-}
-
-async function applySelectedNoteFailure(
-  error: unknown,
-  request: SelectedNoteRequest,
-): Promise<void> {
-  if (
-    !request.context.isCurrentNoteRequest(request.requestId, request.noteId)
-  ) {
-    return;
-  }
-
-  await applyCurrentSelectedNoteFailure(error, request);
-}
-
-async function applyCurrentSelectedNoteFailure(
-  error: unknown,
-  request: SelectedNoteRequest,
-): Promise<void> {
-  if (isNoteNotFoundError(error)) {
-    await applyMissingNoteDraft(request);
-    return;
-  }
-
-  request.context.set({
-    noteState: { message: getErrorMessage(error), status: "error" },
+  recordListResult(evidence, {
+    clusterIdentity: response.clusterIdentity,
+    noteCount: response.notes.length,
   });
+  applyClusterIdentity(response.clusterIdentity, context);
+  context.set({ notesState: { data: response.notes, status: "ready" } });
+  return true;
 }
 
-async function applyLoadedNote(
-  note: NoteContentWithHash,
-  requestId: number,
+function applyListFailure(
+  error: unknown,
+  evidence: BrowserOperationEvidence,
+  requestSequence: number,
   context: StoreContext,
-): Promise<void> {
-  const draftLookup = await readDraftForCurrentCluster(note.id, context);
-
-  if (!context.isCurrentNoteRequest(requestId, note.id)) {
+): void {
+  if (!context.isCurrentNotesRequest(requestSequence)) {
+    recordListResult(evidence, { staleCompletion: staleFailed });
     return;
   }
-
-  const draft = applyDraftLookupResult(draftLookup, context);
-
+  recordListResult(evidence, { error });
   context.set({
-    noteState: {
-      editor: createEditorSession(note, draft, context),
-      status: "ready",
-    },
+    notesState: { message: getErrorMessage(error), status: "error" },
   });
-}
-
-async function recoverMissingRouteNote(
-  noteId: string,
-  context: StoreContext,
-): Promise<void> {
-  const requestId = startMissingNoteLoad(noteId, context);
-  await applyMissingNoteDraft({ context, noteId, requestId });
-}
-
-function startMissingNoteLoad(noteId: string, context: StoreContext): number {
-  const requestId = context.nextNoteRequestId();
-  context.set((state) => ({
-    noteState: keepRenderedNoteWhileLoading(state.noteState),
-    selectedNoteId: noteId,
-  }));
-
-  return requestId;
-}
-
-async function applyMissingNoteDraft(
-  request: SelectedNoteRequest,
-): Promise<void> {
-  const draftLookup = await readDraftForCurrentCluster(
-    request.noteId,
-    request.context,
-  );
-
-  if (
-    !request.context.isCurrentNoteRequest(request.requestId, request.noteId)
-  ) {
-    return;
-  }
-
-  const draft = applyDraftLookupResult(draftLookup, request.context);
-
-  if (draft === undefined) {
-    request.context.set({
-      noteState: { noteId: request.noteId, status: "missing" },
-      selectedNoteId: request.noteId,
-    });
-    return;
-  }
-
-  request.context.set({
-    noteState: {
-      draft: {
-        editorMode: draft.editorMode,
-        markdown: draft.markdown,
-        updatedAt: draft.updatedAt,
-      },
-      noteId: request.noteId,
-      status: "missing-draft",
-    },
-    selectedNoteId: request.noteId,
-  });
-}
-
-async function readDraftForCurrentCluster(
-  noteId: string,
-  context: StoreContext,
-): Promise<DraftLookupResult> {
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
-
-  if (clusterId === undefined) {
-    return { draft: undefined, status: "ready" };
-  }
-
-  const result = await context.draftPersistence.readDraft(clusterId, noteId);
-
-  return toDraftLookupResult(result);
-}
-
-function toDraftLookupResult(result: DraftReadResult): DraftLookupResult {
-  if (result.status === "unavailable") {
-    return { reason: result.reason, status: "unavailable" };
-  }
-
-  return { draft: result.draft, status: "ready" };
-}
-
-function applyDraftLookupResult(
-  result: DraftLookupResult,
-  context: StoreContext,
-): DraftRecord | undefined {
-  if (result.status === "unavailable") {
-    degradeDraftRecovery(result.reason, context);
-    return undefined;
-  }
-
-  return result.draft;
 }

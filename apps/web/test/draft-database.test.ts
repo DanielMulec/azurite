@@ -163,6 +163,47 @@ describe("draft database scoping", () => {
   });
 });
 
+describe("successful-save draft reconciliation", () => {
+  it("deletes only an exact base-hash and normalized-markdown match", async () => {
+    const { persistence } = createTestPersistence();
+    const draft = createTestDraft({ markdown: "# Saved\r\n" });
+    await persistence.writeDraft(draft);
+
+    await expect(
+      persistence.deleteDraftIfSavedSnapshotMatches({
+        baseContentHash: draft.baseContentHash,
+        clusterId,
+        markdown: "# Saved\n",
+        noteId,
+      }),
+    ).resolves.toEqual({ status: "ok" });
+    await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
+      draft: undefined,
+      status: "ok",
+    });
+  });
+
+  it.each([
+    [{ baseContentHash: "different" }, "# Draft"],
+    [{}, "# Newer draft"],
+  ])("preserves a differing record", async (patch, savedMarkdown) => {
+    const { persistence } = createTestPersistence();
+    const draft = createTestDraft(patch);
+    await persistence.writeDraft(draft);
+
+    await persistence.deleteDraftIfSavedSnapshotMatches({
+      baseContentHash: "sha256-base",
+      clusterId,
+      markdown: savedMarkdown,
+      noteId,
+    });
+    await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
+      draft,
+      status: "ok",
+    });
+  });
+});
+
 describe("draft database failure reporting", () => {
   it("reports database, quota, blocked-upgrade, and write failures", async () => {
     await expect(

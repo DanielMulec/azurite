@@ -8,6 +8,7 @@ import {
 import { registerDevSentryTestRoute } from "./dev-sentry-test-route.js";
 import { registerNotesRoute } from "./notes-route.js";
 import { registerRuntimeTraceEvidence } from "./observability/runtime-trace-evidence.js";
+import { registerServerRequestCorrelation } from "./server-request-correlation.js";
 import {
   readServerOptionsFromEnvironment,
   type ServerOptions,
@@ -24,6 +25,7 @@ export function createServer(
     logger: true,
   });
 
+  registerServerRequestCorrelation(server);
   server.get(apiRoutes.health, () =>
     createHealthCheckResponse(currentServerVersion),
   );

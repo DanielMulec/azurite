@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  correlationHeaderNames,
   developmentRequestHeaders,
   developmentRequestHeaderValues,
   sentryTestEventMarker,
@@ -57,6 +58,12 @@ describe("web Sentry test events", () => {
         },
         method: "POST",
       });
+      expect(request?.headers).not.toHaveProperty(
+        correlationHeaderNames.requestId,
+      );
+      expect(request?.headers).not.toHaveProperty(
+        correlationHeaderNames.noteOperationId,
+      );
       return Promise.resolve(
         new Response(
           JSON.stringify({

@@ -43,11 +43,17 @@ describe("note browser store stale save success hardening", () => {
     });
     await save;
 
-    expect(api.saveNote).toHaveBeenCalledWith({
-      expectedContentHash: "sha256-home",
-      markdown: "# Home\nSaved snapshot",
-      noteId: "index.md",
-    });
+    expect(api.saveNote).toHaveBeenCalledWith(
+      {
+        expectedContentHash: "sha256-home",
+        markdown: "# Home\nSaved snapshot",
+        noteId: "index.md",
+      },
+      {
+        noteOperationId: expect.any(String),
+        requestId: expect.any(String),
+      },
+    );
     expect(store.getState().noteState).toMatchObject({
       editor: {
         baseContentHash: "sha256-saved",
@@ -67,7 +73,7 @@ describe("note browser store stale save success hardening", () => {
 });
 
 describe("note browser store stale save failure hardening", () => {
-  it("does not mark newer same-note edits failed after an older save fails", async () => {
+  it("marks the latest same-note editor failed without restoring old text", async () => {
     const drafts = createMemoryDraftPersistence();
     const saveFailure =
       createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
@@ -88,7 +94,7 @@ describe("note browser store stale save failure hardening", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: {
         currentMarkdown: "# Home\nStill typing",
-        saveStatus: "idle",
+        saveStatus: "failed",
       },
       status: "ready",
     });
@@ -131,8 +137,8 @@ describe("note browser store stale save conflict hardening", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: {
         currentMarkdown: "# Home\nNewest draft",
-        recovery: "none",
-        saveStatus: "idle",
+        recovery: "conflict",
+        saveStatus: "conflict",
       },
       status: "ready",
     });
@@ -203,6 +209,8 @@ describe("note browser store stale missing-note recovery hardening", () => {
       }),
       draftPersistence: {
         deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraftIfSavedSnapshotMatches: () =>
+          Promise.resolve({ status: "ok" }),
         readDraft: (_clusterId, noteId) =>
           noteId === "missing.md"
             ? missingDraftLookup.promise
@@ -238,6 +246,8 @@ describe("note browser store stale missing-note degradation hardening", () => {
       api: createApi(),
       draftPersistence: {
         deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraftIfSavedSnapshotMatches: () =>
+          Promise.resolve({ status: "ok" }),
         readDraft: (_clusterId, noteId) =>
           noteId === "missing.md"
             ? missingDraftLookup.promise

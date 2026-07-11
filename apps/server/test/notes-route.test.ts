@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   apiErrorCodes,
   apiRoutes,
+  correlationHeaderNames,
   createNoteContentRoute,
 } from "@azurite/shared";
 import { createContentHash } from "@azurite/core";
@@ -195,6 +196,44 @@ describe("PUT /api/notes/content success", () => {
       await expect(readFile(notePath, "utf8")).resolves.toBe("# Updated\n");
     });
   });
+
+  it("serializes concurrent same-hash requests into one success and conflict", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const notePath = path.join(workspacePath, "index.md");
+      await writeFile(notePath, "# Original\n", "utf8");
+      const server = createServer({ workspacePath });
+      const payload = {
+        expectedContentHash: createContentHash("# Original\n"),
+        markdown: "# Winner\n",
+        noteId: "index.md",
+      };
+
+      const responses = await Promise.all([
+        injectSave(server, payload, {
+          [correlationHeaderNames.noteOperationId]:
+            "30be2dc8-5ff8-46df-838a-d56170c0b752",
+          [correlationHeaderNames.requestId]:
+            "4f1e6420-59bf-4ec0-b51e-64308be18fee",
+        }),
+        injectSave(server, payload, {
+          [correlationHeaderNames.noteOperationId]:
+            "266c4372-08da-4683-a475-c23256fa031a",
+          [correlationHeaderNames.requestId]:
+            "dde1de07-3015-44ae-b783-bc326e360a55",
+        }),
+      ]);
+
+      expect(responses.map(({ statusCode }) => statusCode).sort()).toEqual([
+        200, 409,
+      ]);
+      expect(
+        responses.find(({ statusCode }) => statusCode === 409)?.json(),
+      ).toMatchObject({
+        error: { code: apiErrorCodes.noteWriteConflict },
+      });
+      await expect(readFile(notePath, "utf8")).resolves.toBe("# Winner\n");
+    });
+  });
 });
 
 describe("PUT /api/notes/content safe errors", () => {
@@ -323,9 +362,13 @@ async function withTemporaryWorkspace(
   }
 }
 
-function injectSave(server: ReturnType<typeof createServer>, payload: unknown) {
+function injectSave(
+  server: ReturnType<typeof createServer>,
+  payload: unknown,
+  headers: Record<string, string> = {},
+) {
   return server.inject({
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     method: "PUT",
     payload: JSON.stringify(payload),
     url: apiRoutes.noteContent,

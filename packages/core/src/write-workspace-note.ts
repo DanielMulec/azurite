@@ -4,9 +4,12 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { createContentHash } from "./content-hash.js";
+import { KeyedTaskCoordinator } from "./keyed-task-coordinator.js";
 import { buildNoteContent } from "./note-metadata.js";
 import { resolveNoteIdToMarkdownFile } from "./note-id-resolution.js";
 import { resolveWorkspaceRoot } from "./workspace-root.js";
+
+const writeCoordinator = new KeyedTaskCoordinator();
 
 /** Stable reason code for failures while writing a markdown note. */
 export type NoteWriteErrorCode = typeof apiErrorCodes.noteWriteConflict;
@@ -32,16 +35,17 @@ export async function writeWorkspaceNote(
     workspaceRoot,
     input.noteId,
   );
-  const currentMarkdown = await readFile(markdownFile.absolutePath, "utf8");
-  verifyExpectedHash(currentMarkdown, input.expectedContentHash);
-  const markdownToWrite = preserveDominantLineEndings(
-    input.markdown,
-    currentMarkdown,
-  );
+  return await writeCoordinator.run(markdownFile.absolutePath, async () => {
+    const currentMarkdown = await readFile(markdownFile.absolutePath, "utf8");
+    verifyExpectedHash(currentMarkdown, input.expectedContentHash);
+    const markdownToWrite = preserveDominantLineEndings(
+      input.markdown,
+      currentMarkdown,
+    );
 
-  await writeMarkdownAtomically(markdownFile.absolutePath, markdownToWrite);
-
-  return buildNoteContent(markdownFile);
+    await writeMarkdownAtomically(markdownFile.absolutePath, markdownToWrite);
+    return buildNoteContent(markdownFile);
+  });
 }
 
 function verifyExpectedHash(

@@ -21,6 +21,8 @@ import {
   updateCurrentEditor,
 } from "./note-browser-actions.js";
 import type {
+  ActiveNoteLoad,
+  ActiveNoteSave,
   NoteBrowserApi,
   NoteBrowserStore,
   StoreContext,
@@ -33,6 +35,8 @@ type NoteBrowserStoreOptions = {
 };
 
 type NoteBrowserRuntime = {
+  activeNoteLoad: ActiveNoteLoad | undefined;
+  readonly activeNoteSaves: Map<string, ActiveNoteSave>;
   readonly api: NoteBrowserApi;
   readonly context: StoreContext;
   readonly draftPersistence: DraftPersistence;
@@ -40,8 +44,8 @@ type NoteBrowserRuntime = {
   editorSessionVersion: number;
   hasPendingDraftWrite: boolean;
   latestRouteNoteId: string | undefined;
-  noteRequestId: number;
-  notesRequestId: number;
+  noteRequestSequence: number;
+  notesRequestSequence: number;
   pendingDraftTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
@@ -66,6 +70,8 @@ export type { NoteBrowserStore } from "./note-browser-contracts.js";
 
 function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
   return {
+    activeNoteLoad: undefined,
+    activeNoteSaves: new Map(),
     api: getApi(options),
     context: {} as StoreContext,
     draftPersistence: getDraftPersistence(options),
@@ -73,8 +79,8 @@ function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
     editorSessionVersion: 0,
     hasPendingDraftWrite: false,
     latestRouteNoteId: undefined,
-    noteRequestId: 0,
-    notesRequestId: 0,
+    noteRequestSequence: 0,
+    notesRequestSequence: 0,
     pendingDraftTimer: undefined,
   };
 }
@@ -132,18 +138,40 @@ function configureContext(
 ): void {
   Object.assign(runtime.context, {
     api: runtime.api,
+    clearActiveNoteLoad: (promise: Promise<void>) => {
+      if (runtime.activeNoteLoad?.promise === promise) {
+        runtime.activeNoteLoad = undefined;
+      }
+    },
+    clearActiveNoteSave: (noteId: string, promise: Promise<void>) => {
+      if (runtime.activeNoteSaves.get(noteId)?.promise === promise) {
+        runtime.activeNoteSaves.delete(noteId);
+      }
+    },
     draftPersistence: runtime.draftPersistence,
     get,
+    getActiveNoteLoad: (noteId: string) =>
+      runtime.activeNoteLoad?.noteId === noteId
+        ? runtime.activeNoteLoad
+        : undefined,
+    getActiveNoteSave: (noteId: string) => runtime.activeNoteSaves.get(noteId),
     getLatestRouteNoteId: () => runtime.latestRouteNoteId,
-    isCurrentNoteRequest: (requestId: number, noteId: string) =>
-      requestId === runtime.noteRequestId && get().selectedNoteId === noteId,
-    isCurrentNotesRequest: (requestId: number) =>
-      requestId === runtime.notesRequestId,
+    isCurrentNoteRequest: (requestSequence: number, noteId: string) =>
+      requestSequence === runtime.noteRequestSequence &&
+      get().selectedNoteId === noteId,
+    isCurrentNotesRequest: (requestSequence: number) =>
+      requestSequence === runtime.notesRequestSequence,
     nextEditorSessionKey: (noteId: string, contentHash: string) =>
       nextEditorSessionKey(noteId, contentHash, runtime),
-    nextNoteRequestId: () => incrementNoteRequest(runtime),
-    nextNotesRequestId: () => incrementNotesRequest(runtime),
+    nextNoteRequestSequence: () => incrementNoteRequestSequence(runtime),
+    nextNotesRequestSequence: () => incrementNotesRequestSequence(runtime),
     set,
+    setActiveNoteLoad: (load: ActiveNoteLoad) => {
+      runtime.activeNoteLoad = load;
+    },
+    setActiveNoteSave: (noteId: string, save: ActiveNoteSave) => {
+      runtime.activeNoteSaves.set(noteId, save);
+    },
   } satisfies StoreContext);
 }
 
@@ -232,12 +260,12 @@ function nextEditorSessionKey(
   return `${noteId}:${contentHash}:${String(runtime.editorSessionVersion)}`;
 }
 
-function incrementNoteRequest(runtime: NoteBrowserRuntime): number {
-  runtime.noteRequestId += 1;
-  return runtime.noteRequestId;
+function incrementNoteRequestSequence(runtime: NoteBrowserRuntime): number {
+  runtime.noteRequestSequence += 1;
+  return runtime.noteRequestSequence;
 }
 
-function incrementNotesRequest(runtime: NoteBrowserRuntime): number {
-  runtime.notesRequestId += 1;
-  return runtime.notesRequestId;
+function incrementNotesRequestSequence(runtime: NoteBrowserRuntime): number {
+  runtime.notesRequestSequence += 1;
+  return runtime.notesRequestSequence;
 }

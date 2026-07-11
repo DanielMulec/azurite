@@ -303,6 +303,8 @@ describe("note browser store degraded recovery", () => {
     const store = createLoadedStore({
       draftPersistence: {
         deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraftIfSavedSnapshotMatches: () =>
+          Promise.resolve({ status: "ok" }),
         readDraft: () => Promise.resolve({ draft: undefined, status: "ok" }),
         writeDraft: () =>
           Promise.resolve({

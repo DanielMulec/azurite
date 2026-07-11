@@ -120,6 +120,15 @@ export function createMemoryDraftPersistence(
         drafts.delete(createDraftRecordId(clusterId, noteId));
         return Promise.resolve({ status: "ok" });
       },
+      deleteDraftIfSavedSnapshotMatches: (snapshot) => {
+        const draft = drafts.get(
+          createDraftRecordId(snapshot.clusterId, snapshot.noteId),
+        );
+        if (draftMatchesSnapshot(draft, snapshot)) {
+          drafts.delete(draft.id);
+        }
+        return Promise.resolve({ status: "ok" });
+      },
       readDraft: (clusterId, noteId) =>
         Promise.resolve({
           draft: drafts.get(createDraftRecordId(clusterId, noteId)),
@@ -133,6 +142,22 @@ export function createMemoryDraftPersistence(
     read: (draftClusterId, draftNoteId) =>
       drafts.get(createDraftRecordId(draftClusterId, draftNoteId)),
   };
+}
+
+function draftMatchesSnapshot(
+  draft: DraftRecord | undefined,
+  snapshot: Parameters<
+    DraftPersistence["deleteDraftIfSavedSnapshotMatches"]
+  >[0],
+): boolean {
+  if (draft === undefined || draft.baseContentHash !== snapshot.baseContentHash) {
+    return false;
+  }
+  return normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown);
+}
+
+function normalizeMarkdown(markdown: string): string {
+  return markdown.replace(/\r\n/g, "\n");
 }
 
 export function createTestDraft(

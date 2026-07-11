@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   apiErrorCodes,
+  correlationHeaderNames,
+  noteOperationIdSchema,
+  requestIdSchema,
   type ListNotesResponse,
   type ReadNoteResponse,
   type SaveNoteResponse,
@@ -30,6 +33,12 @@ const validNoteContent = {
   contentHash: "sha256-home",
   markdown: "# Home\n",
 };
+const requestMetadata = {
+  noteOperationId: noteOperationIdSchema.parse(
+    "30be2dc8-5ff8-46df-838a-d56170c0b752",
+  ),
+  requestId: requestIdSchema.parse("4f1e6420-59bf-4ec0-b51e-64308be18fee"),
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -43,7 +52,7 @@ describe("listNotes", () => {
     } satisfies ListNotesResponse;
     const fetchMock = stubJsonResponse(responseBody, 200);
 
-    await expect(listNotes()).resolves.toEqual(responseBody);
+    await expect(listNotes({})).resolves.toEqual(responseBody);
     expect(fetchMock).toHaveBeenCalledWith("/api/notes", {
       headers: { Accept: "application/json" },
     });
@@ -60,7 +69,7 @@ describe("listNotes", () => {
       500,
     );
 
-    await expect(listNotes()).rejects.toMatchObject({
+    await expect(listNotes({})).rejects.toMatchObject({
       code: apiErrorCodes.workspaceNotConfigured,
       message: "Workspace path is not configured.",
       statusCode: 500,
@@ -69,7 +78,7 @@ describe("listNotes", () => {
 
   it("rejects invalid success payloads", async () => {
     stubJsonResponse({ notes: [{ id: "" }] }, 200);
-    const request = listNotes();
+    const request = listNotes({});
 
     await expect(request).rejects.toBeInstanceOf(WebApiError);
     await expect(request).rejects.toMatchObject({
@@ -86,13 +95,18 @@ describe("readNote", () => {
     } satisfies ReadNoteResponse;
     const fetchMock = stubJsonResponse(responseBody, 200);
 
-    await expect(readNote("Projects/azurite.md")).resolves.toEqual(
-      responseBody,
-    );
+    await expect(
+      readNote("Projects/azurite.md", requestMetadata),
+    ).resolves.toEqual(responseBody);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/notes/content?noteId=Projects%2Fazurite.md",
       {
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          [correlationHeaderNames.noteOperationId]:
+            requestMetadata.noteOperationId,
+          [correlationHeaderNames.requestId]: requestMetadata.requestId,
+        },
       },
     );
   });
@@ -107,11 +121,14 @@ describe("saveNote", () => {
     const fetchMock = stubJsonResponse(responseBody, 200);
 
     await expect(
-      saveNote({
-        expectedContentHash: "sha256-before",
-        markdown: "# Home\n",
-        noteId: "index.md",
-      }),
+      saveNote(
+        {
+          expectedContentHash: "sha256-before",
+          markdown: "# Home\n",
+          noteId: "index.md",
+        },
+        requestMetadata,
+      ),
     ).resolves.toEqual(responseBody);
     expect(fetchMock).toHaveBeenCalledWith("/api/notes/content", {
       body: JSON.stringify({
@@ -122,6 +139,9 @@ describe("saveNote", () => {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        [correlationHeaderNames.noteOperationId]:
+          requestMetadata.noteOperationId,
+        [correlationHeaderNames.requestId]: requestMetadata.requestId,
       },
       method: "PUT",
     });
@@ -139,11 +159,14 @@ describe("saveNote", () => {
     );
 
     await expect(
-      saveNote({
-        expectedContentHash: "sha256-before",
-        markdown: "# Home\n",
-        noteId: "index.md",
-      }),
+      saveNote(
+        {
+          expectedContentHash: "sha256-before",
+          markdown: "# Home\n",
+          noteId: "index.md",
+        },
+        {},
+      ),
     ).rejects.toMatchObject({
       code: apiErrorCodes.noteWriteConflict,
       statusCode: 409,

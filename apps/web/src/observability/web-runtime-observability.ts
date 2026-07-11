@@ -1,7 +1,9 @@
 import type {
+  RuntimeCaughtErrorContext,
   RuntimeObservabilityAttributes,
   RuntimeObservabilityEvent,
 } from "@azurite/shared";
+import { runFailOpenRuntimeSpan } from "@azurite/shared";
 
 import type { WebSentryConfig } from "../config/sentry-config.js";
 
@@ -66,9 +68,18 @@ export function recordWebRuntimeEvent(event: RuntimeObservabilityEvent): void {
   }
 
   const attributes = createRuntimeAttributes(event, runtime.config);
-  runtime.sdk.withScope((scope) => {
-    applyEventScope(scope, event, attributes);
-    runtime.sdk.logger.info(event.name, attributes, { scope });
+  const usedScope = tryWithScope(runtime.sdk, (scope) => {
+      applyEventScope(scope, event, attributes);
+      bestEffort(() => {
+        runtime.sdk.logger.info(event.name, attributes, { scope });
+      });
+  });
+  if (!usedScope) {
+    bestEffort(() => {
+      runtime.sdk.logger.info(event.name, attributes);
+    });
+  }
+  bestEffort(() => {
     runtime.sdk.addBreadcrumb({
       category: "azurite.runtime",
       data: attributes,
@@ -90,11 +101,27 @@ export function captureWebRuntimeError(
   }
 
   const attributes = createRuntimeAttributes(event, runtime.config);
-  runtime.sdk.withScope((scope) => {
-    applyEventScope(scope, event, attributes);
-    runtime.sdk.logger.error(event.name, attributes, { scope });
-    runtime.sdk.captureException(error);
+  const errorContext = createCaughtErrorContext(error);
+  const usedScope = tryWithScope(runtime.sdk, (scope) => {
+      applyEventScope(scope, event, attributes);
+      bestEffort(() => {
+        scope.setContext("azurite.error", { ...errorContext });
+      });
+      bestEffort(() => {
+        runtime.sdk.logger.error(event.name, attributes, { scope });
+      });
+      bestEffort(() => {
+        runtime.sdk.captureException(error);
+      });
   });
+  if (!usedScope) {
+    bestEffort(() => {
+      runtime.sdk.logger.error(event.name, attributes);
+    });
+    bestEffort(() => {
+      runtime.sdk.captureException(error);
+    });
+  }
 }
 
 /** Runs work inside a browser span when enabled and directly otherwise. */
@@ -108,12 +135,16 @@ export function runWebRuntimeSpan<Result>(
     return callback();
   }
 
-  return runtime.sdk.startSpan(
-    {
-      attributes: createSpanAttributes(event, runtime.config),
-      name: event.name,
-      op: "azurite.runtime",
-    },
+  return runFailOpenRuntimeSpan(
+    (guardedCallback) =>
+      runtime.sdk.startSpan(
+        {
+          attributes: createSpanAttributes(event, runtime.config),
+          name: event.spanName ?? event.name,
+          op: event.spanOperation ?? "azurite.runtime",
+        },
+        guardedCallback,
+      ),
     callback,
   );
 }
@@ -165,6 +196,92 @@ function applyEventScope(
   event: RuntimeObservabilityEvent,
   attributes: Record<string, unknown>,
 ): void {
-  scope.setTag("app.surface", event.surface);
-  scope.setContext("azurite.runtime", attributes);
+  bestEffort(() => {
+    scope.setTag("app.surface", event.surface);
+  });
+  for (const [name, value] of Object.entries(event.tags ?? {})) {
+    bestEffort(() => {
+      scope.setTag(name, value);
+    });
+  }
+  bestEffort(() => {
+    scope.setContext("azurite.runtime", attributes);
+  });
+}
+
+function createCaughtErrorContext(error: unknown): RuntimeCaughtErrorContext {
+  try {
+    return createCaughtErrorContextUnsafe(error);
+  } catch {
+    return {
+      message: "A non-Error value was thrown.",
+      name: "UnknownError",
+    };
+  }
+}
+
+function createCaughtErrorContextUnsafe(
+  error: unknown,
+): RuntimeCaughtErrorContext {
+  if (!(error instanceof Error)) {
+    return {
+      message: "A non-Error value was thrown.",
+      name: "UnknownError",
+    };
+  }
+
+  const code = readErrorCode(error);
+  return removeUndefinedErrorContext({
+    code,
+    message: error.message,
+    name: error.name,
+    stack: typeof error.stack === "string" ? error.stack : undefined,
+  });
+}
+
+function removeUndefinedErrorContext(
+  context: RuntimeCaughtErrorContext & { readonly code?: string | undefined; readonly stack?: string | undefined },
+): RuntimeCaughtErrorContext {
+  return Object.fromEntries(
+    Object.entries(context).filter(([, value]) => value !== undefined),
+  ) as RuntimeCaughtErrorContext;
+}
+
+function readErrorCode(error: Error): string | undefined {
+  try {
+    const code = (error as Error & { readonly code?: unknown }).code;
+    if (typeof code === "string") {
+      return code;
+    }
+    if (typeof code === "number") {
+      return String(code);
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function tryWithScope(
+  sdk: WebSentrySdk,
+  callback: (scope: SentryScope) => void,
+): boolean {
+  let invoked = false;
+  try {
+    sdk.withScope((scope) => {
+      invoked = true;
+      callback(scope);
+    });
+  } catch {
+    // The caller falls back only when the SDK never supplied a local scope.
+  }
+  return invoked;
+}
+
+function bestEffort(callback: () => void): void {
+  try {
+    callback();
+  } catch {
+    // Observability is diagnostic infrastructure and must fail open.
+  }
 }

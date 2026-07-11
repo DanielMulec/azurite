@@ -1,10 +1,11 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { apiErrorCodes, type SaveNoteInput } from "@azurite/shared";
 import {
   createContentHash,
+  KeyedTaskCoordinator,
   NoteResolutionError,
   NoteWriteError,
   writeWorkspaceNote,
@@ -70,6 +71,30 @@ describe("writeWorkspaceNote success", () => {
 });
 
 describe("writeWorkspaceNote safe errors", () => {
+  it("allows one of two concurrent same-hash writes and conflicts the other", async () => {
+    await withTemporaryWorkspace(async ({ workspacePath }) => {
+      const notePath = path.join(workspacePath, "index.md");
+      await writeFile(notePath, "# Original\n", "utf8");
+      const input = saveInput("index.md", "# Winner\n", "# Original\n");
+
+      const results = await Promise.allSettled([
+        writeWorkspaceNote(workspacePath, input),
+        writeWorkspaceNote(workspacePath, input),
+      ]);
+
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === "rejected"),
+      ).toHaveLength(1);
+      expect(
+        results.find((result) => result.status === "rejected"),
+      ).toMatchObject({ reason: { code: apiErrorCodes.noteWriteConflict } });
+      await expect(readFile(notePath, "utf8")).resolves.toBe("# Winner\n");
+    });
+  });
+
   it("rejects stale save requests without overwriting the file", async () => {
     await withTemporaryWorkspace(async ({ workspacePath }) => {
       const notePath = path.join(workspacePath, "index.md");
@@ -101,6 +126,36 @@ describe("writeWorkspaceNote safe errors", () => {
         code: apiErrorCodes.invalidNoteId,
       } satisfies Partial<NoteResolutionError>);
     });
+  });
+});
+
+describe("KeyedTaskCoordinator", () => {
+  it("releases failed keys and removes them when idle", async () => {
+    const coordinator = new KeyedTaskCoordinator();
+    await expect(
+      coordinator.run("note", () => Promise.reject(new Error("failed"))),
+    ).rejects.toThrow("failed");
+    await expect(
+      coordinator.run("note", () => Promise.resolve("recovered")),
+    ).resolves.toBe("recovered");
+    expect(coordinator.activeKeyCount).toBe(0);
+  });
+
+  it("does not globally serialize different keys", async () => {
+    const coordinator = new KeyedTaskCoordinator();
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const first = coordinator.run("first", () => firstGate);
+    const secondTask = vi.fn(() => Promise.resolve("second"));
+    const second = coordinator.run("second", secondTask);
+
+    await expect(second).resolves.toBe("second");
+    expect(secondTask).toHaveBeenCalledTimes(1);
+    releaseFirst();
+    await first;
+    expect(coordinator.activeKeyCount).toBe(0);
   });
 });
 
