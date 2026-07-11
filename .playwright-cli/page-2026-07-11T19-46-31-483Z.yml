@@ -1,0 +1,547 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Azurite" [level=1] [ref=e6]
+    - complementary [ref=e7]:
+      - heading "Notes" [level=2] [ref=e8]
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Azurite Product Vision 100%.md" [ref=e17]:
+            - generic [ref=e18]: Azurite Product Vision
+            - generic [ref=e19]: 100%.md
+        - listitem [ref=e20]:
+          - button "Technical Architecture Projects/architecture.md" [ref=e21]:
+            - generic [ref=e22]: Technical Architecture
+            - generic [ref=e23]: Projects/architecture.md
+        - listitem [ref=e24]:
+          - 'button "Slice 7C: Semantic Editor And Persistence Diagnostics Projects/large-note.md" [ref=e25]':
+            - generic [ref=e26]: "Slice 7C: Semantic Editor And Persistence Diagnostics"
+            - generic [ref=e27]: Projects/large-note.md
+        - listitem [ref=e28]:
+          - button "Working Agreement Reference/working-agreement.md" [ref=e29]:
+            - generic [ref=e30]: Working Agreement
+            - generic [ref=e31]: Reference/working-agreement.md
+        - listitem [ref=e32]:
+          - 'button "Slice 5: Safe Manual Save Foundation index.md" [active] [ref=e33]':
+            - generic [ref=e34]: "Slice 5: Safe Manual Save Foundation"
+            - generic [ref=e35]: index.md
+    - article [ref=e36]:
+      - generic [ref=e37]:
+        - paragraph [ref=e38]: index.md
+        - 'heading "Slice 5: Safe Manual Save Foundation" [level=2] [ref=e478]'
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: Saved
+        - button "Save" [disabled] [ref=e44]
+      - generic [ref=e479]:
+        - group "Editor mode" [ref=e481]:
+          - button "WYSIWYG" [pressed] [ref=e482]
+          - button "Markdown" [ref=e483]
+        - textbox [ref=e486]:
+          - 'heading "Slice 5: Safe Manual Save Foundation" [level=1] [ref=e487]'
+          - heading "Status" [level=2] [ref=e488]
+          - paragraph [ref=e489]: Implemented on July 8, 2026.
+          - paragraph [ref=e490]: This slice adds explicit manual saving for existing markdown notes. It turns the Milkdown and Crepe editor surface from a local draft surface into a safe markdown writer while keeping autosave, merge UI, file creation, rename, delete, backlinks, graph behavior, search, indexing, and file watching out of scope.
+          - paragraph [ref=e491]: Implementation added the shared save contract, content hashes, safe core note writes, server save route, web API save client, and editor save state UI for existing markdown notes.
+          - paragraph [ref=e492]: "Verification completed:"
+          - list [ref=e493]:
+            - listitem [ref=e495]:
+              - paragraph [ref=e503]:
+                - code [ref=e504]: pnpm validate
+            - listitem [ref=e506]:
+              - paragraph [ref=e514]:
+                - text: focused
+                - code [ref=e515]: "@azurite/web"
+                - text: test and typecheck after the CRLF dirty-state fix
+            - listitem [ref=e517]:
+              - paragraph [ref=e525]:
+                - text: browser QA against
+                - code [ref=e526]: /tmp/azurite-slice5-qa.yJ038O
+                - text: ", not Daniel's real knowledgebase"
+            - listitem [ref=e528]:
+              - paragraph [ref=e536]: source-mode save persisted to disk and preserved CRLF-dominant line endings
+            - listitem [ref=e538]:
+              - paragraph [ref=e546]: browser refresh reloaded the saved content and updated note metadata
+            - listitem [ref=e548]:
+              - paragraph [ref=e556]: WYSIWYG editing saved Crepe's current markdown to disk
+            - listitem [ref=e558]:
+              - paragraph [ref=e566]:
+                - text: stale save after an external file edit returned
+                - code [ref=e567]: 409 note_write_conflict
+                - text: ", showed"
+                - code [ref=e568]: Changed on disk
+                - text: ", kept the browser draft intact, and did not overwrite the external file"
+            - listitem [ref=e570]:
+              - paragraph [ref=e578]: invalid traversal-style save request returned a safe typed error without exposing absolute filesystem paths
+            - listitem [ref=e580]:
+              - paragraph [ref=e588]: mobile-sized and desktop-sized browser checks showed readable save UI without horizontal overflow or status/button overlap
+          - heading "Product Decision" [level=2] [ref=e589]
+          - paragraph [ref=e590]: Implement manual save before autosave.
+          - paragraph [ref=e591]: Autosave is still a good future Azurite experience, but it should reuse a boringly correct write path instead of defining conflict, retry, and persistence semantics at the same time as the first filesystem write. Slice 5 therefore proves the write API, content-hash conflict protection, atomic replacement, and basic save UI first.
+          - heading "Goal" [level=2] [ref=e592]
+          - paragraph [ref=e593]: "Given an existing selected markdown note, Azurite can:"
+          - list [ref=e594]:
+            - listitem [ref=e596]:
+              - paragraph [ref=e604]: load the note with a content hash,
+            - listitem [ref=e606]:
+              - paragraph [ref=e614]: let the user edit in WYSIWYG or markdown source mode,
+            - listitem [ref=e616]:
+              - paragraph [ref=e624]: show whether the editor has unsaved changes,
+            - listitem [ref=e626]:
+              - paragraph [ref=e634]: save the current editor markdown through an explicit Save action,
+            - listitem [ref=e636]:
+              - paragraph [ref=e644]: persist the edited markdown to disk safely,
+            - listitem [ref=e646]:
+              - paragraph [ref=e654]: reject stale saves when the note changed on disk after it was loaded,
+            - listitem [ref=e656]:
+              - paragraph [ref=e664]: keep the user's unsaved editor content intact after a conflict or failed save,
+            - listitem [ref=e666]:
+              - paragraph [ref=e674]: refresh note metadata after a successful save.
+          - heading "Non-Goals" [level=2] [ref=e675]
+          - list [ref=e676]:
+            - listitem [ref=e678]:
+              - paragraph [ref=e686]: Do not add autosave.
+            - listitem [ref=e688]:
+              - paragraph [ref=e696]: Do not add merge UI for conflicts.
+            - listitem [ref=e698]:
+              - paragraph [ref=e706]: Do not add file creation, rename, move, delete, duplicate, or restore.
+            - listitem [ref=e708]:
+              - paragraph [ref=e716]: Do not add backups UI.
+            - listitem [ref=e718]:
+              - paragraph [ref=e726]: Do not add file watching.
+            - listitem [ref=e728]:
+              - paragraph [ref=e736]: Do not add backlinks, graph behavior, tags, search, or indexing.
+            - listitem [ref=e738]:
+              - paragraph [ref=e746]: Do not save into SQLite or any derived index.
+            - listitem [ref=e748]:
+              - paragraph [ref=e756]: Do not test first-run writes against Daniel's real knowledgebase.
+          - heading "Terms" [level=2] [ref=e757]
+          - list [ref=e758]:
+            - listitem [ref=e760]:
+              - paragraph [ref=e768]: "Content hash: a deterministic fingerprint of the current markdown content."
+            - listitem [ref=e770]:
+              - paragraph [ref=e778]:
+                - code [ref=e779]: contentHash
+                - text: ": the hash returned with a read or successful save response."
+            - listitem [ref=e781]:
+              - paragraph [ref=e789]:
+                - code [ref=e790]: expectedContentHash
+                - text: ": the hash the client sends when saving, representing the exact on-disk content the current edit started from."
+            - listitem [ref=e792]:
+              - paragraph [ref=e800]:
+                - text: "Conflict: a save request whose"
+                - code [ref=e801]: expectedContentHash
+                - text: does not match the current on-disk note content hash.
+            - listitem [ref=e803]:
+              - paragraph [ref=e811]: "Atomic write: write to a temporary file in the same directory, then rename it over the target note after the write succeeds."
+          - heading "API Contract" [level=2] [ref=e812]
+          - paragraph [ref=e813]: Extend the existing note content API instead of creating a parallel save route.
+          - paragraph [ref=e814]: "Read response shape changes from:"
+          - code [ref=e817]: "{ note: NoteContent; }"
+          - paragraph [ref=e818]: "to:"
+          - code [ref=e821]: "{ note: NoteContentWithHash; }"
+          - paragraph [ref=e822]:
+            - text: where
+            - code [ref=e823]: NoteContentWithHash
+            - text: "extends the existing note content metadata with:"
+          - code [ref=e826]: "{ contentHash: string; }"
+          - paragraph [ref=e827]: "Add:"
+          - code [ref=e830]: PUT /api/notes/content
+          - paragraph [ref=e831]: "Request:"
+          - code [ref=e834]: "{ noteId: string; markdown: string; expectedContentHash: string; }"
+          - paragraph [ref=e835]: "Successful response:"
+          - code [ref=e838]: "{ note: NoteContentWithHash; }"
+          - paragraph [ref=e839]: "Stale save response:"
+          - code [ref=e842]: 409 Conflict
+          - code [ref=e845]: "{ \"error\": { \"code\": \"note_write_conflict\", \"message\": \"The note changed on disk before Azurite could save it.\" } }"
+          - paragraph [ref=e846]:
+            - text: HTTP status codes and Azurite error codes have separate jobs. The HTTP status
+            - code [ref=e847]: 409 Conflict
+            - text: communicates the protocol-level result. The shared Azurite error code communicates the typed product reason the frontend should handle.
+          - paragraph [ref=e848]:
+            - text: Add shared error codes in
+            - code [ref=e849]: packages/shared
+            - text: ":"
+          - list [ref=e850]:
+            - listitem [ref=e852]:
+              - paragraph [ref=e860]:
+                - code [ref=e861]: note_write_conflict
+            - listitem [ref=e863]:
+              - paragraph [ref=e871]:
+                - code [ref=e872]: note_write_failed
+            - listitem [ref=e874]:
+              - paragraph [ref=e882]:
+                - code [ref=e883]: invalid_note_save
+          - heading "Content Hash Decision" [level=2] [ref=e884]
+          - paragraph [ref=e885]: Use a content hash as the concurrency token.
+          - paragraph [ref=e886]:
+            - text: "The hash answers one question before writing: \"Is the on-disk markdown still the same markdown the editor loaded?\" If another app, git operation, another tab, or manual edit changes the file after Azurite loaded it, the current file hash will not match"
+            - code [ref=e887]: expectedContentHash
+            - text: ", and Azurite must reject the save instead of overwriting unknown content."
+          - paragraph [ref=e888]:
+            - text: Prefer a content hash over
+            - code [ref=e889]: lastModifiedAt
+            - text: for conflict detection because a hash fingerprints the file content itself. Timestamps are useful metadata, but they can vary by filesystem precision, tool behavior, and timing edge cases.
+          - paragraph [ref=e890]: Do not send the full original markdown back as the concurrency token. A hash is the compact version stamp for the content the user started editing.
+          - heading "Backend Plan" [level=2] [ref=e891]
+          - heading "1. Extend Shared Contracts" [level=3] [ref=e892]
+          - paragraph [ref=e893]: Add shared route helpers, request schemas, response schemas, and error codes for manual save.
+          - paragraph [ref=e894]:
+            - text: Keep
+            - code [ref=e895]: noteId
+            - text: validation centralized in the existing shared note ID schema. Validate
+            - code [ref=e896]: markdown
+            - text: as a string and
+            - code [ref=e897]: expectedContentHash
+            - text: as a non-empty string.
+          - heading "2. Add Hashing Helper" [level=3] [ref=e898]
+          - paragraph [ref=e899]: Add a small core helper that hashes markdown content with a stable algorithm available in Node's standard library.
+          - paragraph [ref=e900]: Use the same helper for read responses and save conflict checks.
+          - heading "3. Extend Note Content Reads" [level=3] [ref=e901]
+          - paragraph [ref=e902]:
+            - text: Include
+            - code [ref=e903]: contentHash
+            - text: when reading a note.
+          - paragraph [ref=e904]: The hash must be computed from the exact markdown string returned to the client.
+          - heading "4. Add Safe Note Writing In Core" [level=3] [ref=e905]
+          - paragraph [ref=e906]:
+            - text: Add
+            - code [ref=e907]: writeWorkspaceNote
+            - text: in
+            - code [ref=e908]: packages/core
+            - text: .
+          - paragraph [ref=e909]: "It must:"
+          - list [ref=e910]:
+            - listitem [ref=e912]:
+              - paragraph [ref=e920]: resolve the workspace root with the existing workspace root behavior,
+            - listitem [ref=e922]:
+              - paragraph [ref=e930]:
+                - text: resolve
+                - code [ref=e931]: noteId
+                - text: with the existing safe markdown note resolver,
+            - listitem [ref=e933]:
+              - paragraph [ref=e941]: read the current markdown content from disk,
+            - listitem [ref=e943]:
+              - paragraph [ref=e951]: compute the current content hash,
+            - listitem [ref=e953]:
+              - paragraph [ref=e961]:
+                - text: compare the current hash with
+                - code [ref=e962]: expectedContentHash
+                - text: ","
+            - listitem [ref=e964]:
+              - paragraph [ref=e972]: reject mismatches with a conflict error,
+            - listitem [ref=e974]:
+              - paragraph [ref=e982]: preserve the existing file's dominant line ending style,
+            - listitem [ref=e984]:
+              - paragraph [ref=e992]: write the requested markdown to a temporary file in the same directory,
+            - listitem [ref=e994]:
+              - paragraph [ref=e1002]: rename the temporary file over the target note only after the write succeeds,
+            - listitem [ref=e1004]:
+              - paragraph [ref=e1012]:
+                - text: return freshly read note metadata, markdown, and new
+                - code [ref=e1013]: contentHash
+                - text: .
+          - heading "5. Preserve Line Endings Deliberately" [level=3] [ref=e1014]
+          - paragraph [ref=e1015]: "Use this rule:"
+          - list [ref=e1016]:
+            - listitem [ref=e1018]:
+              - paragraph [ref=e1026]: If the existing file contains more CRLF line endings than LF-only line endings, save with CRLF.
+            - listitem [ref=e1028]:
+              - paragraph [ref=e1036]: Otherwise save with LF.
+          - paragraph [ref=e1037]: Do not preserve mixed line endings in this slice.
+          - heading "6. Register The Write Route" [level=3] [ref=e1038]
+          - paragraph [ref=e1039]:
+            - text: Add
+            - code [ref=e1040]: PUT /api/notes/content
+            - text: in
+            - code [ref=e1041]: apps/server
+            - text: .
+          - paragraph [ref=e1042]: "Map failures to safe API responses:"
+          - list [ref=e1043]:
+            - listitem [ref=e1045]:
+              - paragraph [ref=e1053]:
+                - text: "invalid body or invalid note ID:"
+                - code [ref=e1054]: "400"
+                - text: with
+                - code [ref=e1055]: invalid_note_save
+                - text: or
+                - code [ref=e1056]: invalid_note_id
+                - text: ","
+            - listitem [ref=e1058]:
+              - paragraph [ref=e1066]:
+                - text: "missing note:"
+                - code [ref=e1067]: "404"
+                - text: with
+                - code [ref=e1068]: note_not_found
+                - text: ","
+            - listitem [ref=e1070]:
+              - paragraph [ref=e1078]:
+                - text: "stale content hash:"
+                - code [ref=e1079]: "409"
+                - text: with
+                - code [ref=e1080]: note_write_conflict
+                - text: ","
+            - listitem [ref=e1082]:
+              - paragraph [ref=e1090]:
+                - text: "workspace issue:"
+                - code [ref=e1091]: "500"
+                - text: with
+                - code [ref=e1092]: invalid_workspace
+                - text: ","
+            - listitem [ref=e1094]:
+              - paragraph [ref=e1102]:
+                - text: "unexpected write failure:"
+                - code [ref=e1103]: "500"
+                - text: with
+                - code [ref=e1104]: note_write_failed
+                - text: .
+          - paragraph [ref=e1105]: Do not expose absolute filesystem paths in responses or logs intended for the frontend.
+          - heading "Frontend Plan" [level=2] [ref=e1106]
+          - heading "1. Extend The API Client" [level=3] [ref=e1107]
+          - paragraph [ref=e1108]:
+            - text: Add
+            - code [ref=e1109]: saveNote
+            - text: in
+            - code [ref=e1110]: apps/web/src/api-client.ts
+            - text: .
+          - paragraph [ref=e1111]:
+            - text: It should send
+            - code [ref=e1112]: PUT /api/notes/content
+            - text: ", parse the shared save response schema, and preserve"
+            - code [ref=e1113]: WebApiError.code
+            - text: so the UI can distinguish conflicts from generic save failures.
+          - heading "2. Track Save Baseline" [level=3] [ref=e1114]
+          - paragraph [ref=e1115]: "The selected note editor must track:"
+          - list [ref=e1116]:
+            - listitem [ref=e1118]:
+              - paragraph [ref=e1126]: the latest saved markdown baseline,
+            - listitem [ref=e1128]:
+              - paragraph [ref=e1136]:
+                - text: the latest saved
+                - code [ref=e1137]: contentHash
+                - text: ","
+            - listitem [ref=e1139]:
+              - paragraph [ref=e1147]: the current editor markdown,
+            - listitem [ref=e1149]:
+              - paragraph [ref=e1157]: whether the editor is dirty,
+            - listitem [ref=e1159]:
+              - paragraph [ref=e1167]: the current save status.
+          - paragraph [ref=e1168]: Dirty state is true when current editor markdown differs from the latest saved markdown baseline.
+          - heading "3. Add Save UI" [level=3] [ref=e1169]
+          - paragraph [ref=e1170]: Add a quiet Save button near the existing local editing cue.
+          - paragraph [ref=e1171]: "Show concise status text:"
+          - list [ref=e1172]:
+            - listitem [ref=e1174]:
+              - paragraph [ref=e1182]:
+                - code [ref=e1183]: Saved
+            - listitem [ref=e1185]:
+              - paragraph [ref=e1193]:
+                - code [ref=e1194]: Unsaved changes
+            - listitem [ref=e1196]:
+              - paragraph [ref=e1204]:
+                - code [ref=e1205]: Saving...
+            - listitem [ref=e1207]:
+              - paragraph [ref=e1215]:
+                - code [ref=e1216]: Changed on disk
+            - listitem [ref=e1218]:
+              - paragraph [ref=e1226]:
+                - code [ref=e1227]: Save failed
+          - paragraph [ref=e1228]: Disable Save while a save request is in flight or when there are no unsaved changes.
+          - heading "4. Save Current Editor State" [level=3] [ref=e1229]
+          - paragraph [ref=e1230]: The Save action must save the current editor state, not stale initial markdown.
+          - paragraph [ref=e1231]: If the user is in markdown source mode, save the source-mode markdown. If the user is in WYSIWYG mode, extract the current markdown from Crepe before saving.
+          - heading "5. Handle Save Success" [level=3] [ref=e1232]
+          - paragraph [ref=e1233]: "After a successful save:"
+          - list [ref=e1234]:
+            - listitem [ref=e1236]:
+              - paragraph [ref=e1244]: update the markdown baseline,
+            - listitem [ref=e1246]:
+              - paragraph [ref=e1254]:
+                - text: update
+                - code [ref=e1255]: contentHash
+                - text: ","
+            - listitem [ref=e1257]:
+              - paragraph [ref=e1265]: clear dirty state,
+            - listitem [ref=e1267]:
+              - paragraph [ref=e1275]:
+                - text: show
+                - code [ref=e1276]: Saved
+                - text: ","
+            - listitem [ref=e1278]:
+              - paragraph [ref=e1286]: update selected note metadata,
+            - listitem [ref=e1288]:
+              - paragraph [ref=e1296]: refresh or patch the note list so title, size, and modified time stay coherent.
+          - heading "6. Handle Conflict" [level=3] [ref=e1297]
+          - paragraph [ref=e1298]:
+            - text: "On"
+            - code [ref=e1299]: note_write_conflict
+            - text: ":"
+          - list [ref=e1300]:
+            - listitem [ref=e1302]:
+              - paragraph [ref=e1310]: keep the user's editor content untouched,
+            - listitem [ref=e1312]:
+              - paragraph [ref=e1320]:
+                - text: show
+                - code [ref=e1321]: Changed on disk
+                - text: ","
+            - listitem [ref=e1323]:
+              - paragraph [ref=e1331]: do not overwrite the file,
+            - listitem [ref=e1333]:
+              - paragraph [ref=e1341]: require a later reload, conflict review, or merge-oriented slice to resolve the conflict.
+          - paragraph [ref=e1342]: No merge UI is required in Slice 5.
+          - heading "Tests" [level=2] [ref=e1343]
+          - paragraph [ref=e1344]: Add focused coverage at each boundary.
+          - paragraph [ref=e1345]: "Shared contract tests:"
+          - list [ref=e1346]:
+            - listitem [ref=e1348]:
+              - paragraph [ref=e1356]:
+                - text: read-note response includes
+                - code [ref=e1357]: contentHash
+                - text: ","
+            - listitem [ref=e1359]:
+              - paragraph [ref=e1367]:
+                - text: save-note request validates
+                - code [ref=e1368]: noteId
+                - text: ","
+                - code [ref=e1369]: markdown
+                - text: ", and"
+                - code [ref=e1370]: expectedContentHash
+                - text: ","
+            - listitem [ref=e1372]:
+              - paragraph [ref=e1380]:
+                - text: save-note response includes
+                - code [ref=e1381]: contentHash
+                - text: ","
+            - listitem [ref=e1383]:
+              - paragraph [ref=e1391]: new API error codes are valid shared error codes.
+          - paragraph [ref=e1392]: "Core tests:"
+          - list [ref=e1393]:
+            - listitem [ref=e1395]:
+              - paragraph [ref=e1403]: writes an existing markdown note successfully,
+            - listitem [ref=e1405]:
+              - paragraph [ref=e1413]: returns a new content hash after save,
+            - listitem [ref=e1415]:
+              - paragraph [ref=e1423]:
+                - text: rejects stale
+                - code [ref=e1424]: expectedContentHash
+                - text: ","
+            - listitem [ref=e1426]:
+              - paragraph [ref=e1434]: rejects invalid note IDs through existing note ID validation,
+            - listitem [ref=e1436]:
+              - paragraph [ref=e1444]: preserves LF files as LF,
+            - listitem [ref=e1446]:
+              - paragraph [ref=e1454]: preserves CRLF-dominant files as CRLF,
+            - listitem [ref=e1456]:
+              - paragraph [ref=e1464]: does not leave a temporary file behind after success.
+          - paragraph [ref=e1465]: "Server tests:"
+          - list [ref=e1466]:
+            - listitem [ref=e1468]:
+              - paragraph [ref=e1476]:
+                - code [ref=e1477]: PUT /api/notes/content
+                - text: saves and returns the updated note,
+            - listitem [ref=e1479]:
+              - paragraph [ref=e1487]:
+                - text: invalid payload returns a safe
+                - code [ref=e1488]: "400"
+                - text: ","
+            - listitem [ref=e1490]:
+              - paragraph [ref=e1498]:
+                - text: missing note returns a safe
+                - code [ref=e1499]: "404"
+                - text: ","
+            - listitem [ref=e1501]:
+              - paragraph [ref=e1509]:
+                - text: stale hash returns
+                - code [ref=e1510]: "409"
+                - text: plus
+                - code [ref=e1511]: note_write_conflict
+                - text: ","
+            - listitem [ref=e1513]:
+              - paragraph [ref=e1521]:
+                - text: unexpected write failure returns a safe
+                - code [ref=e1522]: "500"
+                - text: .
+          - paragraph [ref=e1523]: "Frontend tests:"
+          - list [ref=e1524]:
+            - listitem [ref=e1526]:
+              - paragraph [ref=e1534]:
+                - text: API client sends
+                - code [ref=e1535]: PUT
+                - text: with the expected payload,
+            - listitem [ref=e1537]:
+              - paragraph [ref=e1545]: editor shows dirty state after local edits,
+            - listitem [ref=e1547]:
+              - paragraph [ref=e1555]: Save calls the API with current markdown,
+            - listitem [ref=e1557]:
+              - paragraph [ref=e1565]: successful save clears dirty state and updates the hash,
+            - listitem [ref=e1567]:
+              - paragraph [ref=e1575]: conflict keeps editor content and shows the conflict state.
+          - heading "Browser Verification" [level=2] [ref=e1576]
+          - paragraph [ref=e1577]: Use a temporary cluster, not Daniel's real knowledgebase.
+          - paragraph [ref=e1578]: "Verify:"
+          - list [ref=e1579]:
+            - listitem [ref=e1581]:
+              - paragraph [ref=e1589]: edit a note, click Save, refresh, and confirm the content persists,
+            - listitem [ref=e1591]:
+              - paragraph [ref=e1599]: edit a heading, save, and confirm note title/list metadata updates,
+            - listitem [ref=e1601]:
+              - paragraph [ref=e1609]: externally change the file, then attempt a stale save and confirm Azurite shows a conflict without overwriting,
+            - listitem [ref=e1611]:
+              - paragraph [ref=e1619]: source-mode edits save the source markdown,
+            - listitem [ref=e1621]:
+              - paragraph [ref=e1629]: WYSIWYG edits save the extracted markdown,
+            - listitem [ref=e1631]:
+              - paragraph [ref=e1639]: invalid note IDs cannot write outside the cluster,
+            - listitem [ref=e1641]:
+              - paragraph [ref=e1649]: save errors do not expose absolute filesystem paths,
+            - listitem [ref=e1651]:
+              - paragraph [ref=e1659]: desktop and mobile Tailscale views keep the save UI readable.
+          - heading "Acceptance Criteria" [level=2] [ref=e1660]
+          - list [ref=e1661]:
+            - listitem [ref=e1663]:
+              - paragraph [ref=e1671]: Existing notes can be saved manually from the selected note editor.
+            - listitem [ref=e1673]:
+              - paragraph [ref=e1681]:
+                - text: Reads and saves use
+                - code [ref=e1682]: contentHash
+                - text: and
+                - code [ref=e1683]: expectedContentHash
+                - text: .
+            - listitem [ref=e1685]:
+              - paragraph [ref=e1693]:
+                - text: Stale saves return HTTP
+                - code [ref=e1694]: 409 Conflict
+                - text: with shared error code
+                - code [ref=e1695]: note_write_conflict
+                - text: .
+            - listitem [ref=e1697]:
+              - paragraph [ref=e1705]: Save writes are atomic within the target note directory.
+            - listitem [ref=e1707]:
+              - paragraph [ref=e1715]: Existing note ID/path traversal protections are reused for writes.
+            - listitem [ref=e1717]:
+              - paragraph [ref=e1725]: LF and CRLF-dominant files keep their line-ending style.
+            - listitem [ref=e1727]:
+              - paragraph [ref=e1735]: The frontend shows saved, dirty, saving, conflict, and failed states.
+            - listitem [ref=e1737]:
+              - paragraph [ref=e1745]: Save success updates the editor baseline and note metadata.
+            - listitem [ref=e1747]:
+              - paragraph [ref=e1755]: Conflicts keep the user's unsaved editor content intact.
+            - listitem [ref=e1757]:
+              - paragraph [ref=e1765]: No autosave, create, rename, delete, merge UI, indexing, or file watching is added.
+            - listitem [ref=e1767]:
+              - paragraph [ref=e1775]:
+                - code [ref=e1776]: pnpm validate
+                - text: passes.
+            - listitem [ref=e1778]:
+              - paragraph [ref=e1786]: Browser verification passes against a temporary cluster.
+          - heading "Follow-Up Slices" [level=2] [ref=e1787]
+          - paragraph [ref=e1788]:
+            - text: Slice 6 should add the client persistence and navigation foundation described in
+            - code [ref=e1789]: docs/slices/archive/slice-6-client-persistence-and-navigation-foundation.md
+            - text: .
+          - paragraph [ref=e1790]: Phone QA after Slice 5 showed Android Chrome and Edge can reload Azurite when Daniel switches apps, which loses the selected note and unsaved draft because both currently live only in React memory. The fix should establish URL-owned selected-note navigation, durable browser draft persistence, live client state, and recovered conflict behavior while still saving through the Slice 5 content-hash conflict guard.
+          - paragraph [ref=e1791]: Slice 7 should add the end-to-end Sentry observability foundation for the current browser, API, and filesystem-backed note workflow. Create-new-note behavior moves later in the roadmap so Azurite can first debug real editor, persistence, and mobile/Tailscale failures from a complete investigation surface.
+          - paragraph [ref=e1792]: Slice 8 should add new markdown note creation.
+          - paragraph [ref=e1793]: It should decide the first creation location, filename validation, duplicate filename handling, title behavior, optional folder creation, list refresh, URL update, draft initialization, and auto-selection after creation.
+          - paragraph [ref=e1794]: Slice 9 should add recoverable delete or move-to-trash behavior.
+          - paragraph [ref=e1795]: It should decide whether deletion moves notes to a local trash area, the user's system trash, or a workspace-local recovery folder. It should not introduce permanent one-click deletion as the first delete experience.
+          - paragraph [ref=e1796]: Autosave should be a later separately numbered slice after manual save, creation, and recoverable delete are stable.
+          - paragraph [ref=e1797]: It should decide debounce timing, queued saves, retry behavior, mobile sleep and reconnect behavior, stale-save UX while typing, whether a manual Save Now escape hatch remains visible, and how conflicts move from detection into review or merge.

@@ -1,0 +1,147 @@
+- main [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - heading "Azurite" [level=1] [ref=f4e6]
+    - complementary [ref=f4e7]:
+      - heading "Notes" [level=2] [ref=f4e8]
+      - list [ref=f4e15]:
+        - listitem [ref=f4e16]:
+          - button "Azurite Product Vision 100%.md" [active] [ref=f4e17]:
+            - generic [ref=f4e18]: Azurite Product Vision
+            - generic [ref=f4e19]: 100%.md
+        - listitem [ref=f4e20]:
+          - button "Technical Architecture Projects/architecture.md" [ref=f4e21]:
+            - generic [ref=f4e22]: Technical Architecture
+            - generic [ref=f4e23]: Projects/architecture.md
+        - listitem [ref=f4e24]:
+          - button "Engineering Standards Projects/large-note.md" [ref=f4e25]:
+            - generic [ref=f4e26]: Engineering Standards
+            - generic [ref=f4e27]: Projects/large-note.md
+        - listitem [ref=f4e28]:
+          - button "Working Agreement Reference/working-agreement.md" [ref=f4e29]:
+            - generic [ref=f4e30]: Working Agreement
+            - generic [ref=f4e31]: Reference/working-agreement.md
+    - article [ref=f4e32]:
+      - generic [ref=f4e33]:
+        - paragraph [ref=f4e34]: 100%.md
+        - heading "Azurite Product Vision" [level=2] [ref=f4e573]
+      - generic [ref=f4e37]:
+        - paragraph [ref=f4e38]: Saved
+        - button "Save" [disabled] [ref=f4e41]
+      - generic [ref=f4e574]:
+        - group "Editor mode" [ref=f4e576]:
+          - button "WYSIWYG" [pressed] [ref=f4e577]
+          - button "Markdown" [ref=f4e578]
+        - textbox [ref=f4e581]:
+          - heading "Azurite Product Vision" [level=1] [ref=f4e582]
+          - heading "Summary" [level=2] [ref=f4e583]
+          - paragraph [ref=f4e584]: Azurite is intended to become a production-quality, locally hosted knowledge application that combines Obsidian-style knowledge infrastructure with a Notion-style web experience.
+          - paragraph [ref=f4e585]: The system should feel polished and dependable enough for daily use, while keeping the user's knowledge base transparent, portable, and markdown-first.
+          - heading "Core Direction" [level=2] [ref=f4e586]
+          - list [ref=f4e587]:
+            - listitem [ref=f4e589]:
+              - paragraph [ref=f4e597]: Build a hybrid of Obsidian and Notion, not a clone of either product.
+            - listitem [ref=f4e599]:
+              - paragraph [ref=f4e607]: Treat markdown files as the source of truth for all knowledge content.
+            - listitem [ref=f4e609]:
+              - paragraph [ref=f4e617]: Keep the early content model limited to structures that are supported by markdown and can round-trip cleanly back to markdown files.
+            - listitem [ref=f4e619]:
+              - paragraph [ref=f4e627]: Keep knowledge behavior local-first, inspectable, and resilient.
+            - listitem [ref=f4e629]:
+              - paragraph [ref=f4e637]: Prefer durable architecture over quick prototypes when making foundation-level decisions.
+          - heading "Knowledge Backend" [level=2] [ref=f4e638]
+          - paragraph [ref=f4e639]: "The backend should follow the spirit of Obsidian's knowledge model and programmatic capabilities:"
+          - list [ref=f4e640]:
+            - listitem [ref=f4e642]:
+              - paragraph [ref=f4e650]: Markdown-native storage for notes and knowledge artifacts.
+            - listitem [ref=f4e652]:
+              - paragraph [ref=f4e660]: Fast indexing of documents, links, tags, metadata, headings, and references.
+            - listitem [ref=f4e662]:
+              - paragraph [ref=f4e670]: Graph-aware behavior for links, backlinks, unresolved links, and relationship exploration.
+            - listitem [ref=f4e672]:
+              - paragraph [ref=f4e680]: Cluster-level organization similar to Obsidian vaults, using Azurite's own product language instead of Obsidian's "vault" terminology.
+            - listitem [ref=f4e682]:
+              - paragraph [ref=f4e690]: LSP-like knowledge services where useful, such as link resolution, reference lookup, rename support, diagnostics for broken links, document symbols, completions, and hover metadata.
+            - listitem [ref=f4e692]:
+              - paragraph [ref=f4e700]: Derived indexes and caches may exist, but they must be rebuildable from the markdown source.
+          - paragraph [ref=f4e701]: Use "cluster" as the user-facing product term for Azurite's version of an Obsidian vault. A cluster is a self-contained folder-backed collection of markdown knowledge, configuration, indexes, and graph state. Current code and API contracts may still use "workspace" as the implementation term until a focused rename slice updates those contracts deliberately.
+          - heading "Repository And Cluster Boundaries" [level=2] [ref=f4e702]
+          - paragraph [ref=f4e703]: "Keep these locations conceptually separate:"
+          - list [ref=f4e704]:
+            - listitem [ref=f4e706]:
+              - paragraph [ref=f4e714]: "Source repository: this Git repository is for Azurite's application source code, documentation, tests, and development tooling."
+            - listitem [ref=f4e716]:
+              - paragraph [ref=f4e724]: "Installed or running product: the built Azurite app, server, runtime, and supporting files should be installable or runnable from any appropriate folder on the user's system. The product must not depend on this Git checkout being its runtime location."
+            - listitem [ref=f4e726]:
+              - paragraph [ref=f4e734]: "Knowledge cluster: the user's markdown knowledge collection must be usable from anywhere on the system, such as an existing notes folder, a synced directory, an external drive, or another local path selected by the user."
+          - paragraph [ref=f4e735]: "User knowledge clusters must not be coupled to this repository or stored inside it by default. The application should treat cluster locations as user-selected filesystem roots. Any generated indexes, caches, or app metadata must respect that boundary: source markdown remains in the chosen cluster, and derived state should be clearly separated, rebuildable, and safe to delete."
+          - heading "Frontend" [level=2] [ref=f4e736]
+          - paragraph [ref=f4e737]: The frontend should be web-based and usable as a progressive web app on both desktop and smartphone.
+          - list [ref=f4e738]:
+            - listitem [ref=f4e740]:
+              - paragraph [ref=f4e748]: The primary interface should be a local web app.
+            - listitem [ref=f4e750]:
+              - paragraph [ref=f4e758]: It should support installation or app-like use as a PWA.
+            - listitem [ref=f4e760]:
+              - paragraph [ref=f4e768]: The mobile experience matters because the app will be used from a smartphone.
+            - listitem [ref=f4e770]:
+              - paragraph [ref=f4e778]: Mobile sessions must tolerate browser reloads, tab discard, app switching, and reconnects without dumping the user back at an arbitrary first note or silently losing an in-progress edit.
+            - listitem [ref=f4e780]:
+              - paragraph [ref=f4e788]: The desktop experience should feel efficient for deep writing, navigation, linking, and knowledge work.
+            - listitem [ref=f4e790]:
+              - paragraph [ref=f4e798]: The visual and interaction quality should aim for a Notion-level sense of polish, clarity, and approachability without adopting Notion-only content blocks that cannot be represented in markdown.
+            - listitem [ref=f4e800]:
+              - paragraph [ref=f4e808]: The editor should eventually feel fluent and approachable like Notion while keeping markdown files as the source of truth.
+          - heading "Markdown Rendering Scope" [level=2] [ref=f4e809]
+          - paragraph [ref=f4e810]: The Notion-inspired part of the product is about frontend polish, interaction quality, and approachable editing, not about adopting a proprietary block model.
+          - paragraph [ref=f4e811]: In the early stages, the frontend should only render and edit content structures that are officially supported by markdown or by the project's explicitly chosen markdown dialect. Every visible content block should have a faithful markdown representation because all knowledge files are markdown files.
+          - paragraph [ref=f4e812]: Do not add Notion-style proprietary blocks that cannot be represented in markdown. A parser/renderer system for non-standard blocks may be considered later, but it should be treated as a deliberate extension rather than part of the initial product scope.
+          - paragraph [ref=f4e813]: Editing must follow the same rule as rendering. Early editing should support only markdown-backed structures that can round-trip cleanly to markdown. Richer editing affordances, such as shortcuts, toolbar actions, slash commands, and block-level interactions, should operate on markdown-supported structures rather than introducing a proprietary document model.
+          - heading "Local Access And Security" [level=2] [ref=f4e814]
+          - paragraph [ref=f4e815]: Azurite is intended to be hosted locally and accessed privately.
+          - list [ref=f4e816]:
+            - listitem [ref=f4e818]:
+              - paragraph [ref=f4e826]: No one outside the user's Tailscale network should have access.
+            - listitem [ref=f4e828]:
+              - paragraph [ref=f4e836]: Smartphone access should happen over Tailscale.
+            - listitem [ref=f4e838]:
+              - paragraph [ref=f4e846]: Desktop access should also work as a local or Tailscale-reachable PWA.
+            - listitem [ref=f4e848]:
+              - paragraph [ref=f4e856]: Public internet exposure is out of scope unless explicitly reconsidered later.
+            - listitem [ref=f4e858]:
+              - paragraph [ref=f4e866]: Deployment decisions should preserve the private-by-default access model.
+          - heading "Development Observability" [level=2] [ref=f4e867]
+          - paragraph [ref=f4e868]: The private-by-default product direction does not restrict Daniel-owned Sentry debug sessions. When Daniel explicitly enables Sentry for local development, diagnostic telemetry is allowed to be uncensored so real failures can be understood from logs, traces, replay, app state, request context, and backend filesystem evidence.
+          - paragraph [ref=f4e869]: Sentry debug observability is a development capability, not the public telemetry or privacy policy for a future distributed Azurite product.
+          - paragraph [ref=f4e870]: "After the semantic observability foundation and its mandatory editor-correctness follow-up are complete, Azurite may add a measured lightweight Sentry mode for Daniel's daily use and may keep that mode permanently enabled. A daily profile must remain distinct from exhaustive full debug: it should retain useful errors, breadcrumbs, sampled traces, and error-triggered or modest Replay while keeping high-frequency editor telemetry and rich product payloads behind explicit full debug configuration. Adopt it only after real editor responsiveness, memory, network, and event-volume evidence shows that its daily cost is negligible."
+          - heading "Quality Bar" [level=2] [ref=f4e871]
+          - paragraph [ref=f4e872]: "Production quality means:"
+          - list [ref=f4e873]:
+            - listitem [ref=f4e875]:
+              - paragraph [ref=f4e883]: Reliable persistence and recoverability of markdown content.
+            - listitem [ref=f4e885]:
+              - paragraph [ref=f4e893]: Clear separation between source content and rebuildable derived state.
+            - listitem [ref=f4e895]:
+              - paragraph [ref=f4e903]: Strong tests around indexing, linking, graph behavior, and synchronization boundaries.
+            - listitem [ref=f4e905]:
+              - paragraph [ref=f4e913]: Thoughtful handling of malformed markdown, missing files, renamed documents, and broken links.
+            - listitem [ref=f4e915]:
+              - paragraph [ref=f4e923]: A responsive, accessible, and robust PWA user experience across desktop and mobile.
+            - listitem [ref=f4e925]:
+              - paragraph [ref=f4e933]: Resilient mobile editing behavior that can recover the selected note and warn about unsaved drafts after a browser reload or mobile OS tab discard.
+            - listitem [ref=f4e935]:
+              - paragraph [ref=f4e943]: Security decisions that assume private knowledge content is sensitive.
+          - heading "Open Product Decisions" [level=2] [ref=f4e944]
+          - list [ref=f4e945]:
+            - listitem [ref=f4e947]:
+              - paragraph [ref=f4e955]: Exact markdown extensions and frontmatter conventions.
+            - listitem [ref=f4e957]:
+              - paragraph [ref=f4e965]: Whether editing should be pure markdown, block-oriented, or a careful hybrid.
+            - listitem [ref=f4e967]:
+              - paragraph [ref=f4e975]: How much Notion-like structured data should exist while keeping markdown as the source of truth.
+            - listitem [ref=f4e977]:
+              - paragraph [ref=f4e985]: Whether a later parser/renderer layer should support deliberate non-standard markdown extensions or custom blocks.
+            - listitem [ref=f4e987]:
+              - paragraph [ref=f4e995]: Exact implementation migration from current "workspace" contracts to user-facing "cluster" language.
+            - listitem [ref=f4e997]:
+              - paragraph [ref=f4e1005]: Authentication and network-binding strategy for local plus Tailscale access.
+          - paragraph [ref=f4e1006]
