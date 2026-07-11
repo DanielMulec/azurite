@@ -1,9 +1,0 @@
-- main [ref=e3]:
-  - generic [ref=e4]:
-    - heading "Azurite" [level=1] [ref=e6]
-    - complementary [ref=e7]:
-      - heading "Notes" [level=2] [ref=e8]
-      - paragraph [ref=e9]: Loading cluster notes...
-    - generic [ref=e12]:
-      - heading "No note selected" [level=2] [ref=e13]
-      - paragraph [ref=e14]: Choose a note from the cluster list.
