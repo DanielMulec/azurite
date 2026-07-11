@@ -66,6 +66,32 @@ feature-level constraints.
 Do not enable noisy stylistic rules that fight Prettier. Any local lint disable
 must explain why the rule is not appropriate at that location.
 
+### Lint Rule Governance
+
+The committed ESLint configuration is an approved engineering baseline, not an
+implementation variable that a slice may relax to make validation pass. Lint
+failures do not authorize an agent to add or broaden `eslint-disable`
+directives, change rule severity or thresholds, add ignore patterns or file
+overrides, modify the ESLint configuration, or weaken the validation scripts.
+This remains true when many failures come from numerical maintainability rules
+such as complexity, nesting depth, function length, parameter count, or file
+length.
+
+Resolve lint failures within the approved baseline when the resulting code has
+clearer responsibilities and control flow. Do not manufacture helper
+indirection, parameter objects, module fragmentation, or test decomposition
+solely to satisfy a numerical metric. When compliance would make the code less
+readable, or the volume and pattern of failures indicates that the baseline
+itself should be reconsidered, stop the lint-driven refactor and present the
+concrete evidence, affected rules, and proposed policy change to Daniel.
+
+Only Daniel's explicit approval for the current task authorizes a new lint
+exception or a change to the lint baseline. Apply an approved exception at the
+narrowest possible scope, document why the rule is inappropriate there, and
+preserve all unrelated lint protections. Treat a project-wide configuration or
+validation change as its own reviewed engineering-quality decision; do not
+silently annex it to the product slice that exposed the pressure.
+
 ## Formatting
 
 Prettier owns whitespace, indentation, wrapping, semicolons, quotes, trailing

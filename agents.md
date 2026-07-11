@@ -35,6 +35,12 @@ documented in `docs/product-vision.md`, current architecture in
 - Follow current system boundaries in `docs/technical-architecture.md` and the
   TypeScript, security, and code-quality rules in
   `docs/engineering-standards.md`.
+- Follow the lint-rule governance in `docs/engineering-standards.md`. A lint
+  failure count, including a concentration in numerical maintainability rules,
+  does not authorize adding or broadening `eslint-disable` directives, changing
+  `eslint.config.mjs`, adding overrides or ignore patterns, or weakening
+  validation. Stop and obtain Daniel's explicit approval before any such
+  exception or policy change.
 - For slice proposals, lead with the product decision and user story before
   listing implementation tasks. Explain why the capability matters for
   Azurite's future, what architecture it establishes, what user workflows it
