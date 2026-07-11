@@ -17,9 +17,6 @@ import {
   runWebRuntimeSpan,
 } from "../observability/web-runtime-observability.js";
 
-/**
- *
- */
 /** Immutable closure-owned identity and start context for one browser operation. */
 export type BrowserOperationEvidence = {
   readonly expectedContentHash?: string;
@@ -46,20 +43,35 @@ export function recordListResult(
     | { readonly staleCompletion: "failed" | "succeeded" },
 ): void {
   if ("staleCompletion" in outcome) {
-    record(evidence, eventNames.notesListStaleIgnored, results.staleIgnored, {
-      [attributeNames.staleCompletion]: outcome.staleCompletion,
+    record({
+      attributes: {
+        [attributeNames.staleCompletion]: outcome.staleCompletion,
+      },
+      evidence,
+      name: eventNames.notesListStaleIgnored,
+      resultStatus: results.staleIgnored,
     });
     return;
   }
   if ("error" in outcome) {
-    record(evidence, eventNames.notesListFailed, results.failed, {
-      [attributeNames.apiErrorCode]: readApiErrorCode(outcome.error),
+    record({
+      attributes: {
+        [attributeNames.apiErrorCode]: readApiErrorCode(outcome.error),
+      },
+      evidence,
+      name: eventNames.notesListFailed,
+      resultStatus: results.failed,
     });
     return;
   }
-  record(evidence, eventNames.notesListSucceeded, results.succeeded, {
-    ...clusterAttributes(outcome.clusterIdentity),
-    [attributeNames.noteCount]: outcome.noteCount,
+  record({
+    attributes: {
+      ...clusterAttributes(outcome.clusterIdentity),
+      [attributeNames.noteCount]: outcome.noteCount,
+    },
+    evidence,
+    name: eventNames.notesListSucceeded,
+    resultStatus: results.succeeded,
   });
 }
 
@@ -76,21 +88,36 @@ export function recordLoadResult(
     | { readonly staleCompletion: "failed" | "succeeded" },
 ): void {
   if ("staleCompletion" in outcome) {
-    record(evidence, eventNames.noteLoadStaleIgnored, results.staleIgnored, {
-      [attributeNames.staleCompletion]: outcome.staleCompletion,
+    record({
+      attributes: {
+        [attributeNames.staleCompletion]: outcome.staleCompletion,
+      },
+      evidence,
+      name: eventNames.noteLoadStaleIgnored,
+      resultStatus: results.staleIgnored,
     });
     return;
   }
   if ("error" in outcome) {
-    record(evidence, eventNames.noteLoadFailed, results.failed, {
-      [attributeNames.apiErrorCode]: readApiErrorCode(outcome.error),
+    record({
+      attributes: {
+        [attributeNames.apiErrorCode]: readApiErrorCode(outcome.error),
+      },
+      evidence,
+      name: eventNames.noteLoadFailed,
+      resultStatus: results.failed,
     });
     return;
   }
-  record(evidence, eventNames.noteLoadSucceeded, results.succeeded, {
-    ...clusterAttributes(outcome.clusterIdentity),
-    [attributeNames.contentHash]: outcome.contentHash,
-    [attributeNames.markdownLength]: outcome.markdownLength,
+  record({
+    attributes: {
+      ...clusterAttributes(outcome.clusterIdentity),
+      [attributeNames.contentHash]: outcome.contentHash,
+      [attributeNames.markdownLength]: outcome.markdownLength,
+    },
+    evidence,
+    name: eventNames.noteLoadSucceeded,
+    resultStatus: results.succeeded,
   });
 }
 
@@ -105,20 +132,45 @@ export function recordSaveResult(
     | { readonly error: unknown },
 ): void {
   if (!("error" in outcome)) {
-    record(evidence, eventNames.noteSaveSucceeded, results.succeeded, {
-      ...clusterAttributes(outcome.clusterIdentity),
-      [attributeNames.contentHash]: outcome.contentHash,
+    record({
+      attributes: {
+        ...clusterAttributes(outcome.clusterIdentity),
+        [attributeNames.contentHash]: outcome.contentHash,
+      },
+      evidence,
+      name: eventNames.noteSaveSucceeded,
+      resultStatus: results.succeeded,
     });
     return;
   }
   const code = readApiErrorCode(outcome.error);
-  const conflicted = code === apiErrorCodes.noteWriteConflict;
-  record(
+  recordSaveFailure(evidence, code);
+}
+
+function recordSaveFailure(
+  evidence: BrowserOperationEvidence,
+  code: string | undefined,
+): void {
+  const mapping = getSaveFailureMapping(code);
+  record({
+    attributes: { [attributeNames.apiErrorCode]: code },
     evidence,
-    conflicted ? eventNames.noteSaveConflicted : eventNames.noteSaveFailed,
-    conflicted ? results.conflicted : results.failed,
-    { [attributeNames.apiErrorCode]: code },
-  );
+    name: mapping.name,
+    resultStatus: mapping.resultStatus,
+  });
+}
+
+function getSaveFailureMapping(code: string | undefined): {
+  readonly name: string;
+  readonly resultStatus: string;
+} {
+  if (code === apiErrorCodes.noteWriteConflict) {
+    return {
+      name: eventNames.noteSaveConflicted,
+      resultStatus: results.conflicted,
+    };
+  }
+  return { name: eventNames.noteSaveFailed, resultStatus: results.failed };
 }
 
 /** Records a truthful browser route fact without creating operation identity. */
@@ -139,26 +191,28 @@ export function recordRouteEvidence(
 
 /** Records an operation start and runs work inside its neutral semantic span. */
 export function runBrowserOperation<Result>(
-  evidence: BrowserOperationEvidence,
-  eventName: string,
-  spanName: RuntimeSpanName,
-  startAttributes: RuntimeObservabilityAttributes,
-  callback: () => Result,
+  input: {
+    readonly callback: () => Result;
+    readonly eventName: string;
+    readonly evidence: BrowserOperationEvidence;
+    readonly spanName: RuntimeSpanName;
+    readonly startAttributes: RuntimeObservabilityAttributes;
+  },
 ): Result {
-  const attributes = baseAttributes(evidence, {
-    ...startAttributes,
+  const attributes = baseAttributes(input.evidence, {
+    ...input.startAttributes,
     [attributeNames.resultStatus]: results.started,
   });
-  recordWebRuntimeEvent(createEvent(evidence, eventName, attributes));
+  recordWebRuntimeEvent(createEvent(input.evidence, input.eventName, attributes));
   return runWebRuntimeSpan(
     {
       attributes,
-      name: eventName,
-      spanName,
+      name: input.eventName,
+      spanName: input.spanName,
       spanOperation: runtimeSpanOperations.noteOperation,
       surface: "web",
     },
-    callback,
+    input.callback,
   );
 }
 
@@ -167,23 +221,23 @@ export const staleSucceeded = staleCompletionStatuses.succeeded;
 /** Canonical failure marker for stale completion call sites. */
 export const staleFailed = staleCompletionStatuses.failed;
 
-function record(
-  evidence: BrowserOperationEvidence,
-  name: string,
-  resultStatus: string,
-  attributes: RuntimeObservabilityAttributes,
-): void {
+function record(input: {
+  readonly attributes: RuntimeObservabilityAttributes;
+  readonly evidence: BrowserOperationEvidence;
+  readonly name: string;
+  readonly resultStatus: string;
+}): void {
   recordWebRuntimeEvent(
     createEvent(
-      evidence,
-      name,
-      baseAttributes(evidence, {
-        ...attributes,
+      input.evidence,
+      input.name,
+      baseAttributes(input.evidence, {
+        ...input.attributes,
         [attributeNames.durationMs]: Math.max(
           0,
-          performance.now() - evidence.startedAt,
+          performance.now() - input.evidence.startedAt,
         ),
-        [attributeNames.resultStatus]: resultStatus,
+        [attributeNames.resultStatus]: input.resultStatus,
       }),
     ),
   );
@@ -215,23 +269,23 @@ function createEvent(
     attributes,
     name,
     surface: "web",
-    tags: {
-      ...(typeof apiCode === "string"
-        ? { [attributeNames.apiErrorCode]: apiCode }
-        : {}),
-      ...(evidence.metadata.noteOperationId === undefined
-        ? {}
-        : {
-            [attributeNames.noteOperationId]: evidence.metadata.noteOperationId,
-          }),
-      ...(evidence.metadata.requestId === undefined
-        ? {}
-        : { [attributeNames.requestId]: evidence.metadata.requestId }),
-      ...(typeof result === "string"
-        ? { [attributeNames.resultStatus]: result }
-        : {}),
-    },
+    tags: compactTags({
+      [attributeNames.apiErrorCode]:
+        typeof apiCode === "string" ? apiCode : undefined,
+      [attributeNames.noteOperationId]: evidence.metadata.noteOperationId,
+      [attributeNames.requestId]: evidence.metadata.requestId,
+      [attributeNames.resultStatus]:
+        typeof result === "string" ? result : undefined,
+    }),
   };
+}
+
+function compactTags(
+  tags: Readonly<Record<string, string | undefined>>,
+): RuntimeObservabilityEvent["tags"] {
+  return Object.fromEntries(
+    Object.entries(tags).filter(([, value]) => value !== undefined),
+  );
 }
 
 function clusterAttributes(

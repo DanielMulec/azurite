@@ -123,16 +123,16 @@ export function saveSelectedNoteAction(context: StoreContext): Promise<void> {
     noteId: editor.note.id,
   });
   markEditorSaving(editor, context);
-  const promise = runBrowserOperation(
+  const promise = runBrowserOperation({
+    callback: () => saveEditor(editor, evidence, context),
     evidence,
-    runtimeObservabilityEventNames.noteSaveStarted,
-    runtimeSpanNames.noteSave,
-    {
+    eventName: runtimeObservabilityEventNames.noteSaveStarted,
+    spanName: runtimeSpanNames.noteSave,
+    startAttributes: {
       [runtimeObservabilityAttributeNames.expectedContentHash]:
         editor.baseContentHash,
     },
-    () => saveEditor(editor, evidence, context),
-  ).finally(() => {
+  }).finally(() => {
     context.clearActiveNoteSave(editor.note.id, promise);
   });
   context.setActiveNoteSave(editor.note.id, { editor, metadata, promise });
@@ -276,9 +276,12 @@ async function saveEditor(
       contentHash: response.note.contentHash,
     });
   } catch (error) {
-    await applySaveFailure(error, editor, context, () =>
-      persistCurrentDraft(context),
-    );
+    await applySaveFailure({
+      context,
+      editor,
+      error,
+      persistLatestDraft: () => persistCurrentDraft(context),
+    });
     recordSaveResult(evidence, { error });
   }
 }

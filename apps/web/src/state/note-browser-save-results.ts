@@ -34,9 +34,7 @@ export async function applySaveResponse(
   if (currentEditor === undefined) {
     return;
   }
-  if (reconciliation !== undefined) {
-    applyDraftWriteResult(reconciliation, input.context);
-  }
+  applyDraftReconciliation(reconciliation, input.context);
   applyClusterIdentity(input.clusterIdentity, input.context);
   if (isSameSaveSnapshot(currentEditor, input.editor)) {
     applySavedNote(input.note, input.context);
@@ -48,20 +46,34 @@ export async function applySaveResponse(
 
 /** Applies a failed save to the latest same-note editor without restoring text. */
 export async function applySaveFailure(
-  error: unknown,
-  editor: EditorSession,
-  context: StoreContext,
-  persistLatestDraft: () => Promise<unknown>,
+  input: {
+    readonly context: StoreContext;
+    readonly editor: EditorSession;
+    readonly error: unknown;
+    readonly persistLatestDraft: () => Promise<unknown>;
+  },
 ): Promise<void> {
-  const currentEditor = getCurrentEditorForNote(editor.note.id, context);
+  const currentEditor = getCurrentEditorForNote(
+    input.editor.note.id,
+    input.context,
+  );
   if (currentEditor === undefined) {
     return;
   }
-  await persistLatestDraft();
-  if (isNoteWriteConflictError(error)) {
-    applySaveConflict(currentEditor, context);
+  await input.persistLatestDraft();
+  if (isNoteWriteConflictError(input.error)) {
+    applySaveConflict(currentEditor, input.context);
   } else {
-    applySaveFailureState(currentEditor, context);
+    applySaveFailureState(currentEditor, input.context);
+  }
+}
+
+function applyDraftReconciliation(
+  result: DraftWriteResult | undefined,
+  context: StoreContext,
+): void {
+  if (result !== undefined) {
+    applyDraftWriteResult(result, context);
   }
 }
 

@@ -57,12 +57,8 @@ export async function loadNotesAction(
     requestSequence,
   });
   context.set({ notesState: { status: "loading" } });
-  return runBrowserOperation(
-    evidence,
-    runtimeObservabilityEventNames.notesListStarted,
-    runtimeSpanNames.notesList,
-    {},
-    async () => {
+  return runBrowserOperation({
+    callback: async () => {
       try {
         const response = await context.api.listNotes(metadata);
         if (!applyListSuccess(response, evidence, requestSequence, context)) {
@@ -77,7 +73,11 @@ export async function loadNotesAction(
         applyListFailure(error, evidence, requestSequence, context);
       }
     },
-  );
+    evidence,
+    eventName: runtimeObservabilityEventNames.notesListStarted,
+    spanName: runtimeSpanNames.notesList,
+    startAttributes: {},
+  });
 }
 
 /** Synchronizes the selected-note state from typed route search params. */
@@ -125,13 +125,15 @@ export function selectNoteAction(
     requestSequence,
     routeSource,
   });
-  const promise = runBrowserOperation(
+  const promise = runBrowserOperation({
+    callback: () => readSelectedNote(evidence, context),
     evidence,
-    runtimeObservabilityEventNames.noteLoadStarted,
-    runtimeSpanNames.noteLoad,
-    { [runtimeObservabilityAttributeNames.routeSource]: routeSource },
-    () => readSelectedNote(evidence, context),
-  ).finally(() => {
+    eventName: runtimeObservabilityEventNames.noteLoadStarted,
+    spanName: runtimeSpanNames.noteLoad,
+    startAttributes: {
+      [runtimeObservabilityAttributeNames.routeSource]: routeSource,
+    },
+  }).finally(() => {
     context.clearActiveNoteLoad(promise);
   });
   context.setActiveNoteLoad({
