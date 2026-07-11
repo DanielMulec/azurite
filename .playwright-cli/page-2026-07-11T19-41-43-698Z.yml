@@ -1,0 +1,373 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Azurite" [level=1] [ref=e6]
+    - complementary [ref=e7]:
+      - heading "Notes" [level=2] [ref=e8]
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Azurite Product Vision 100%.md" [ref=e17]:
+            - generic [ref=e18]: Azurite Product Vision
+            - generic [ref=e19]: 100%.md
+        - listitem [ref=e20]:
+          - button "Technical Architecture Projects/architecture.md" [active] [ref=e21]:
+            - generic [ref=e22]: Technical Architecture
+            - generic [ref=e23]: Projects/architecture.md
+        - listitem [ref=e24]:
+          - 'button "Slice 7C: Semantic Editor And Persistence Diagnostics Projects/large-note.md" [ref=e25]':
+            - generic [ref=e26]: "Slice 7C: Semantic Editor And Persistence Diagnostics"
+            - generic [ref=e27]: Projects/large-note.md
+        - listitem [ref=e28]:
+          - button "Working Agreement Reference/working-agreement.md" [ref=e29]:
+            - generic [ref=e30]: Working Agreement
+            - generic [ref=e31]: Reference/working-agreement.md
+        - listitem [ref=e32]:
+          - 'button "Slice 5: Safe Manual Save Foundation index.md" [ref=e33]':
+            - generic [ref=e34]: "Slice 5: Safe Manual Save Foundation"
+            - generic [ref=e35]: index.md
+    - article [ref=e36]:
+      - generic [ref=e37]:
+        - paragraph [ref=e38]: Projects/architecture.md
+        - heading "Technical Architecture" [level=2] [ref=e914]
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: Unsaved changes
+        - button "Save" [ref=e44]
+      - generic [ref=e915]:
+        - group "Editor mode" [ref=e917]:
+          - button "WYSIWYG" [pressed] [ref=e918]
+          - button "Markdown" [ref=e919]
+        - textbox [ref=e922]:
+          - heading "Technical Architecture" [level=1] [ref=e923]
+          - heading "Purpose" [level=2] [ref=e924]
+          - paragraph [ref=e925]: This document describes Azurite's current system architecture and durable ownership boundaries. It does not serve as a slice history, engineering-style guide, or operational runbook.
+          - list [ref=e926]:
+            - listitem [ref=e928]:
+              - paragraph [ref=e936]:
+                - text: "Product direction:"
+                - code [ref=e937]: docs/product-vision.md
+            - listitem [ref=e939]:
+              - paragraph [ref=e947]:
+                - text: "Engineering rules:"
+                - code [ref=e948]: docs/engineering-standards.md
+            - listitem [ref=e950]:
+              - paragraph [ref=e958]:
+                - text: "Product-slice workflow:"
+                - code [ref=e959]: docs/working-agreement.md
+            - listitem [ref=e961]:
+              - paragraph [ref=e969]:
+                - text: "Active and completed slices:"
+                - code [ref=e970]: docs/slices/README.md
+            - listitem [ref=e972]:
+              - paragraph [ref=e980]:
+                - text: "Operational procedures:"
+                - code [ref=e981]: docs/runbooks/README.md
+            - listitem [ref=e983]:
+              - paragraph [ref=e991]:
+                - text: "Stable contracts:"
+                - code [ref=e992]: docs/reference/README.md
+          - heading "Current Stack" [level=2] [ref=e993]
+          - list [ref=e994]:
+            - listitem [ref=e996]:
+              - paragraph [ref=e1004]: "Runtime: Node.js 26.x."
+            - listitem [ref=e1006]:
+              - paragraph [ref=e1014]: "Package manager: pnpm 11.x workspaces."
+            - listitem [ref=e1016]:
+              - paragraph [ref=e1024]: "Language: TypeScript 6.x across backend, frontend, shared packages, and repository utilities."
+            - listitem [ref=e1026]:
+              - paragraph [ref=e1034]: "Backend: Fastify 5.x."
+            - listitem [ref=e1036]:
+              - paragraph [ref=e1044]: "Frontend: React 19.x with Vite 8.x."
+            - listitem [ref=e1046]:
+              - paragraph [ref=e1054]: "Styling: Tailwind CSS 4.x through the official Vite plugin, plus local semantic CSS tokens."
+            - listitem [ref=e1056]:
+              - paragraph [ref=e1064]: "Markdown dialect: CommonMark plus GitHub Flavored Markdown."
+            - listitem [ref=e1066]:
+              - paragraph [ref=e1074]: "Editor: Milkdown with Crepe."
+            - listitem [ref=e1076]:
+              - paragraph [ref=e1084]: "Runtime validation and shared contracts: Zod 4.x."
+            - listitem [ref=e1086]:
+              - paragraph [ref=e1094]: "Live client state: Zustand."
+            - listitem [ref=e1096]:
+              - paragraph [ref=e1104]: "URL state: TanStack Router."
+            - listitem [ref=e1106]:
+              - paragraph [ref=e1114]: "Durable browser recovery: Dexie over IndexedDB."
+            - listitem [ref=e1116]:
+              - paragraph [ref=e1124]: "Development observability: Sentry JavaScript SDK 10.x, split into React web and Fastify server projects behind explicit local-debug configuration."
+            - listitem [ref=e1126]:
+              - paragraph [ref=e1134]: "Testing: Vitest for unit and integration coverage; browser tooling for rendered and end-to-end QA."
+            - listitem [ref=e1136]:
+              - paragraph [ref=e1144]: "Linting and formatting: ESLint 9.x and Prettier 3.x."
+            - listitem [ref=e1146]:
+              - paragraph [ref=e1154]: "Private access: local binding by default with Tailscale-oriented phone access."
+          - paragraph [ref=e1155]: The installed package manifests and lockfile are the version source of truth. Prefer the newest compatible version line only when a focused dependency change has verified peer compatibility and product behavior.
+          - heading "Repository Shape" [level=2] [ref=e1156]
+          - code [ref=e1159]: apps/ web/ React, Vite, editor UI, URL state, live state, browser persistence server/ Fastify local API, runtime configuration, server lifecycle packages/ core/ cluster and note filesystem behavior, markdown parsing shared/ runtime schemas, API contracts, stable constants docs/ reference/ stable product and API contracts research/ domain-specific research catalogs runbooks/ repeatable operational procedures slices/ active, planned, and archived delivery records
+          - paragraph [ref=e1160]: Frontend, server, shared contracts, and core knowledge behavior remain behind clear package boundaries. The web app does not import server internals; the server does not import React code; core does not depend on UI frameworks or observability SDKs.
+          - heading "Product Terminology" [level=2] [ref=e1161]
+          - paragraph [ref=e1162]: "\"Cluster\" is the user-facing term for Azurite's folder-backed knowledge container. \"Workspace\" remains the current implementation and API term until a focused rename updates schemas, routes, tests, environment variables, and UI copy together."
+          - paragraph [ref=e1163]: A cluster can live anywhere appropriate on the user's system. It is independent of this source repository and remains usable by ordinary filesystem tools.
+          - heading "Current Product Baseline" [level=2] [ref=e1164]
+          - paragraph [ref=e1165]: "Azurite currently supports this end-to-end workflow:"
+          - list [ref=e1166]:
+            - listitem [ref=e1168]:
+              - generic [ref=e1169]: "1."
+              - paragraph [ref=e1173]: Fastify opens a configured filesystem cluster.
+            - listitem [ref=e1175]:
+              - generic [ref=e1176]: "2."
+              - paragraph [ref=e1180]: Core discovers markdown notes and exposes safe relative note metadata.
+            - listitem [ref=e1182]:
+              - generic [ref=e1183]: "3."
+              - paragraph [ref=e1187]: The web app lists notes and selects a note through URL-owned state.
+            - listitem [ref=e1189]:
+              - generic [ref=e1190]: "4."
+              - paragraph [ref=e1194]: Core reads raw markdown within the verified cluster boundary.
+            - listitem [ref=e1196]:
+              - generic [ref=e1197]: "5."
+              - paragraph [ref=e1201]: Milkdown and Crepe render and edit the selected markdown note.
+            - listitem [ref=e1203]:
+              - generic [ref=e1204]: "6."
+              - paragraph [ref=e1208]: Manual save writes an existing note through a content-hash conflict contract and atomic temporary-file replacement.
+            - listitem [ref=e1210]:
+              - generic [ref=e1211]: "7."
+              - paragraph [ref=e1215]: Zustand owns live note and editor state.
+            - listitem [ref=e1217]:
+              - generic [ref=e1218]: "8."
+              - paragraph [ref=e1222]: Dexie persists unsaved drafts by durable cluster ID and note ID.
+            - listitem [ref=e1224]:
+              - generic [ref=e1225]: "9."
+              - paragraph [ref=e1229]: Reload, tab discard, missing-note recovery, and external disk changes surface explicit recovery or conflict states rather than silently discarding intent.
+          - paragraph [ref=e1230]:
+            - text: The implementation and completion evidence for this baseline live in
+            - code [ref=e1231]: docs/slices/archive/
+            - text: .
+          - heading "Knowledge And Storage Boundaries" [level=2] [ref=e1232]
+          - paragraph [ref=e1233]: "Azurite follows the file-over-app principle:"
+          - list [ref=e1234]:
+            - listitem [ref=e1236]:
+              - paragraph [ref=e1244]: Markdown files are the canonical knowledge source.
+            - listitem [ref=e1246]:
+              - paragraph [ref=e1254]:
+                - code [ref=e1255]: .azurite/cluster.json
+                - text: stores app-owned durable cluster identity.
+            - listitem [ref=e1257]:
+              - paragraph [ref=e1265]: IndexedDB stores browser recovery state, not canonical note content.
+            - listitem [ref=e1267]:
+              - paragraph [ref=e1275]: Future indexes and caches must be rebuildable from cluster files and safe to delete.
+            - listitem [ref=e1277]:
+              - paragraph [ref=e1285]: Application source, installed runtime files, and user-selected clusters remain conceptually and physically separable.
+          - paragraph [ref=e1286]: "State ownership is explicit:"
+          - list [ref=e1287]:
+            - listitem [ref=e1289]:
+              - paragraph [ref=e1297]: "URL: addressable selected-note navigation and browser history."
+            - listitem [ref=e1299]:
+              - paragraph [ref=e1307]: "Zustand: current in-memory note, editor, save, conflict, and UI session state."
+            - listitem [ref=e1309]:
+              - paragraph [ref=e1317]: "Dexie: durable browser drafts and recovery metadata."
+            - listitem [ref=e1319]:
+              - paragraph [ref=e1327]: "Markdown files: canonical document content."
+            - listitem [ref=e1329]:
+              - paragraph [ref=e1337]: "Future derived index: note metadata, headings, tags, links, backlinks, search fields, and graph projections."
+          - paragraph [ref=e1338]: Do not move canonical note content into a database without explicitly revisiting the markdown-first product promise.
+          - heading "API And Contract Boundaries" [level=2] [ref=e1339]
+          - paragraph [ref=e1340]:
+            - text: Stable routes, query parameters, error codes, note IDs, cluster metadata, and response shapes originate in
+            - code [ref=e1341]: packages/shared
+            - text: and are documented in
+            - code [ref=e1342]: docs/reference/
+            - text: .
+          - paragraph [ref=e1343]:
+            - text: The server validates external input and keeps route handlers thin. Filesystem resolution, discovery, reading, metadata, hashing, and writing live in
+            - code [ref=e1344]: packages/core
+            - text: .
+          - paragraph [ref=e1345]: "Current note writes:"
+          - list [ref=e1346]:
+            - listitem [ref=e1348]:
+              - paragraph [ref=e1356]: accept only validated workspace-relative markdown note IDs;
+            - listitem [ref=e1358]:
+              - paragraph [ref=e1366]: require the expected content hash;
+            - listitem [ref=e1368]:
+              - paragraph [ref=e1376]: reject stale writes with the shared conflict response;
+            - listitem [ref=e1378]:
+              - paragraph [ref=e1386]: serialize same-path writes within one Azurite server process so concurrent same-hash attempts cannot both succeed, while different paths remain independent;
+            - listitem [ref=e1388]:
+              - paragraph [ref=e1396]: preserve dominant existing line endings;
+            - listitem [ref=e1398]:
+              - paragraph [ref=e1406]: write a temporary file in the target directory and rename it over the original;
+            - listitem [ref=e1408]:
+              - paragraph [ref=e1416]: never expose absolute filesystem paths in browser responses.
+          - heading "Request And Note-Operation Correlation" [level=3] [ref=e1417]
+          - paragraph [ref=e1418]: "Azurite owns semantic correlation independently of Sentry sampling. Shared branded UUID-v4 contracts keep three identities distinct:"
+          - list [ref=e1419]:
+            - listitem [ref=e1421]:
+              - paragraph [ref=e1429]: one request ID identifies one HTTP attempt;
+            - listitem [ref=e1431]:
+              - paragraph [ref=e1439]: one note-operation ID identifies one browser load or manual-save intent and may span future retry attempts; and
+            - listitem [ref=e1441]:
+              - paragraph [ref=e1449]: numeric Zustand request sequences exist only for stale-result ownership in the current browser session.
+          - paragraph [ref=e1450]: "The browser creates IDs with cryptographically secure platform APIs and sends them through shared correlation headers. ID-generation failure degrades evidence without blocking the request. Fastify validates each header into a fresh immutable request context, creates a server request ID when client input is absent or invalid, and omits an invalid operation ID. Correlation input is diagnostic only: it never authorizes work, selects a cluster or note, changes a response, or acts as an idempotency key."
+          - paragraph [ref=e1451]:
+            - text: Browser operation context remains closure-owned, and server context remains request-owned. Startup same-note synchronization reuses one load intent; overlapping reads retain independent context and stale completions cannot replace newer state. Manual save is single-flight per note in the browser. Editing during an active save preserves newer dirty markdown while the original snapshot settles, and successful save cleanup removes only an exact matching recovery draft. Core's keyed write coordinator provides the corresponding same-path in-process conflict guarantee without introducing Sentry or telemetry into
+            - code [ref=e1452]: packages/core
+            - text: .
+          - heading "Cluster Resolution And Filesystem Error Evolution" [level=3] [ref=e1453]
+          - paragraph [ref=e1454]:
+            - text: The current shared
+            - code [ref=e1455]: ClusterIdentity
+            - text: "is an outcome contract for browser state: it reports either a durable"
+            - code [ref=e1456]: ready
+            - text: cluster ID or an
+            - code [ref=e1457]: unavailable
+            - text: reason. A missing
+            - code [ref=e1458]: .azurite/cluster.json
+            - text: is an internal transient condition because core immediately attempts race-safe creation. The public identity therefore does not expose raw metadata-read states or whether a ready identity was loaded from an existing file, created by the current call, or reused after a concurrent creator won.
+          - paragraph [ref=e1459]:
+            - text: A future Cluster Opening And Lifecycle Foundation owns a separate domain-level resolution result for that provenance. It must cover user-selected cluster opening, a cluster picker and recent clusters, existing versus newly initialized identity, invalid metadata inspection and recovery, copied-cluster identity, an explicit make-this-copy-a-new-cluster operation, metadata migrations, external or synced directories, moved folders, and the workspace-to-cluster terminology migration. Keep durable identity separate from resolution history; do not add a transient
+            - code [ref=e1460]: missing
+            - text: identity state to current note responses.
+          - paragraph [ref=e1461]: Introduce this resolution result earlier only if Slice 7C or its immediate editor-correctness follow-up proves that created, reused, or copied cluster identity is required to explain the fresh-cluster recovered-draft behavior.
+          - paragraph [ref=e1462]: "The current core error taxonomy is sufficient for existing note read and manual save outcomes, but it is not the permanent contract for broader filesystem behavior. Extend stable core and shared error reasons before implementing the first capability that requires different recovery or security behavior for different filesystem causes. The hard trigger is whichever comes first:"
+          - list [ref=e1463]:
+            - listitem [ref=e1465]:
+              - paragraph [ref=e1473]: create, rename, move, delete, trash, or restore;
+            - listitem [ref=e1475]:
+              - paragraph [ref=e1483]: file watching, external-edit detection, or derived indexing; or
+            - listitem [ref=e1485]:
+              - paragraph [ref=e1493]: multi-cluster opening across external or synced folders.
+          - paragraph [ref=e1494]: The richer contract must distinguish actionable product, filesystem, and security outcomes without inferring them from error messages. It must exist before path-affecting operations are accepted through a hardened multi-device or authenticated hosting surface. Build it with the first triggering product capability, not as telemetry-only state inside an observability slice.
+          - heading "Markdown Rendering And Editing" [level=2] [ref=e1495]
+          - paragraph [ref=e1496]: Milkdown with Crepe owns the active WYSIWYG editor surface. Markdown remains the serialized source of truth, and source mode remains available as a complementary editing path.
+          - paragraph [ref=e1497]: Editor capabilities must round-trip through Azurite's selected markdown dialect. Do not introduce proprietary blocks or a canonical JSON document model without a deliberate product decision.
+          - paragraph [ref=e1498]: Any separate markdown-to-HTML rendering path must sanitize output before DOM insertion. Raw HTML remains disabled unless a focused slice defines and tests a safe extension.
+          - heading "Browsing, Indexing, And Search Direction" [level=2] [ref=e1499]
+          - paragraph [ref=e1500]: Direct filesystem discovery is acceptable for the current baseline but already measured roughly 2.8–3.2 seconds for 555 copied markdown files. A future indexing slice should introduce a rebuildable derived index when repeated scans prevent a responsive browsing or search workflow.
+          - paragraph [ref=e1501]: UI packages may render trees, virtualize rows, or provide search controls. They must not own note identity, cluster rules, filesystem semantics, or canonical knowledge state.
+          - paragraph [ref=e1502]: "An indexing decision must define:"
+          - list [ref=e1503]:
+            - listitem [ref=e1505]:
+              - paragraph [ref=e1513]: rebuild and invalidation behavior;
+            - listitem [ref=e1515]:
+              - paragraph [ref=e1523]: file-watch and external-edit semantics;
+            - listitem [ref=e1525]:
+              - paragraph [ref=e1533]: schema ownership and migration behavior;
+            - listitem [ref=e1535]:
+              - paragraph [ref=e1543]: search, backlink, and graph consumers;
+            - listitem [ref=e1545]:
+              - paragraph [ref=e1553]: failure and recovery behavior when derived state is missing or corrupt.
+          - heading "Local Server Lifecycle" [level=2] [ref=e1554]
+          - paragraph [ref=e1555]:
+            - text: The local Fastify server shuts down gracefully on
+            - code [ref=e1556]: SIGINT
+            - text: and
+            - code [ref=e1557]: SIGTERM
+            - text: .
+          - list [ref=e1558]:
+            - listitem [ref=e1560]:
+              - paragraph [ref=e1568]: Shutdown handlers live in the server entrypoint or lifecycle boundary, not in route modules.
+            - listitem [ref=e1570]:
+              - paragraph [ref=e1578]: Fastify stops accepting work before process exit.
+            - listitem [ref=e1580]:
+              - paragraph [ref=e1588]: Intentional local shutdown remains quiet and bounded by a short fallback.
+            - listitem [ref=e1590]:
+              - paragraph [ref=e1598]: Observability flush work may extend the enabled-mode fallback only when the flush budget remains shorter than the process-exit budget.
+          - heading "Local And Tailscale Access" [level=2] [ref=e1599]
+          - paragraph [ref=e1600]:
+            - text: Azurite binds locally by default. For phone QA, the backend remains on
+            - code [ref=e1601]: 127.0.0.1
+            - text: while Vite binds only to the required Tailscale interface and proxies API requests.
+          - paragraph [ref=e1602]:
+            - text: The operational procedure, including MagicDNS and allowed-host handling, lives in
+            - code [ref=e1603]: docs/runbooks/tailscale-phone-access.md
+            - text: .
+          - paragraph [ref=e1604]: Authentication, packaged-service hosting, and any broader network exposure remain explicit future architecture decisions. Public internet exposure is not part of the current product boundary.
+          - heading "Development Observability" [level=2] [ref=e1605]
+          - paragraph [ref=e1606]:
+            - text: Sentry owns Daniel-enabled development error capture, structured logs, tracing, and browser Session Replay. Azurite owns typed configuration, shared event contracts, and small runtime adapters; observability does not become product state, and
+            - code [ref=e1607]: packages/core
+            - text: remains free of Sentry imports.
+          - paragraph [ref=e1608]:
+            - text: The browser runtime uses
+            - code [ref=e1609]: "@sentry/react"
+            - text: and the backend uses
+            - code [ref=e1610]: "@sentry/node"
+            - text: . Both are disabled unless the matching enabled flag is the literal
+            - code [ref=e1611]: "true"
+            - text: and a DSN is present. The web entrypoint dynamically loads its SDK runtime before React render only when enabled. The server starts through Azurite's custom ESM preload, which loads the optional root
+            - code [ref=e1612]: .env.local
+            - text: and dynamically imports the Node SDK before Fastify only when enabled. Fastify 5 uses Sentry's supported diagnostics-channel integration; Pino remains the local server log.
+          - paragraph [ref=e1613]:
+            - text: Enabled browser debug sessions use uncensored Replay defaults, explicit trace sampling, and warning/error console capture. Relative browser API requests are trace-propagated through Vite to local-only Fastify. Enabled backend shutdown closes Fastify first, flushes Sentry for up to
+            - code [ref=e1614]: 1000ms
+            - text: ", records the result, and uses a bounded"
+            - code [ref=e1615]: 400ms
+            - text: follow-up flush to deliver that result. Its
+            - code [ref=e1616]: 1500ms
+            - text: fallback remains longer than both budgets together. Disabled shutdown retains the original
+            - code [ref=e1617]: 500ms
+            - text: fallback and performs no Sentry work.
+          - paragraph [ref=e1618]:
+            - text: Typed helpers in
+            - code [ref=e1619]: packages/shared
+            - text: ","
+            - code [ref=e1620]: apps/web
+            - text: ", and"
+            - code [ref=e1621]: apps/server
+            - text: "implement request/note-operation correlation and form the extension seam for planned semantic diagnostics. They emit bounded list, load, save, API, and server-route lifecycles with exact IDs and outcome attributes. Runtime adapters are fail-open: SDK record, scope, capture, or span-carrier failure cannot alter a product callback's count, identity, result, throw, or rejection. Direct Sentry calls stay inside runtime adapter modules. Operational configuration and proof steps live in"
+            - code [ref=e1622]: docs/runbooks/sentry-debug.md
+            - text: .
+          - paragraph [ref=e1623]:
+            - text: Explicit debug mode may capture complete Azurite product data needed to diagnose failures. Credential containment from
+            - code [ref=e1624]: docs/reference/product-guardrails.md
+            - text: still applies.
+          - paragraph [ref=e1625]: "After Slice 7C and its mandatory editor-correctness follow-up, a focused Daily Observability Operating Profile may establish three explicit modes:"
+          - list [ref=e1626]:
+            - listitem [ref=e1628]:
+              - paragraph [ref=e1636]: disabled, which retains the current zero-SDK-runtime baseline;
+            - listitem [ref=e1638]:
+              - paragraph [ref=e1646]: lightweight daily, which may remain permanently enabled for Daniel with errors, bounded breadcrumbs, measured trace sampling, and error-triggered or modest Replay; and
+            - listitem [ref=e1648]:
+              - paragraph [ref=e1656]: full debug, which retains exhaustive 7B/7C semantic diagnostics, uncensored Replay, high sampling, and bounded rich product payloads behind deliberate configuration.
+          - paragraph [ref=e1657]: This remains an evidence-gated future decision. Slice 7C must leave usable configuration seams and record disabled-versus-full-debug responsiveness and event-volume evidence. The later operating-profile slice must measure its actual daily candidate before enabling it permanently; it must not weaken full debug or eliminate the completely disabled troubleshooting baseline.
+          - heading "Security Architecture" [level=2] [ref=e1658]
+          - list [ref=e1659]:
+            - listitem [ref=e1661]:
+              - paragraph [ref=e1669]: Treat markdown and filesystem content as untrusted input.
+            - listitem [ref=e1671]:
+              - paragraph [ref=e1679]: Validate API inputs and outputs through shared runtime schemas.
+            - listitem [ref=e1681]:
+              - paragraph [ref=e1689]: Restrict reads and writes to the configured cluster root.
+            - listitem [ref=e1691]:
+              - paragraph [ref=e1699]: Reject traversal, ignored-directory access, and escaping symlinks.
+            - listitem [ref=e1701]:
+              - paragraph [ref=e1709]: Keep the backend local by default and restrict trusted origins.
+            - listitem [ref=e1711]:
+              - paragraph [ref=e1719]: Require origin checks or equivalent CSRF protection for state-changing routes.
+            - listitem [ref=e1721]:
+              - paragraph [ref=e1729]: Keep unsafe HTML out of the browser unless it passes the approved sanitizer.
+            - listitem [ref=e1731]:
+              - paragraph [ref=e1739]: Add Content Security Policy before broadening the installable PWA surface.
+            - listitem [ref=e1741]:
+              - paragraph [ref=e1749]: Keep secrets out of committed files, browser payloads, and telemetry.
+          - paragraph [ref=e1750]: Security claims must be backed by boundary validation and failure-mode tests, not by assuming unsafe states are impossible.
+          - heading "Deferred Architecture Decisions" [level=2] [ref=e1751]
+          - paragraph [ref=e1752]: "These decisions remain open and should be settled by the first product slice that genuinely needs them:"
+          - list [ref=e1753]:
+            - listitem [ref=e1755]:
+              - paragraph [ref=e1763]: cluster picker and persisted local cluster configuration;
+            - listitem [ref=e1765]:
+              - paragraph [ref=e1773]: full workspace-to-cluster implementation terminology migration;
+            - listitem [ref=e1775]:
+              - paragraph [ref=e1783]: derived index, file watching, search, backlinks, and graph storage;
+            - listitem [ref=e1785]:
+              - paragraph [ref=e1793]: PWA service-worker and offline behavior;
+            - listitem [ref=e1795]:
+              - paragraph [ref=e1803]: authentication and hardened Tailscale hosting;
+            - listitem [ref=e1805]:
+              - paragraph [ref=e1813]: a measured lightweight daily Sentry operating profile after Slice 7C and the mandatory editor-correctness follow-up;
+            - listitem [ref=e1815]:
+              - paragraph [ref=e1823]: production distribution and update strategy;
+            - listitem [ref=e1825]:
+              - paragraph [ref=e1833]: release source-map upload and production observability policy;
+            - listitem [ref=e1835]:
+              - paragraph [ref=e1843]: CI provider and required checks;
+            - listitem [ref=e1845]:
+              - paragraph [ref=e1853]: exact supported desktop and mobile browser matrix.
+          - paragraph [ref=e1854]

@@ -1,0 +1,232 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Azurite" [level=1] [ref=e6]
+    - complementary [ref=e7]:
+      - heading "Notes" [level=2] [ref=e8]
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Azurite Product Vision 100%.md" [ref=e17]:
+            - generic [ref=e18]: Azurite Product Vision
+            - generic [ref=e19]: 100%.md
+        - listitem [ref=e20]:
+          - button "Technical Architecture Projects/architecture.md" [ref=e21]:
+            - generic [ref=e22]: Technical Architecture
+            - generic [ref=e23]: Projects/architecture.md
+        - listitem [ref=e24]:
+          - 'button "Slice 7C: Semantic Editor And Persistence Diagnostics Projects/large-note.md" [ref=e25]':
+            - generic [ref=e26]: "Slice 7C: Semantic Editor And Persistence Diagnostics"
+            - generic [ref=e27]: Projects/large-note.md
+        - listitem [ref=e28]:
+          - button "Working Agreement Reference/working-agreement.md" [active] [ref=e29]:
+            - generic [ref=e30]: Working Agreement
+            - generic [ref=e31]: Reference/working-agreement.md
+        - listitem [ref=e32]:
+          - 'button "Slice 5: Safe Manual Save Foundation index.md" [ref=e33]':
+            - generic [ref=e34]: "Slice 5: Safe Manual Save Foundation"
+            - generic [ref=e35]: index.md
+    - article [ref=e36]:
+      - generic [ref=e37]:
+        - paragraph [ref=e38]: Reference/working-agreement.md
+        - heading "Working Agreement" [level=2] [ref=e3230]
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: Unsaved changes
+        - button "Save" [ref=e44]
+      - generic [ref=e3231]:
+        - group "Editor mode" [ref=e3233]:
+          - button "WYSIWYG" [pressed] [ref=e3234]
+          - button "Markdown" [ref=e3235]
+        - textbox [ref=e3238]:
+          - heading "Working Agreement" [level=1] [ref=e3239]
+          - heading "High-Fidelity Product Slices" [level=2] [ref=e3240]
+          - paragraph [ref=e3241]: Azurite should be built in coherent, high-quality product and engineering slices. A slice is a delivery unit that lets the user do something new, do an existing thing meaningfully better, or removes a meaningful blocker, risk, or architectural limitation.
+          - paragraph [ref=e3242]: A good slice can be reviewed and verified, but its boundary is defined by the user story, engineering outcome, or product capability it completes. Reviewability shapes execution; it does not shrink the slice below the natural workflow boundary.
+          - paragraph [ref=e3243]: When a feature touches behavior inspired by Obsidian, Notion, markdown tools, LSPs, PWAs, or security-sensitive local hosting, fidelity matters. Research should be deep enough for the selected slice to be excellent, not merely plausible.
+          - heading "Research Scope" [level=2] [ref=e3244]
+          - paragraph [ref=e3245]: Research should be scoped, not rushed.
+          - list [ref=e3246]:
+            - listitem [ref=e3248]:
+              - paragraph [ref=e3256]: Do not time-box research in a way that risks shallow or inaccurate behavior.
+            - listitem [ref=e3258]:
+              - paragraph [ref=e3266]: Do not expand one feature into a broad research phase for the entire product.
+            - listitem [ref=e3268]:
+              - paragraph [ref=e3276]: Research the selected delivery unit deeply enough to make a strong implementation decision.
+            - listitem [ref=e3278]:
+              - paragraph [ref=e3286]: "Convert research into one or more concrete outputs: code, tests, a short decision note, a source entry, or a clearly documented follow-up."
+            - listitem [ref=e3288]:
+              - paragraph [ref=e3296]:
+                - text: Track reusable sources in
+                - code [ref=e3297]: docs/research-sources.md
+                - text: ", while still looking for additional current sources when research matters."
+          - heading "Slice Selection" [level=2] [ref=e3298]
+          - paragraph [ref=e3299]: Prefer slices that produce visible, testable, or enabling product progress.
+          - paragraph [ref=e3300]: A slice should complete at least one real user story or product capability. Some slices are user-facing features; others are refactors, foundations, tooling, or quality improvements that unlock user-facing work or remove current product pain.
+          - paragraph [ref=e3301]: "A slice should span every product layer required to complete the user story honestly: frontend UI, client state, URL state, browser storage, IndexedDB, backend routes, shared contracts, filesystem behavior, databases, tests, documentation, tooling, and development workflow. If a layer participates in the current workflow or is predictably required by the capability being established, include it in the candidate scope first. Exclude it only when the exclusion forms a stable, useful delivery boundary and does not create immediate follow-up work for the same user story."
+          - paragraph [ref=e3302]: Do not split a slice just because part of it can be implemented separately. Split only when each side is a stable, useful delivery unit.
+          - paragraph [ref=e3303]: A slice is too small when it proves an implementation detail but leaves the user story unfinished, knowingly preserves a broken workflow, or creates immediate follow-up work that is already required for the behavior to be usable.
+          - heading "Scope Re-selection During Review" [level=2] [ref=e3304]
+          - paragraph [ref=e3305]: "Adversarial review, QA, and implementation evidence validate the selected slice boundary; they do not automatically enlarge it. Classify each newly discovered requirement before incorporating it:"
+          - list [ref=e3306]:
+            - listitem [ref=e3308]:
+              - generic [ref=e3309]: "1."
+              - paragraph [ref=e3313]: Include work that is required to complete the current user story honestly.
+            - listitem [ref=e3315]:
+              - generic [ref=e3316]: "2."
+              - paragraph [ref=e3320]: Create or reorder a separate slice when the finding establishes an independently useful product capability, engineering foundation, refactor, or quality outcome.
+            - listitem [ref=e3322]:
+              - generic [ref=e3323]: "3."
+              - paragraph [ref=e3327]: Place a contract in shared reference documentation only when multiple slices or implemented product behavior will reuse it.
+          - paragraph [ref=e3328]: Re-run slice selection explicitly when a finding adds another end-to-end workflow, participating layer, state owner, storage boundary, architectural foundation, or independently testable outcome. Record why the work is inseparable from the current story or name the stable delivery boundary that lets it become a separate slice.
+          - paragraph [ref=e3329]: Do not annex work merely because review discovered it, because implementation touches nearby files, or because the current slice can technically carry it. If the current slice depends on a newly discovered capability, implement that capability first in a preceding slice or explicitly reframe and rename the combined slice as a reviewed product decision. Add, reorder, or relabel later slices when the delivery sequence changes; existing slice labels are not a reason to hide scope expansion.
+          - paragraph [ref=e3330]: Line count alone never decides whether to split. The deciding question is whether each resulting slice delivers stable value without leaving either user story knowingly incomplete.
+          - heading "Product-Architecture Framing" [level=2] [ref=e3331]
+          - paragraph [ref=e3332]: When a QA finding, user frustration, or implementation issue points to a broader capability, define the slice from the product capability first.
+          - paragraph [ref=e3333]: "A slice proposal should answer, in this order:"
+          - list [ref=e3334]:
+            - listitem [ref=e3336]:
+              - generic [ref=e3337]: "1."
+              - paragraph [ref=e3341]: What product capability or user story does this establish?
+            - listitem [ref=e3343]:
+              - generic [ref=e3344]: "2."
+              - paragraph [ref=e3348]: What product decision does it settle?
+            - listitem [ref=e3350]:
+              - generic [ref=e3351]: "3."
+              - paragraph [ref=e3355]:
+                - text: For a cross-cutting foundation, what is the compact
+                - code [ref=e3356]: Future Workflow Boundary
+                - text: "?"
+            - listitem [ref=e3358]:
+              - generic [ref=e3359]: "4."
+              - paragraph [ref=e3363]: What dependencies, state boundaries, storage layers, contracts, services, and tests are needed to make the capability dependable?
+            - listitem [ref=e3365]:
+              - generic [ref=e3366]: "5."
+              - paragraph [ref=e3370]: Which slice-specific negative side effects require protection beyond the shared product guardrails?
+            - listitem [ref=e3372]:
+              - generic [ref=e3373]: "6."
+              - paragraph [ref=e3377]: What acceptance criteria prove both the new capability and preserved behavior?
+          - paragraph [ref=e3378]:
+            - text: Use this table for a
+            - code [ref=e3379]: Future Workflow Boundary
+            - text: ":"
+          - generic [ref=e3390]:
+            - button [ref=e3391] [cursor=pointer]
+            - button [ref=e3396] [cursor=pointer]
+            - table [ref=e3401]:
+              - rowgroup [ref=e3402]:
+                - row [ref=e3403]:
+                  - columnheader [ref=e3404]:
+                    - paragraph [ref=e3405]: Boundary
+                  - columnheader [ref=e3406]:
+                    - paragraph [ref=e3407]: Required content
+                - row [ref=e3408]:
+                  - cell [ref=e3409]:
+                    - paragraph [ref=e3410]: Current workflow
+                  - cell [ref=e3411]:
+                    - paragraph [ref=e3412]: The end-to-end user workflow this slice must make dependable.
+                - row [ref=e3413]:
+                  - cell [ref=e3414]:
+                    - paragraph [ref=e3415]: Predictable extensions
+                  - cell [ref=e3416]:
+                    - paragraph [ref=e3417]: Near-term workflows that materially shape today's architecture.
+                - row [ref=e3418]:
+                  - cell [ref=e3419]:
+                    - paragraph [ref=e3420]: Participating layers
+                  - cell [ref=e3421]:
+                    - paragraph [ref=e3422]: Product layers that own behavior in the current workflow.
+                - row [ref=e3423]:
+                  - cell [ref=e3424]:
+                    - paragraph [ref=e3425]: Near-term seams
+                  - cell [ref=e3426]:
+                    - paragraph [ref=e3427]: Interfaces required now so the predictable extensions do not need a replacement architecture.
+                - row [ref=e3428]:
+                  - cell [ref=e3429]:
+                    - paragraph [ref=e3430]: Exclusions
+                  - cell [ref=e3431]:
+                    - paragraph [ref=e3432]: Deliberately excluded layers and the stable reason they can wait.
+          - paragraph [ref=e3433]: Keep the table compact. It is a decision boundary, not a speculative catalog of every feature Azurite may eventually gain. Omit it for isolated, reversible work whose correct boundary is already obvious.
+          - paragraph [ref=e3434]: Do not frame foundational work as a narrow bug fix when the evidence shows that Azurite needs a reusable architecture. Prefer durable product foundations over patches that would require predictable replacement.
+          - paragraph [ref=e3435]: Avoid proposals that solve only the observed symptom while ignoring the product capability revealed by that symptom.
+          - heading "Regression And Side-Effect Guardrails" [level=2] [ref=e3436]
+          - paragraph [ref=e3437]: Every meaningful slice should define not only what new capability becomes true, but also what existing guarantees must remain true.
+          - paragraph [ref=e3438]: A regression is when behavior, safety, performance, data integrity, recovery, or user experience that already worked gets worse because of a new change. Other negative side effects include silent data loss, stale state, hidden degraded states, weaker validation, duplicated sources of truth, broken browser history, performance cliffs, confusing UI copy, and tests that pass while real product behavior fails.
+          - paragraph [ref=e3439]:
+            - text: Azurite's universal preservation guarantees live in
+            - code [ref=e3440]: docs/reference/product-guardrails.md
+            - text: . Meaningful slice proposals must link to that baseline instead of copying it.
+          - paragraph [ref=e3441]:
+            - text: Add a
+            - code [ref=e3442]: Negative Side-Effect Guardrails
+            - text: section when the slice introduces risks that are specific to its changed behavior. Name only concrete failure modes the shared baseline does not express precisely enough, such as a new migration rollback, a new route transition, a new cache invalidation rule, or a new external-service degraded state.
+          - paragraph [ref=e3443]: The implementation and verification plan should cover both the new behavior and these preservation guarantees. Do not accept a slice as complete when it adds the requested capability but silently breaks an earlier product promise.
+          - heading "Implementation Plans" [level=2] [ref=e3444]
+          - paragraph [ref=e3445]: Implementation plans should be decisive, not speculative.
+          - list [ref=e3446]:
+            - listitem [ref=e3448]:
+              - paragraph [ref=e3456]: Use definite language for chosen slice behavior, data shapes, route shapes, validation rules, and acceptance criteria.
+            - listitem [ref=e3458]:
+              - paragraph [ref=e3466]: Do not write plan steps around "probably", "maybe", or vague optionality.
+            - listitem [ref=e3468]:
+              - paragraph [ref=e3476]: If implementation reveals that a planned decision is wrong, correct the plan or record the decision change instead of quietly drifting.
+            - listitem [ref=e3478]:
+              - paragraph [ref=e3486]: Keep open questions explicit and separate from committed implementation steps.
+            - listitem [ref=e3488]:
+              - paragraph [ref=e3496]: Prefer reusing existing schemas, types, helpers, and domain functions before adding new ones.
+            - listitem [ref=e3498]:
+              - paragraph [ref=e3506]: When a reused helper or schema needs to support an additional context, extend it intentionally and test every supported context rather than creating a parallel near-copy.
+            - listitem [ref=e3508]:
+              - paragraph [ref=e3516]: Dependency decisions should be made from the intended product architecture. Compare categories honestly, such as state stores, routers, IndexedDB wrappers, databases, caches, and validation libraries, before selecting a tool.
+            - listitem [ref=e3518]:
+              - paragraph [ref=e3526]: If a dependency is chosen, document the product role it owns and the kind of future work it should make easier.
+            - listitem [ref=e3528]:
+              - paragraph [ref=e3536]: For cross-cutting foundations such as observability, persistence, routing, editor integration, authentication, search, indexing, sync, local hosting, storage, and telemetry, compare tools by the future product role they will own. Prefer adopting a durable platform or dependency when the capability needs correlation, inspection, replay, persistence, security, or operational workflow that would otherwise become custom infrastructure inside Azurite.
+          - heading "Decision Ownership And Non-Repetition" [level=3] [ref=e3537]
+          - paragraph [ref=e3538]: "Each material decision has one authoritative home:"
+          - list [ref=e3539]:
+            - listitem [ref=e3541]:
+              - paragraph [ref=e3549]: The product decision and user story own the product outcome and why it matters.
+            - listitem [ref=e3551]:
+              - paragraph [ref=e3559]: Architecture owns exact behavior, responsibility, state, data, and failure semantics.
+            - listitem [ref=e3561]:
+              - paragraph [ref=e3569]: The implementation plan owns the code and documentation changes and their execution order.
+            - listitem [ref=e3571]:
+              - paragraph [ref=e3579]: Verification owns the evidence required to prove behavior and preservation.
+            - listitem [ref=e3581]:
+              - paragraph [ref=e3589]: Acceptance criteria provide a concise completion gate and reference the authoritative contracts instead of reproducing them.
+          - paragraph [ref=e3590]: Other sections may provide a short summary or reference, but must not repeat the full contract. Tables, enum catalogs, algorithms, failure mappings, concurrency rules, and other exact behavior belong in one place.
+          - paragraph [ref=e3591]: Integrate adversarial feedback by correcting the authoritative decision and the implementation or verification steps it materially changes. Do not preserve the review conversation as proposal narrative, add the same finding to every section, or turn the reconciled baseline, goals, guardrails, acceptance criteria, and handoff into parallel copies of the architecture.
+          - paragraph [ref=e3592]: Do not extract text into a reference document merely to shorten a slice. Extract only a stable contract that implemented behavior or more than one slice will reuse. A plan is sufficiently detailed when an implementer can determine the product outcome, ownership, exact behavior, failure semantics, implementation boundary, and proof without choosing among unresolved alternatives. Stop adding restatements once that condition is met.
+          - heading "Sentry Debug Mode" [level=2] [ref=e3593]
+          - paragraph [ref=e3594]: Sentry debug mode is intentionally uncensored. When a slice uses Sentry behind explicit debug configuration, the correct default is complete capture, not privacy minimization.
+          - paragraph [ref=e3595]: Do not add Sentry requirements that redact, mask, hash, sanitize, or omit Azurite debugging data for privacy reasons. Do not challenge a Sentry slice because it captures real note content, editor replay, local paths, app state, request payloads, draft data, or backend error context.
+          - paragraph [ref=e3596]: Sentry acceptance criteria should prove that the captured data is rich enough to debug real failures across the browser, editor, client state, IndexedDB, API requests, Fastify handlers, and filesystem operations.
+          - paragraph [ref=e3597]:
+            - text: Keep Sentry-disabled behavior unchanged. Apply the credential-containment rules in
+            - code [ref=e3598]: docs/reference/product-guardrails.md
+            - text: without censoring Azurite product data.
+          - heading "Quality And Scope" [level=2] [ref=e3599]
+          - paragraph [ref=e3600]: High standards are welcome. Use them to complete the current user story with the architecture and verification it needs.
+          - paragraph [ref=e3601]: If implementation reveals required work that belongs to the same user story, include it in the slice. If work belongs in a separate slice, explain the stable value boundary that makes the split healthy.
+          - heading "Implementation Loop" [level=2] [ref=e3602]
+          - paragraph [ref=e3603]: "Use this loop for meaningful product work:"
+          - list [ref=e3604]:
+            - listitem [ref=e3606]:
+              - generic [ref=e3607]: "1."
+              - paragraph [ref=e3611]: Choose a coherent user story, product capability, refactor, foundation, or quality improvement.
+            - listitem [ref=e3613]:
+              - generic [ref=e3614]: "2."
+              - paragraph [ref=e3618]: Research only the domain needed for that delivery unit, deeply enough to preserve fidelity.
+            - listitem [ref=e3620]:
+              - generic [ref=e3621]: "3."
+              - paragraph [ref=e3625]: Record important sources, constraints, and decisions.
+            - listitem [ref=e3627]:
+              - generic [ref=e3628]: "4."
+              - paragraph [ref=e3632]: Link the shared product guardrails and define only slice-specific regression risks.
+            - listitem [ref=e3634]:
+              - generic [ref=e3635]: "5."
+              - paragraph [ref=e3639]: Implement the slice across every layer required to complete it honestly.
+            - listitem [ref=e3641]:
+              - generic [ref=e3642]: "6."
+              - paragraph [ref=e3646]: Verify both the new behavior and the preserved guardrail behavior with tests, manual checks, or a local demo.
+            - listitem [ref=e3648]:
+              - generic [ref=e3649]: "7."
+              - paragraph [ref=e3653]: Summarize what changed, what was preserved, and identify the next valuable delivery unit.
+          - paragraph [ref=e3654]
