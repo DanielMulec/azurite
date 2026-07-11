@@ -203,6 +203,9 @@ These layers are excluded from Slice 7C:
   bug in that foundation
 - fixing the Milkdown block-menu bug itself
 - fixing the mobile Markdown source-mode newline reversion itself
+- lazy-loading, manually rechunking, or replacing the current Milkdown/Crepe
+  editor dependency graph; the authoritative deferred loading boundary lives in
+  `docs/technical-architecture.md`
 - adding new note creation, delete, autosave, search, backlinks, graph, sync, or
   file-watch behavior
 - changing the current cluster identity response or broadening core filesystem
@@ -1030,6 +1033,12 @@ That fix slice must:
 The exact implementation plan should be written from the evidence captured by
 7C. This committed sequence sets the priority and outcome now without guessing
 at the root cause before the diagnostic foundation exists.
+
+Slice 7C must observe and measure the current statically loaded editor lifecycle
+rather than introduce the deferred lazy-loading boundary in
+`docs/technical-architecture.md`. Its evidence should leave mount and readiness
+timing understandable so a later focused performance slice can compare the
+loading architectures after the required correctness fix.
 
 If the evidence shows that created, reused, or copied cluster identity
 participates in the recovered-draft failure, the responsible 7C revision or

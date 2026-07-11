@@ -28,6 +28,10 @@ truth.
    the 7A runtime, 7B correlation, and 7C semantic evidence to fix the mobile
    Markdown source-mode newline reversion. No unrelated feature slice should
    intervene.
+5. Candidate after the required correctness fix: a measured editor-loading and
+   bundle-performance slice using the deferred boundary in
+   `docs/technical-architecture.md`. Milkdown with Crepe remains the selected
+   editor architecture.
 
 When a slice is completed, add concise completion evidence to its document and
 move it to `archive/`. Promote the next planned slice to `active/` only after its

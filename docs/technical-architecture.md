@@ -221,6 +221,29 @@ Any separate markdown-to-HTML rendering path must sanitize output before DOM
 insertion. Raw HTML remains disabled unless a focused slice defines and tests a
 safe extension.
 
+### Editor Loading And Bundle Boundary
+
+Milkdown with Crepe remains Azurite's selected editor architecture. Replacing it
+to reduce dependency weight is not an accepted optimization direction without a
+new explicit product decision.
+
+The current static editor import makes the full WYSIWYG dependency graph part of
+the initial web entry chunk. Daniel is interested in a future lazy-loading
+boundary that renders the application shell and note list before dynamically
+loading the rich editor. Do not implement that boundary before Slice 7B is
+complete. Default its delivery until after Slice 7C and the mandatory
+editor-correctness follow-up so diagnostics and repair QA observe the current
+editor lifecycle before its loading order changes.
+
+A focused future performance slice must measure development and built-preview
+cold start, time to application shell, time to editor readiness, emitted chunk
+sizes, and desktop/phone behavior. It may then introduce a dynamic editor import
+while preserving the selected Milkdown/Crepe feature behavior, WYSIWYG and
+Markdown behavior, draft recovery, routing, save/conflict guarantees, and
+Sentry-disabled/full-debug evidence. Raising Vite's warning threshold or
+merely splitting immediately required code into smaller files does not satisfy
+that outcome.
+
 ## Browsing, Indexing, And Search Direction
 
 Direct filesystem discovery is acceptable for the current baseline but already
@@ -263,6 +286,13 @@ in `docs/runbooks/tailscale-phone-access.md`.
 Authentication, packaged-service hosting, and any broader network exposure
 remain explicit future architecture decisions. Public internet exposure is not
 part of the current product boundary.
+
+Vite currently emits minified, content-hashed production assets, but Azurite has
+no production asset server or committed delivery policy yet. The gzip sizes in
+build output are estimates, not proof that a runtime serves compressed content.
+Production compression, Brotli/gzip negotiation, and long-lived immutable cache
+headers remain part of the future production distribution decision; Vite's dev
+and preview servers are QA tools, not that delivery architecture.
 
 ## Development Observability
 
