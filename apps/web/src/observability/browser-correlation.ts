@@ -22,7 +22,10 @@ type GenerationFailureReason =
 type GenerationResult =
   | { readonly id: CorrelationId }
   | { readonly error?: unknown; readonly reason?: GenerationFailureReason };
-type GenerationFailure = Exclude<GenerationResult, { readonly id: CorrelationId }>;
+type GenerationFailure = Exclude<
+  GenerationResult,
+  { readonly id: CorrelationId }
+>;
 
 /** Generates one secure branded browser correlation ID without blocking work. */
 export function createBrowserCorrelationId(

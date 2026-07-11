@@ -82,6 +82,12 @@ export function createSaveNoteError(error: unknown): SafeNoteRouteError {
   if (error instanceof WorkspaceResolutionError) {
     return invalidWorkspaceError();
   }
+  return createSaveNoteErrorWithinWorkspace(error);
+}
+
+function createSaveNoteErrorWithinWorkspace(
+  error: unknown,
+): SafeNoteRouteError {
   if (error instanceof NoteResolutionError) {
     return noteResolutionError(error);
   }

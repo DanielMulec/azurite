@@ -6,13 +6,13 @@ import {
   runtimeObservabilityEventNames as eventNames,
   runtimeResultStatuses as results,
   runtimeSpanNames,
-  type ClusterIdentity,
-  type RuntimeObservabilityAttributes,
 } from "@azurite/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import {
   createServerRouteAttributes,
+  createServerTerminalAttributes,
+  createClusterAttributes,
   readSafeApiErrorCode,
   recordServerRouteResult,
   runServerNoteRoute,
@@ -24,6 +24,14 @@ import {
 } from "./notes-route-errors.js";
 import type { ServerOptions } from "./server-options.js";
 
+type ListErrorInput = {
+  readonly error?: unknown;
+  readonly reply: FastifyReply;
+  readonly request: FastifyRequest;
+  readonly safeError: ReturnType<typeof workspaceNotConfiguredError>;
+  readonly startedAt: number;
+};
+
 /** Registers the note-list route and its correlation evidence. */
 export function registerNotesListRoute(
   server: FastifyInstance,
@@ -31,12 +39,12 @@ export function registerNotesListRoute(
 ): void {
   server.get(apiRoutes.notes, async (request, reply) => {
     const startedAt = performance.now();
-    const startAttributes = createServerRouteAttributes(
+    const startAttributes = createServerRouteAttributes({
+      attributes: { [attributeNames.resultStatus]: results.started },
+      method: "GET",
       request,
-      "GET",
-      apiRoutes.notes,
-      { [attributeNames.resultStatus]: results.started },
-    );
+      route: apiRoutes.notes,
+    });
     return runServerNoteRoute(
       request,
       {
@@ -46,83 +54,68 @@ export function registerNotesListRoute(
       },
       async () => {
         if (options.workspacePath === undefined) {
-          return sendListError(
-            request,
+          return sendListError({
             reply,
-            workspaceNotConfiguredError(),
-            undefined,
+            request,
+            safeError: workspaceNotConfiguredError(),
             startedAt,
-          );
+          });
         }
         try {
           const clusterIdentity = await readOrCreateClusterIdentity(
             options.workspacePath,
           );
           const notes = await listWorkspaceNotes(options.workspacePath);
-          recordServerRouteResult(
-            request,
-            eventNames.notesListSucceeded,
-            terminalAttributes(startedAt, 200, results.succeeded, {
-              ...clusterAttributes(clusterIdentity),
-              [attributeNames.noteCount]: notes.length,
+          recordServerRouteResult({
+            attributes: createServerTerminalAttributes({
+              attributes: {
+                ...createClusterAttributes(clusterIdentity),
+                [attributeNames.noteCount]: notes.length,
+              },
+              resultStatus: results.succeeded,
+              startedAt,
+              statusCode: 200,
             }),
-          );
+            eventName: eventNames.notesListSucceeded,
+            request,
+          });
           return await reply.send(
             listNotesResponseSchema.parse({ clusterIdentity, notes }),
           );
         } catch (error) {
           const safeError = createDiscoveryError(error);
           server.log.error({ error }, "Failed to list workspace notes.");
-          return sendListError(request, reply, safeError, error, startedAt);
+          return sendListError({ error, reply, request, safeError, startedAt });
         }
       },
     );
   });
 }
 
-function sendListError(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  safeError: ReturnType<typeof workspaceNotConfiguredError>,
-  error?: unknown,
-  startedAt = performance.now(),
-) {
-  const code = readSafeApiErrorCode(safeError.body);
-  recordServerRouteResult(
-    request,
-    eventNames.notesListFailed,
-    terminalAttributes(startedAt, safeError.statusCode, results.failed, {
-      [attributeNames.apiErrorCode]: code,
+function sendListError(input: ListErrorInput) {
+  const code = readSafeApiErrorCode(input.safeError.body);
+  recordServerRouteResult({
+    attributes: createServerTerminalAttributes({
+      attributes: { [attributeNames.apiErrorCode]: code },
+      resultStatus: results.failed,
+      startedAt: input.startedAt,
+      statusCode: input.safeError.statusCode,
     }),
-    error !== undefined && isUnexpectedNoteRouteError(code) ? error : undefined,
-  );
-  return reply.status(safeError.statusCode).send(safeError.body);
+    error: ownedUnexpectedError(code, input.error),
+    eventName: eventNames.notesListFailed,
+    request: input.request,
+  });
+  return input.reply
+    .status(input.safeError.statusCode)
+    .send(input.safeError.body);
 }
 
-function terminalAttributes(
-  startedAt: number,
-  statusCode: number,
-  resultStatus: string,
-  attributes: RuntimeObservabilityAttributes,
-): RuntimeObservabilityAttributes {
-  return {
-    ...attributes,
-    [attributeNames.durationMs]: Math.max(0, performance.now() - startedAt),
-    [attributeNames.httpResponseStatusCode]: statusCode,
-    [attributeNames.resultStatus]: resultStatus,
-  };
-}
-
-function clusterAttributes(
-  identity: ClusterIdentity,
-): RuntimeObservabilityAttributes {
-  return identity.status === "ready"
-    ? {
-        [attributeNames.clusterId]: identity.clusterId,
-        [attributeNames.clusterIdentityStatus]: identity.status,
-      }
-    : {
-        [attributeNames.clusterIdentityReason]: identity.reason,
-        [attributeNames.clusterIdentityStatus]: identity.status,
-      };
+function ownedUnexpectedError(
+  code: ReturnType<typeof readSafeApiErrorCode>,
+  error: unknown,
+): unknown {
+  if (error === undefined) {
+    return undefined;
+  }
+  return isUnexpectedNoteRouteError(code) ? error : undefined;
 }
