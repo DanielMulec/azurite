@@ -30,13 +30,19 @@ editor modes are synchronization events, not user edits. They must not replace
 the authoritative Markdown, mark the note dirty, write a recovery draft, enable
 Save, or rewrite the file.
 
-Source-mode input is exact user intent and becomes authoritative immediately.
-A genuine WYSIWYG document change makes Milkdown's current serialized Markdown
-the authoritative edited value. After that real rich-editor change, Milkdown
-may normalize Markdown syntax as part of serialization; this slice does not
-claim token-preserving localized source patches after a genuine WYSIWYG edit.
-That larger capability would require a separate source-mapping or Markdown
-reconciliation architecture.
+Source-mode input is exact accepted content and becomes authoritative
+immediately. A ready, active WYSIWYG document change that is not owned by an
+Azurite synchronization operation makes Milkdown's current serialized Markdown
+the authoritative edited value. This observable `accepted content change`
+contract does not claim to infer Daniel's psychological intent from every
+ProseMirror transaction. Mounting, readiness, controller-owned replacement, and
+mode display remain synchronization even when Milkdown's internal document or
+serialization changes.
+
+After an accepted rich-editor change, Milkdown may normalize Markdown syntax as
+part of serialization; this slice does not claim token-preserving localized
+source patches after WYSIWYG editing. That larger capability would require a
+separate source-mapping or Markdown reconciliation architecture.
 
 Dirty state remains an exact comparison of the authoritative current Markdown
 and the saved disk baseline, with only the existing CRLF-to-LF equivalence. Do
@@ -58,13 +64,19 @@ conflict contract, and preserves the intentional edit across reload.
 ## Goals
 
 - Make pristine open, editor readiness, and mode-only switching non-mutating.
-- Preserve exact loaded or recovered Markdown until a real content edit.
+- Preserve exact loaded or recovered Markdown until an accepted content change.
 - Establish one explicit Markdown-authority boundary between the editor
   projection and Zustand editor session.
+- Keep one Crepe instance for one editor session across ordinary React, Zustand,
+  draft, mode, and save-status rerenders.
+- Preserve a ready Crepe instance's latest document before an in-app transition
+  can destroy it while Milkdown's listener is still debounced.
+- Keep source editing usable while Crepe is creating or unavailable without
+  calling editor APIs before readiness.
 - Keep dirty-state, Save eligibility, and Dexie draft decisions on one shared
   comparison contract.
-- Preserve real source and WYSIWYG edits, including an edit followed immediately
-  by a mode switch before Milkdown's debounced listener fires.
+- Preserve accepted source and WYSIWYG changes, including one followed
+  immediately by a mode switch before Milkdown's debounced listener fires.
 - Add fixture-driven regression proof for the real Markdown shapes that exposed
   the defect.
 - Leave a typed content-change origin seam that Slice 7D diagnostics can observe
@@ -72,7 +84,7 @@ conflict contract, and preserves the intentional edit across reload.
 
 ## Non-Goals
 
-- Token-preserving or minimal-diff source rewriting after a genuine WYSIWYG
+- Token-preserving or minimal-diff source rewriting after an accepted WYSIWYG
   document edit.
 - Adopting a repository-wide Markdown canonicalization policy or rewriting
   existing notes into Milkdown's preferred syntax.
@@ -89,18 +101,22 @@ conflict contract, and preserves the intentional edit across reload.
 - Adding Slice 7D Sentry semantics, rich payload capture, or editor telemetry.
 - Changing the existing content-hash API, atomic filesystem write behavior,
   draft schema, or recovery ownership.
+- Automatically deleting or semantically classifying ambiguous drafts created
+  before this authority contract existed.
+- Adding a custom ProseMirror transaction plugin while Crepe's public lifecycle,
+  `getMarkdown()`, listener, and action APIs can complete the user story.
 - Repairing the two Slice 7B save-result ownership findings inside this slice;
   they are prerequisites, not annexed 7C work.
 
 ## Future Workflow Boundary
 
-| Boundary               | Decision                                                                                                                                                                                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current workflow       | Read exact Markdown from disk or a valid recovery draft, project it into Crepe, switch between WYSIWYG and source without inventing an edit, accept real content edits, persist only real dirty drafts, and manually save through the existing conflict contract. |
-| Predictable extensions | Autosave, external file watching, diff/conflict UI, source/WYSIWYG diagnostics, future editor loading, and multi-client editing all need to distinguish authoritative content from rendered or serialized projections.                                            |
-| Participating layers   | Milkdown/Crepe lifecycle and serialization, React editor controller, Zustand editor session, Save toolbar, Dexie draft scheduling/persistence, existing note API and content-hash save contract, Vitest, and real-browser QA.                                     |
-| Near-term seams        | A focused Markdown-authority controller; typed accepted-change origins (`source_input` and `wysiwyg_document`); one dirty-comparison helper; session/lifecycle ownership that rejects stale editor callbacks.                                                     |
-| Exclusions             | Token-level Markdown reconciliation, new persistence formats, editor replacement, route selection, block-menu behavior, mobile newline repair, observability payloads, and bundle loading can wait because none is required to stop projection-only mutations.    |
+| Boundary               | Decision                                                                                                                                                                                                                                                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current workflow       | Read exact Markdown from disk or a valid recovery draft, project it into one session-owned Crepe instance, switch between WYSIWYG and source without inventing an edit, commit accepted content before transitions, persist only real dirty drafts, and manually save through the existing conflict contract.  |
+| Predictable extensions | Autosave, external file watching, diff/conflict UI, source/WYSIWYG diagnostics, future editor loading, and multi-client editing all need to distinguish authoritative content from rendered or serialized projections and flush pending editor work before ownership changes.                                  |
+| Participating layers   | Milkdown/Crepe lifecycle and serialization, React editor and transition coordination, Zustand editor session, Save toolbar, Dexie draft scheduling/persistence and reconciliation, existing note API and content-hash save contract, Vitest, and real-browser QA.                                              |
+| Near-term seams        | A focused Markdown-authority controller; a React-owned active-editor transition boundary; typed accepted-change origins (`source_input` and `wysiwyg_document`); one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                              |
+| Exclusions             | Token-level Markdown reconciliation, automatic legacy-draft classification, new persistence formats, editor replacement, route selection behavior, block-menu behavior, mobile newline repair, observability payloads, and bundle loading can wait because none is required to stop projection-only mutations. |
 
 ## Authoritative Markdown Contract
 
@@ -110,30 +126,50 @@ not create competing definitions.
 
 ### State Terms
 
-| Term                           | Meaning                                                                                                                                                                                                                                                         |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Saved baseline                 | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                            |
-| Authoritative current Markdown | Exact content Azurite currently attributes to disk, a recovered draft, source input, or an accepted WYSIWYG edit. This is Zustand's `currentMarkdown`.                                                                                                          |
-| Synchronization checkpoint     | A controller-local pair: the exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes. |
-| Latest WYSIWYG projection      | The most recent projection observed from the active Crepe instance. It suppresses duplicate listener/mode-switch echoes without replacing the synchronization checkpoint.                                                                                       |
-| Accepted content change        | Source textarea input or a WYSIWYG projection that changed relative to the latest WYSIWYG projection after the editor is ready.                                                                                                                                 |
-| Synchronization                | Editor creation, readiness, source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Synchronization never becomes dirty by itself.                                                                                                    |
+| Term                           | Meaning                                                                                                                                                                                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor session                 | One store-owned editing lifetime identified by `sessionKey`. It owns at most one Crepe instance. Ordinary Markdown, mode, recovery, draft, and save-status rerenders remain inside that lifetime.                                                           |
+| Saved baseline                 | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                        |
+| Authoritative current Markdown | Exact content Azurite currently attributes to disk, a recovered draft, source input, or an accepted WYSIWYG document change. This is Zustand's `currentMarkdown`.                                                                                           |
+| Synchronization checkpoint     | A controller-local pair: exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes. |
+| Latest WYSIWYG projection      | The most recent projection accepted or synchronously read from the active Crepe instance. It suppresses duplicate listener and transition commits without replacing the synchronization checkpoint.                                                         |
+| Accepted content change        | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.              |
+| Synchronization                | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Synchronization never becomes dirty by itself.                                                                           |
+| Legacy ambiguous draft         | A valid draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite preserves it because automatic classification could delete real work.                                        |
 
 ### Required Transitions
 
 1. **Session creation**
    - Initialize authoritative current Markdown from the exact `initialMarkdown`.
    - Create Crepe with that exact value.
+   - Bind the Crepe instance to the editor `sessionKey`, not to mutable Markdown,
+     mode, recovery, draft, or save-status props.
+   - A same-session React or Zustand rerender must retain the instance, current
+     document, synchronization checkpoint, selection, and Undo history.
    - Do not call the parent content-change callback merely to echo the initial
      value.
    - Ignore listener callbacks that belong to an editor instance which is not
      ready, has been destroyed, or no longer owns the current session.
 
-2. **Crepe readiness**
-   - After `crepe.create()` resolves for the active instance, capture
-     `crepe.getMarkdown()` and the exact initial authority as the synchronization
-     checkpoint, and initialize the latest projection from it.
-   - Do not publish that serialized value to Zustand.
+2. **Creation and readiness**
+   - Do not call `getMarkdown()`, `editor.action(...)`, `replaceAll`, or another
+     Crepe runtime operation before `crepe.create()` resolves for the active
+     instance.
+   - Source mode remains usable while Crepe is creating. WYSIWYG activation is
+     disabled until the instance is ready and any required source synchronization
+     succeeds.
+   - Source input accepted during creation updates local authority and Zustand
+     immediately without mutating the creating Crepe instance.
+   - If WYSIWYG remains active and authority has not changed during creation,
+     capture `crepe.getMarkdown()` and the exact initial authority as the first
+     synchronization checkpoint, and initialize the latest projection from it.
+   - If source mode became active or authority changed while Crepe was creating,
+     mark the ready instance as requiring source synchronization. Do not install
+     a stale initial checkpoint or publish the instance's initial projection.
+   - If creation fails, activate source mode without creating a content change,
+     keep exact source authority editable, keep WYSIWYG unavailable, and show
+     that the rich editor could not be created.
+   - Readiness and failure do not publish serialized content to Zustand.
    - Do not use a timeout, callback count, or “ignore the first update” heuristic
      as the lifecycle boundary.
 
@@ -154,43 +190,70 @@ not create competing definitions.
    - A projection equal to the latest projection is a no-op even if Milkdown
      reports a document transaction.
 
-4. **WYSIWYG to source**
-   - Read the current projection synchronously before changing modes. This
-     catches a genuine document edit that occurred less than Milkdown's
-     200-millisecond listener debounce earlier.
+4. **Pre-transition WYSIWYG commit**
+   - A React-owned active-editor transition boundary retains only the current
+     controller capability. Crepe runtime objects and functions do not enter
+     Zustand, Dexie, or serialized product state.
+   - Before source-mode activation, note selection, URL-driven note replacement,
+     Back/Forward synchronization, manual save, or another in-app action can
+     destroy or supersede a ready WYSIWYG session, synchronously read
+     `crepe.getMarkdown()` while the instance still owns the session.
    - If that projection differs from the latest projection, process it once
      through the same checkpoint-aware WYSIWYG transition.
-   - If it equals the latest projection, show the existing exact authoritative
-     Markdown rather than replacing it with the normalized projection.
+   - Then publish accepted authority, flush the existing pending-draft boundary
+     when the transition requires durability, and only afterward continue the
+     store transition or destroy the instance.
+   - A projection equal to the latest projection commits nothing. Do not create
+     a revision or draft solely because a transition requested a commit.
+   - `visibilitychange` and `pagehide` synchronously commit a ready projection
+     before invoking the existing draft-flush attempt. This is best-effort browser
+     lifecycle protection; the slice does not claim recovery after a hard process
+     kill, power loss, or browser termination that runs no lifecycle callback.
+   - If the instance is still creating, source authority is already current and
+     no Crepe runtime call is allowed. In-app session replacement invalidates the
+     creating instance without waiting for it to become authoritative.
+
+5. **WYSIWYG to source**
+   - Complete the pre-transition WYSIWYG commit before changing modes. This
+     catches an accepted document edit that occurred less than Milkdown's
+     200-millisecond listener debounce earlier.
+   - Show the existing exact authoritative Markdown rather than replacing it
+     with a normalized projection when the commit is a no-op.
    - The mode change itself may update stored editor mode but must not create
      dirty content or a recovery draft.
 
-5. **Source input**
-   - Every textarea input value is exact `source_input` intent.
+6. **Source input**
+   - Every textarea input value is exact accepted `source_input` content.
    - Update local authoritative Markdown and publish it immediately. Do not
      normalize line endings or Markdown syntax at this boundary.
    - React rerenders and delayed callbacks from the hidden WYSIWYG surface must
      not replace newer source input.
 
-6. **Source to WYSIWYG**
+7. **Source to WYSIWYG**
+   - Do not activate or reveal WYSIWYG while Crepe is creating or failed.
    - Replace the Crepe document from the exact authoritative source value using
-     the established `replaceAll(..., true)` integration.
+     the established `replaceAll(..., true)` integration only after readiness.
    - Treat the replacement and any resulting listener echo as synchronization.
    - Capture the exact source authority and resulting serialized projection as a
      new synchronization checkpoint, and reset the latest projection without
      publishing it as content.
-   - If synchronization fails, keep the exact source authoritative and expose
-     the existing visible editor failure path; do not silently claim WYSIWYG is
-     current.
+   - Activate and reveal WYSIWYG only after synchronization and checkpoint
+     capture succeed.
+   - If synchronization fails, keep source mode active, keep the exact source
+     authoritative, and expose the visible rich-editor failure path; do not
+     silently claim WYSIWYG is current.
 
-7. **Session destruction or replacement**
+8. **Session destruction or replacement**
+   - Complete any required pre-transition commit before invalidating a ready
+     WYSIWYG session. React effect cleanup is not the first or only opportunity
+     to retain a debounced edit.
    - Invalidate the instance before asynchronous destruction.
    - A create resolution, listener callback, mode action, or destroy completion
      from an old note/session cannot mutate the new editor.
    - The new session receives its own exact authority, synchronization
      checkpoint, and latest projection.
 
-8. **Dirty, draft, and save decisions**
+9. **Dirty, draft, and save decisions**
    - Dirty means authoritative current Markdown differs from the saved baseline
      after CRLF-to-LF normalization only.
    - Clean mode changes do not write a draft. A pending draft flush for a clean
@@ -200,25 +263,48 @@ not create competing definitions.
    - Real dirty content continues through the existing draft and conflict
      contracts unchanged.
 
+10. **Legacy ambiguous draft compatibility**
+    - Do not automatically delete, canonicalize, or semantically classify a
+      valid pre-7C draft whose origin cannot be proven by its existing schema.
+    - Recover it through the existing draft/conflict UI and preserve its exact
+      Markdown, base hash, note/cluster scope, and editor mode.
+    - Explicit save continues through the content-hash contract. Explicit
+      discard deletes that draft, reloads exact disk Markdown, and must remain
+      clean through readiness and mode switching.
+    - Completion evidence must distinguish prevention of new projection-only
+      drafts from preservation of already stored ambiguous drafts.
+
 ## Installed Editor API Evidence
 
 The implementation must be based on the installed Milkdown 7.21.2 behavior,
 not an assumed generic editor callback:
 
+- Crepe's documented lifecycle constructs an editor with `defaultValue`, awaits
+  `create()`, uses public listener, `getMarkdown()`, and `editor.action(...)`
+  APIs after readiness, and calls `destroy()` when that editor is finished.
+- The installed React integration and official React Crepe example keep a
+  stable editor factory across ordinary rerenders; mutable content is not a
+  reason to reconstruct the editor.
 - `@milkdown/plugin-listener` emits `markdownUpdated` with current and previous
   Markdown after a debounced document change, but does not expose the
   originating ProseMirror transaction to that callback.
 - Its current implementation initializes a previous document/serialization,
   waits 200 milliseconds after eligible transactions, and ignores transactions
-  with `addToHistory === false`.
+  with `addToHistory === false`. Destroying the listener view cancels a pending
+  debounced callback.
+- Crepe's public `getMarkdown()` serializes the current live editor state and is
+  the first boundary for retaining a document change before an in-app
+  transition destroys the instance.
 - `replaceAll(markdown, true)` parses the Markdown, creates a fresh editor
-  state, and calls `view.updateState`; it is synchronization, not proof of user
-  intent.
+  state, and calls `view.updateState`; it is synchronization, not accepted
+  content.
 
-Those facts support the explicit authority/projection state machine. Do not add
-arbitrary DOM-event guesses or depend on undocumented callback ordering. If
-implementation evidence contradicts these installed APIs, pause and update this
-contract before choosing another mechanism.
+Those facts support the explicit authority/projection state machine and the
+public-API-first transition commit. Do not add arbitrary DOM-event guesses,
+depend on undocumented callback ordering, or install lower-level transaction
+integration speculatively. If real implementation evidence proves the public
+boundary cannot retain accepted edits or distinguish controller synchronization,
+pause and update this contract before choosing another mechanism.
 
 ## Implementation Plan
 
@@ -252,13 +338,21 @@ Implementation requirements:
   into focused modules with beginner-readable exported API documentation.
 - Represent lifecycle explicitly (`creating`, `ready`, `destroyed`) and bind it
   to one editor-session/instance generation.
+- Accept `sessionKey` as the Crepe lifetime identity. Do not include mutable
+  Markdown, editor mode, recovery, draft, or save-status values in the creation
+  effect's reconstruction boundary.
 - Represent accepted changes with a discriminated type carrying exact Markdown
   and origin: `source_input` or `wysiwyg_document`.
+- Expose a narrow controller capability that can synchronously commit the
+  current ready WYSIWYG projection before a React-owned transition continues.
 - Implement the authoritative transitions above as named, independently
   testable operations. Do not scatter boolean suppression flags across React
   callbacks without a single state owner.
 - Keep controller-local projection state out of Zustand and Dexie. It is an
   implementation projection, not product state or recovery data.
+- Use Crepe's public lifecycle, listener, `getMarkdown()`, and action APIs. Do
+  not add a custom transaction plugin unless a scope re-selection trigger is
+  proven.
 - Add no new runtime dependency.
 
 ### 3. Integrate Crepe Without Initial Or Synchronization Echoes
@@ -267,27 +361,63 @@ Implementation requirements:
 
 - Remove the current unconditional `onMarkdownChange(initialMarkdown)` call
   from editor creation.
-- Capture the initial synchronization checkpoint only after the active Crepe
-  create promise resolves.
+- Keep the source textarea available while Crepe creates. Disable WYSIWYG
+  activation until the active create promise resolves and any required source
+  synchronization succeeds.
+- Never invoke a Crepe runtime operation before readiness.
+- Capture the initial synchronization checkpoint after readiness only when
+  authority remained on the initial WYSIWYG document. Otherwise require an
+  explicit source-to-WYSIWYG synchronization before activation.
 - Route `markdownUpdated` through the authority controller rather than directly
   to the parent callback.
 - Make WYSIWYG-to-source read and reconcile the live projection before the mode
   switch, so a rapid edit is not lost to listener debounce.
-- Make source-to-WYSIWYG replace the document and reset the synchronization
-  checkpoint and latest projection without publishing serializer normalization.
+- Make source-to-WYSIWYG replace the document after readiness, reset the
+  synchronization checkpoint and latest projection without publishing
+  serializer normalization, and reveal WYSIWYG only after success.
 - Treat repeated clicks on the already active mode as no-ops.
+- If create or source synchronization fails, activate or retain source mode,
+  preserve exact source editing, and expose WYSIWYG as unavailable instead of
+  degrading the whole editing surface.
 - Preserve current loading/error UI and cleanup. Rejected create/destroy work
   remains contained and stale instances cannot publish.
 - Preserve the block controls and all current Crepe features; this slice must
   not opportunistically change feature configuration.
 
-### 4. Establish One Dirty-State Contract
+### 4. Commit Active WYSIWYG Before Transitions
 
 Implementation requirements:
 
-- Move Markdown line-ending normalization and dirty comparison into one focused
-  web-domain module used by both store actions and `SaveableNoteEditor`.
+- Add a React-owned active-editor transition coordinator that holds only the
+  current controller capability. Do not put Crepe instances, callbacks, refs,
+  or other runtime objects in Zustand, Dexie, or serializable snapshots.
+- Route note selection, URL-driven note replacement, Back/Forward
+  synchronization, manual Save, and WYSIWYG-to-source activation through the
+  coordinator before their existing store actions continue.
+- For a ready WYSIWYG session, synchronously read and reconcile
+  `crepe.getMarkdown()`, then flush the existing pending-draft boundary when the
+  transition requires durability, then continue the store transition.
+- Make transition ownership exact: an old controller cannot delay, cancel, or
+  publish into a newer session, and repeated commit requests for an unchanged
+  projection are idempotent.
+- Commit before invalidation; do not attempt to recover the latest projection
+  for the first time from React cleanup after Crepe destruction begins.
+- Integrate `visibilitychange` and `pagehide` with synchronous projection commit
+  followed by the existing best-effort draft flush. Do not claim recovery from
+  lifecycle callbacks the browser never executes.
+- Keep the transition boundary on Crepe's public APIs. If it cannot preserve the
+  immediate-edit scenarios, invoke scope re-selection before adding lower-level
+  editor integration.
+
+### 5. Establish One Dirty-State Contract
+
+Implementation requirements:
+
+- Move Markdown line-ending normalization and equality/dirty comparison into one
+  focused web-domain module used by store actions, `SaveableNoteEditor`, Dexie
+  saved-draft reconciliation, and the memory persistence test implementation.
 - Remove the duplicate private comparison from `SaveableNoteEditor.tsx`.
+- Remove production and test-local comparison copies from draft reconciliation.
 - Preserve only CRLF/LF equivalence. Do not trim, parse, serialize, or compare
   Markdown ASTs when deciding dirty state.
 - Keep `currentMarkdown` and `savedMarkdown` exact. Do not store a canonicalized
@@ -299,14 +429,20 @@ Implementation requirements:
 - Preserve the existing Slice 7B single-flight, edit-during-save,
   session-ownership, conflict, failed-save, and exact-draft-cleanup behavior
   after its prerequisite repairs.
+- Preserve every valid legacy ambiguous draft. Do not infer that a draft is safe
+  to delete merely because it equals Milkdown's projection of disk content.
 
-### 5. Add Layered Regression Coverage
+### 6. Add Layered Regression Coverage
 
 Implementation requirements:
 
 - Add pure authority-controller tests for every required transition, including:
   - normalized setup projection does not publish;
   - listener callbacks before readiness or after destruction are ignored;
+  - source input during creation becomes authoritative without calling Crepe;
+  - readiness after pre-ready source input cannot install a stale checkpoint;
+  - WYSIWYG activation stays unavailable until readiness and synchronization;
+  - create or synchronization failure preserves exact editable source;
   - pristine mode switching retains exact source;
   - source input publishes exact content once;
   - a delayed hidden-WYSIWYG callback cannot replace newer source input;
@@ -316,9 +452,18 @@ Implementation requirements:
     exact source syntax and clean state;
   - a WYSIWYG edit followed immediately by source mode is captured before the
     debounced listener;
+  - transition commit is idempotent and captures a projection before listener
+    debounce;
   - delayed old-session work cannot replace a new session.
 - Extend `MilkdownEditor` component tests with a controllable Crepe mock whose
   create promise and `markdownUpdated` callback can be resolved independently.
+- Prove same-session rerenders after Markdown, mode, draft, recovery, and
+  save-status changes retain one Crepe instance and preserve its checkpoint and
+  Undo history; a new `sessionKey` creates exactly one replacement instance.
+- Add React transition-coordinator tests for WYSIWYG edit followed immediately
+  by source mode, note selection, route replacement, Back/Forward, Save,
+  visibility change, and page hide. Assert projection commit occurs before store
+  flush/transition and before destruction.
 - Extend `SaveableNoteEditor` tests to consume the shared dirty helper and prove
   exact syntax changes remain dirty while CRLF/LF-only differences remain clean.
 - Extend note-browser store tests to prove:
@@ -329,13 +474,19 @@ Implementation requirements:
   - reload does not report recovery from projection-only normalization;
   - an existing deliberate recovered draft retains its exact Markdown and
     recovery state without being replaced by the editor projection;
+  - a seeded valid pre-7C projection-only draft is preserved as ambiguous until
+    explicit save or discard, and discard returns to exact clean disk authority;
   - conflict discard reloads exact disk Markdown and stays clean;
   - save, edit-during-save, failure, conflict, navigation, and same-note reopen
     ownership remain correct.
+- Exercise the installed Crepe configuration in a real browser beyond the
+  component mock: wait through readiness and delayed plugin activity, record
+  whether configured features change the document, and prove those changes do
+  not become accepted content without the authoritative contract.
 - Use fake timers only to drive the known debounce/draft scheduling in tests;
   production logic must not use timing guesses for authority.
 
-### 6. Update Durable Architecture And QA Evidence
+### 7. Update Durable Architecture And QA Evidence
 
 Implementation requirements:
 
@@ -346,7 +497,9 @@ Implementation requirements:
   full browser logs.
 - Add a focused QA record under `docs/qa/` containing fixture names, before/after
   hashes, browser results, IndexedDB proof, and any observed WYSIWYG
-  normalization after a genuine edit.
+  normalization after an accepted edit.
+- Record prevention of new projection-only drafts separately from preservation
+  and explicit disposition of seeded legacy ambiguous drafts.
 - Update the production QA record's P1 disposition only after all acceptance
   criteria pass.
 - Keep the Back/sidebar, block-menu, backend-copy, mobile-newline, and bundle
@@ -357,10 +510,18 @@ Implementation requirements:
 Pause and revise the slice rather than silently expanding it if implementation
 or QA proves any of these:
 
-- Milkdown changes the document after readiness without a user edit in a way
-  the synchronization-checkpoint contract cannot distinguish deterministically.
-- A real WYSIWYG edit cannot be retained across an immediate mode switch without
-  adding transaction-origin integration below Crepe's public listener API.
+- Milkdown changes the document after readiness outside an accepted edit or
+  controller-owned synchronization in a way the checkpoint contract cannot
+  distinguish deterministically.
+- An accepted WYSIWYG document change cannot be retained across immediate mode,
+  Save, note, route, history, or supported browser-lifecycle transitions through
+  Crepe's public `getMarkdown()` and lifecycle APIs.
+- Correct transition ownership requires storing Crepe runtime state in Zustand
+  or Dexie instead of a React-owned ephemeral boundary.
+- Pre-ready source input cannot remain authoritative without mutating Crepe
+  before `create()` resolves.
+- Deterministic accepted-change ownership requires transaction-origin
+  integration below Crepe's public listener API.
 - The only correct solution requires token-level source reconciliation or a
   canonicalization migration for existing notes.
 - Fixing false dirty requires changing the draft schema, content-hash API, or
@@ -374,7 +535,12 @@ or QA proves any of these:
 Baseline: `docs/reference/product-guardrails.md`.
 
 - Projection suppression must not discard a real WYSIWYG edit, including one
-  followed immediately by a mode switch or note navigation.
+  followed immediately by a mode switch, Save, note navigation, route/history
+  navigation, or a supported browser lifecycle callback.
+- A same-session rerender must not reconstruct Crepe, reset Undo history, move a
+  synchronization checkpoint, or duplicate an editor DOM tree.
+- Source edits accepted while Crepe creates must not call the unready editor,
+  disappear at readiness, or reveal stale WYSIWYG content.
 - A stale Crepe instance must not overwrite newer source input or a newly opened
   editor session.
 - Exact source input must not be hidden as clean by semantic normalization.
@@ -385,6 +551,11 @@ Baseline: `docs/reference/product-guardrails.md`.
   differently.
 - Real dirty drafts must retain current cluster/note scoping, base hash, editor
   mode, recovery behavior, and successful-save cleanup.
+- Valid legacy ambiguous drafts must not be deleted or rewritten by projection
+  inference; only explicit save/discard and the existing exact successful-save
+  contract may dispose of them.
+- Crepe instances and controller capabilities must remain ephemeral React-owned
+  runtime state, not a second product-state owner in Zustand or Dexie.
 - Discarding a conflict must restore exact disk Markdown and remain clean until
   the next real edit.
 - Existing safe URL, filesystem boundary, Sentry-disabled, request-correlation,
@@ -425,20 +596,59 @@ production preview:
 5. Reload and confirm no recovered-draft state.
 6. Invoke the store save action defensively and confirm no `PUT` request occurs.
 7. Confirm every disk byte length and SHA-256 hash is unchanged.
-8. Make one deliberate source edit; confirm dirty state, draft persistence,
-   save, reload, and exact source value.
+8. Under a throttled cold start, switch to source while the visible preparing
+   state is still present when that window is observable, make one source edit,
+   and confirm the edit becomes dirty and recoverable. After readiness, enter
+   WYSIWYG and confirm it shows the latest source rather than the stale
+   construction value. The controllable component test remains the deterministic
+   proof when real creation completes before browser automation can interact.
 9. Make one deliberate WYSIWYG edit and switch immediately to Markdown; confirm
    the edit is present, dirty, recoverable, saveable, and durable. Record any
    broader Milkdown syntax normalization honestly as the accepted real-edit
    boundary.
-10. Create an external-write conflict, discard the recovered draft, and confirm
+10. Repeat an immediate WYSIWYG edit before Save, sidebar selection, Back,
+    Forward, reload, `visibilitychange`, and `pagehide`; confirm the public
+    pre-transition commit runs before the old session is destroyed and the edit
+    is retained wherever the browser executed the supported lifecycle callback.
+11. Trigger same-session parent rerenders through mode, draft, recovery, and
+    save-status changes; confirm one Crepe DOM tree remains, Undo still reaches
+    the checkpoint, and no duplicate listener publishes. Component tests own the
+    exact instance-count assertion.
+12. Create an external-write conflict, discard the recovered draft, and confirm
     exact disk Markdown stays clean after editor readiness and mode switching.
-11. Recover one deliberate dirty draft whose syntax normalizes in Milkdown and
+13. Recover one deliberate dirty draft whose syntax normalizes in Milkdown and
     confirm the exact draft remains authoritative and dirty until save or
     discard.
-12. Navigate rapidly between notes during editor creation and confirm stale
+14. Seed a valid pre-7C projection-only draft, confirm Azurite preserves it as
+    ambiguous, discard it explicitly, and confirm exact disk Markdown remains
+    clean after readiness and mode switching.
+15. Navigate rapidly between notes during editor creation and confirm stale
     callbacks never alter the current note.
-13. Confirm the normal production console has no new errors or warnings.
+16. Wait through readiness and delayed configured-plugin activity without input;
+    confirm no post-ready non-authoritative document change becomes accepted
+    content.
+17. Confirm the normal production console has no new errors or warnings.
+
+### Synthetic Mobile QA
+
+Use the Codex Playwright skill's bundled browser with a Pixel 6-class mobile
+Chrome profile. Exercise both development and the optimized production preview
+with mobile viewport, device scale, touch input, mobile user agent, and a
+CPU-throttled cold start:
+
+- repeat pristine open, readiness, mode-only switching, reload, draft absence,
+  and file-hash proof;
+- attempt source editing during the visible preparing state, then activate
+  WYSIWYG after readiness and confirm the latest source is shown; retain the
+  controllable component case as deterministic proof when creation is too fast;
+- prove same-session rerenders retain one editor DOM tree and preserve Undo;
+- make a WYSIWYG edit and immediately switch mode, select another note, use
+  Back/Forward, and reload; confirm supported transitions retain the edit; and
+- inspect touch interaction, console output, network requests, and IndexedDB.
+
+Synthetic mobile evidence covers viewport, touch, throttled lifecycle, and
+mobile-browser emulation. It does not replace physical Android keyboard/IME,
+device performance, Tailscale, or hardware-specific Chrome evidence.
 
 ### Physical-Phone Smoke QA
 
@@ -460,6 +670,11 @@ finding. That remains the mandatory correctness work after Slice 7D.
 - Every fidelity fixture opens clean in development and the optimized
   production preview.
 - Waiting for Crepe readiness and listener debounce publishes no content change.
+- Source remains editable while Crepe creates or fails, no runtime API is called
+  before readiness, and later WYSIWYG activation synchronizes the latest exact
+  authority before revealing the rich editor.
+- One editor session retains one Crepe instance, document, checkpoint, and Undo
+  history across ordinary same-session React and Zustand rerenders.
 - WYSIWYG/Markdown mode-only round trips preserve the exact authoritative
   Markdown and create no recovery draft.
 - Save is disabled for pristine content, a direct clean save makes no API call,
@@ -468,18 +683,25 @@ finding. That remains the mandatory correctness work after Slice 7D.
   state.
 - A deliberate recovered draft keeps its exact Markdown and remains honestly
   dirty even when Milkdown's projection differs.
-- Genuine source input remains exact, becomes dirty, persists a draft, saves,
+- Accepted source input remains exact, becomes dirty, persists a draft, saves,
   and survives reload.
-- Genuine WYSIWYG input becomes dirty, is not lost during an immediate mode
-  switch, persists a draft, saves, and survives reload.
+- An accepted WYSIWYG document change becomes dirty, is synchronously retained
+  through immediate mode, Save, note, route/history, and supported lifecycle
+  transitions, persists a draft, saves, and survives reload.
 - Old editor instances and synchronization echoes cannot replace newer session
   or source intent.
-- One shared dirty comparison owns UI, draft, and save decisions with CRLF/LF
+- Valid legacy ambiguous drafts are preserved without inference; explicit
+  discard reloads exact disk Markdown and remains clean.
+- One shared Markdown comparison owns UI, store dirty/draft/save decisions,
+  Dexie saved-draft reconciliation, and matching test persistence with CRLF/LF
   equivalence only.
+- Crepe runtime objects and active controller capabilities remain out of Zustand,
+  Dexie, and serializable snapshots.
 - The architecture documentation records the exact-authority versus projection
   boundary and the honest limitation after real WYSIWYG edits.
-- The desktop QA matrix passes in both dev and production preview, and the
-  physical-phone non-input smoke passes without claiming the Android input bug.
+- The desktop QA matrix passes in both dev and production preview, synthetic
+  Pixel 6 QA passes in both runtimes, and the physical-phone non-input smoke
+  passes without claiming the Android input bug.
 - The unrelated production findings remain separately tracked rather than
   silently absorbed.
 - `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and

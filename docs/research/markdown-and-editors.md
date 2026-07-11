@@ -113,6 +113,34 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Examples are implementation references, not Azurite architecture;
   adapt them to local component boundaries and tests.
 
+### Milkdown React Crepe Example
+
+- URL: https://github.com/Milkdown/examples/blob/main/react-crepe/components/Editor.tsx
+- Accessed: 2026-07-11
+- Area: React and Crepe lifecycle ownership
+- Use when: Deciding whether ordinary React rerenders should reconstruct a
+  Crepe instance.
+- Notes: The official example creates Crepe through a stable `useEditor`
+  factory with an empty dependency list, matching one editor instance per
+  mounted editing lifetime.
+- Caveats: The example is intentionally minimal. Azurite still owns session
+  identity, source-mode synchronization, drafts, transition commits, and stale
+  asynchronous-work tests.
+
+### Milkdown 7.21.2 Crepe Builder Source
+
+- URL: https://github.com/Milkdown/milkdown/blob/v7.21.2/packages/crepe/src/core/builder.ts
+- Accessed: 2026-07-11
+- Area: Crepe creation, destruction, and public runtime APIs
+- Use when: Implementing a session-owned Crepe lifecycle or reading current
+  Markdown before an Azurite transition.
+- Notes: The pinned builder consumes `defaultValue` during construction,
+  exposes explicit `create()` and `destroy()` lifecycle methods, and provides
+  public `getMarkdown()`, listener registration, and underlying editor action
+  access.
+- Caveats: Runtime methods require the relevant Milkdown contexts to be ready.
+  Recheck the pinned source and browser regression suite after an editor upgrade.
+
 ### Milkdown 7.21.2 Listener Plugin Source
 
 - URL: https://github.com/Milkdown/milkdown/blob/v7.21.2/packages/plugins/plugin-listener/src/index.ts
