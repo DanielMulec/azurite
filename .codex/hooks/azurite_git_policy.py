@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import fcntl
 import json
-import os
 import re
-import sqlite3
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from codex_thread_title import native_title_sync_context
 
 
 REPO_ROOT = Path("/Users/danielmulec/Projekte/azurite").resolve()
@@ -180,54 +180,6 @@ def sync_main(root: Path) -> str:
     return "Azurite main already clean and synced"
 
 
-def event_thread_id(event: dict) -> str | None:
-    value = event.get("thread-id") or event.get("thread_id") or event.get("session_id")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def codex_state_db() -> Path:
-    codex_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
-    return Path(os.environ.get("CODEX_STATE_DB") or codex_home / "state_5.sqlite")
-
-
-def newest_workspace_thread_id(connection: sqlite3.Connection, root: Path) -> str | None:
-    row = connection.execute(
-        "SELECT id FROM threads WHERE cwd = ? "
-        "ORDER BY created_at_ms DESC, created_at DESC, id DESC LIMIT 1",
-        (str(root),),
-    ).fetchone()
-    return row[0] if row else None
-
-
-def prefix_session_title(event: dict, root: Path) -> str:
-    try:
-        with sqlite3.connect(str(codex_state_db()), timeout=5) as connection:
-            connection.execute("PRAGMA busy_timeout = 5000")
-            thread_id = event_thread_id(event) or newest_workspace_thread_id(connection, root)
-            if not thread_id:
-                return "no Codex thread found yet"
-
-            row = connection.execute("SELECT title, cwd FROM threads WHERE id = ?", (thread_id,)).fetchone()
-            if row is None:
-                return "no matching Codex thread row found"
-
-            title, cwd = row
-            if Path(cwd).expanduser().resolve() != root:
-                return "thread is outside Azurite workspace"
-
-            title = title or ""
-            if title.startswith(SESSION_TITLE_PREFIX):
-                return "session title prefix already present"
-
-            connection.execute("UPDATE threads SET title = ? WHERE id = ?", (SESSION_TITLE_PREFIX + title, thread_id))
-            connection.commit()
-            return "added session title prefix"
-    except Exception as exc:  # noqa: BLE001
-        return f"session title prefix skipped: {exc}"
-
-
 def with_lock(root: Path, callback) -> str:
     lock_path = root / ".git" / LOCK_NAME
     with lock_path.open("w") as lock_file:
@@ -238,11 +190,11 @@ def with_lock(root: Path, callback) -> str:
         return callback()
 
 
-def stop_success(message: str, title_message: str) -> None:
-    print(json.dumps({"continue": True, "systemMessage": f"{message}; {title_message}", "suppressOutput": True}))
+def stop_success(message: str) -> None:
+    print(json.dumps({"continue": True, "systemMessage": message, "suppressOutput": True}))
 
 
-def session_success(message: str, title_message: str) -> None:
+def session_success(message: str, title_context: str) -> None:
     print(
         json.dumps(
             {
@@ -252,7 +204,7 @@ def session_success(message: str, title_message: str) -> None:
                     "additionalContext": (
                         "Azurite git policy is active: stay on main, keep the full "
                         "repository state synced to origin/main, and do not create side branches. "
-                        f"Latest hook check: {message}. Session title hook: {title_message}."
+                        f"Latest hook check: {message}. {title_context}"
                     ),
                 },
             }
@@ -361,11 +313,30 @@ def sync(event: dict) -> None:
         return
 
     if event_name == "SessionStart":
-        session_success(message, prefix_session_title(event, root))
+        session_success(
+            message,
+            native_title_sync_context(event, root, SESSION_TITLE_PREFIX),
+        )
     elif event_name == "Stop":
-        stop_success(message, prefix_session_title(event, root))
+        stop_success(message)
     else:
         print(json.dumps({"continue": True, "systemMessage": message}))
+
+
+def synchronize_title(event: dict) -> None:
+    root = ensure_target_repo(event)
+    context = native_title_sync_context(event, root, SESSION_TITLE_PREFIX)
+    print(
+        json.dumps(
+            {
+                "continue": True,
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": context,
+                },
+            }
+        )
+    )
 
 
 def main() -> int:
@@ -376,6 +347,8 @@ def main() -> int:
             guard(event)
         elif mode == "sync":
             sync(event)
+        elif mode == "title":
+            synchronize_title(event)
         else:
             raise HookFailure(f"unknown mode `{mode}`")
     except HookFailure as exc:
