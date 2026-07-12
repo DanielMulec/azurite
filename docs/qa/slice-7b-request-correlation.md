@@ -209,14 +209,34 @@ Fastify listened only on `127.0.0.1:3000`; Vite preview listened only on
 Fastify, while the loopback health check succeeded. This preserves the current
 network boundary without making a physical-phone session a prerequisite.
 
-For dashboard corroboration, Codex made the user-authorized disposable clone of
-the Default Google Chrome profile and opened Sentry through Playwright. The
-clone contained no valid signed-in Sentry session, so Logs, Trace Explorer,
-server-side lifecycle records, and Replay could not be inspected. This is a
-QA-evidence limitation, not a product failure: the local proof consists of
-visible marker text, successful browser envelopes, Fastify request handling,
-and successful trace-header responses. Do not claim a new dashboard Replay or
-server-side Sentry event join was visually verified from this run.
+### Authenticated Sentry Dashboard Follow-Up — 2026-07-12
+
+The initial persistent Playwright clone of Chrome's `Default` profile reached
+Sentry's anonymous welcome page. That did not prove Daniel's live Chrome session
+was logged out: the Playwright CLI launched Chrome with `--use-mock-keychain`
+and `--password-store=basic`, which cannot reliably read a macOS Chrome clone's
+encrypted authentication state.
+
+After Daniel opened Sentry in ordinary Chrome and explicitly authorized a retry,
+Codex copied the entire on-disk Chrome user-data root into a disposable
+directory, excluding only Chrome's live singleton locks. The copy included the
+profile state, cookie databases and WAL files, local storage, service-worker
+data, session-restore data, and `Local State`. Codex launched ordinary Chrome
+against that clone, attached Playwright over its local CDP endpoint, then deleted
+the clone and all Playwright artifacts after inspection. No cookie, token,
+authorization header, DSN, or other credential value was read into QA evidence.
+
+The authenticated Sentry UI then provided the previously missing visual proof:
+
+| Surface                 | Direct Sentry UI evidence                                                                                                                                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web issue and Replay    | `AZURITE-WEB-1` issue `133335046` displayed the deliberate web event and three linked Replays. Its newest Replay, `7502f91ad76f4e8290b53241338da3dc`, rendered the recorded Azurite diagnostics panel with the full unmasked `AZURITE-SENTRY-7A-UNMASKED-REPLAY-MARKER`.               |
+| Server lifecycle        | `AZURITE-SERVER-2` issue `133754205` displayed server event `4f9cab3df6c2427e89c5fc48cd41d74a` for `POST /__azurite/dev/sentry-test-event`. Its event context showed the full marker plus `sentry.trace_header_seen: true` and `sentry.baggage_seen: true`.                            |
+| Trace Explorer and logs | Trace `62df793ae011489688e69ee01fef4dd8` rendered a synthetic Android Chrome pageload, one linked Replay, two issues, `107` spans, and `29` logs. Its waterfall contained the browser interaction and Fastify `GET /api/notes`, `GET /api/notes/content`, and server test-route spans. |
+
+This closes the dashboard/Replay evidence limitation for the 2026-07-12
+baseline. It does not waive the existing save-integrity repair, route
+classification, or closing synthetic-matrix gates.
 
 ### Findings And Scope Classification
 

@@ -172,6 +172,34 @@ The SDK automatically propagates `sentry-trace` and `baggage` for the relative
 same-origin API paths. Vite proxies both headers to `127.0.0.1:3000`, so no
 cross-origin CORS configuration is needed for the current architecture.
 
+### Authenticated Dashboard Inspection With A Chrome Clone
+
+Use this only when Codex needs an existing Chrome-authenticated Sentry session
+for dashboard, Trace Explorer, Logs, or Replay inspection and Daniel explicitly
+authorizes it. Do not copy authentication data into the repository or print
+cookie, token, authorization-header, or DSN values.
+
+`playwright-cli open --persistent --profile` is not reliable for this macOS
+workflow: its Chrome launch adds `--use-mock-keychain` and
+`--password-store=basic`, so a copied profile may not decrypt the live Chrome
+authentication state. Instead:
+
+1. Create a disposable directory and copy the entire on-disk Chrome user-data
+   root, not just `Default` or `Local State`. Exclude only `SingletonLock`,
+   `SingletonCookie`, and `SingletonSocket`, which belong to the running Chrome
+   process.
+2. Start ordinary Google Chrome with the disposable directory as
+   `--user-data-dir` and `--remote-debugging-port=0`. Read its local CDP endpoint
+   from the clone's `DevToolsActivePort` file.
+3. Attach the Playwright CLI with `attach --cdp <endpoint>` and inspect the
+   authenticated Sentry UI.
+4. Detach Playwright, stop the disposable Chrome process, and delete the entire
+   clone and temporary Playwright artifacts before completing QA.
+
+This preserves the real profile, keeps credentials out of terminal evidence,
+and gives the cloned ordinary Chrome process access to the current macOS
+Keychain-backed browser session.
+
 ## Shutdown
 
 On enabled `SIGINT` or `SIGTERM`, Azurite:
