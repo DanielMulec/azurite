@@ -254,6 +254,22 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Browser persistence remains recovery/cache state. Canonical markdown
   content stays on disk.
 
+### Indexed Database API 3.0 Transaction Scheduling
+
+- URL: https://w3c.github.io/IndexedDB/#transaction-scheduling
+- Accessed: 2026-07-12
+- Area: Browser-draft mutation ordering and durability semantics
+- Use when: Designing concurrent IndexedDB write, delete, cleanup, and readback
+  ownership for Azurite recovery state.
+- Notes: The standard orders overlapping read/write transactions by creation
+  time and prevents a later overlapping transaction from starting before an
+  earlier one finishes. Azurite still owns a per-note mutation coordinator so
+  this ordering is explicit at its injected persistence boundary and exact
+  session snapshots remain testable with delayed adapters.
+- Caveats: Transaction completion proves the browser transaction completed; it
+  does not make unfinished `pagehide` or `visibilitychange` work synchronous or
+  guarantee that a browser lifecycle callback runs before termination.
+
 ### MDN Web Storage API
 
 - URL: https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API
