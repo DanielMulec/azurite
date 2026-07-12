@@ -6,6 +6,9 @@ plans.
 
 Current runbooks:
 
+- `playwright-acceptance.md`: operate and evolve Azurite's real-browser
+  acceptance matrix across desktop Chrome, Pixel 6, development, and optimized
+  production.
 - `sentry-debug.md`: enable, operate, and verify the local Sentry debug runtime.
 - `tailscale-phone-access.md`: optional physical-phone and tailnet evidence;
   routine phone QA uses Pixel 6 Playwright emulation.

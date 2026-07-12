@@ -718,6 +718,8 @@ cases and confirm the Slice 7B save-integrity regression tests still pass.
 
 Use a disposable cluster and the available Codex Playwright skill or browser
 plugin; do not add Playwright as a repository dependency merely for this QA.
+Follow `docs/runbooks/playwright-acceptance.md` for the shared runtime, device,
+state-owner, evidence, and cleanup procedure.
 Run the matrix once through Vite development and once through the optimized
 production preview:
 
@@ -789,9 +791,9 @@ production preview:
 ### Synthetic Mobile QA
 
 Use the Codex Playwright skill's bundled browser with a Pixel 6-class mobile
-Chrome profile. Exercise both development and the optimized production preview
-with mobile viewport, device scale, touch input, mobile user agent, and a
-CPU-throttled cold start:
+Chrome profile and follow `docs/runbooks/playwright-acceptance.md`. Exercise both
+development and the optimized production preview with mobile viewport, device
+scale, touch input, mobile user agent, and a CPU-throttled cold start:
 
 - repeat pristine open, readiness, mode-only switching, reload, draft absence,
   and file-hash proof;
