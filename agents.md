@@ -87,6 +87,11 @@ documented in `docs/product-vision.md`, current architecture in
   happy-path tests but weakens an existing save, recovery, routing, security, or
   data-integrity guarantee.
 - If no automated tests exist yet, document the manual verification performed.
+- Use the Codex Playwright skill's Pixel 6 emulation as Azurite's standard
+  phone-acceptance path in both development and optimized-production builds.
+  A real Android or Tailscale session is optional supplemental evidence that
+  Daniel may request for a specifically unmodelled behavior; it is not a default
+  slice-completion gate.
 - When Daniel asks to boot Azurite for Tailscale or phone access, bind only to
   the Tailscale interface needed for that session, keep the backend local-only
   when the frontend can proxy API requests, and give Daniel the MagicDNS

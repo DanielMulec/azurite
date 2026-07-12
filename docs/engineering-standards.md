@@ -121,8 +121,11 @@ Match verification to the change's blast radius.
   state ownership.
 - Use real browser QA for rendering, editor behavior, history, IndexedDB,
   lifecycle, and responsive behavior.
-- Use physical-device QA for Android/Tailscale behavior that desktop automation
-  cannot prove.
+- Use Codex Playwright Pixel 6 emulation as the standard phone QA path in both
+  development and optimized-production builds. A physical Android/Tailscale
+  session is optional supplemental evidence only when Daniel explicitly asks to
+  inspect behavior the synthetic browser cannot model; it does not block normal
+  slice completion.
 - Verify both the new behavior and the shared and slice-specific product
   guardrails.
 - If automated coverage is unavailable, record the exact manual verification.

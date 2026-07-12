@@ -1044,7 +1044,8 @@ That fix slice must:
 - satisfy the acceptance boundary and negative side-effect guardrails in the QA
   report;
 - prove the repair with automated controlled-state tests, desktop regression
-  tests, and physical Android phone QA; and
+  tests, and synthetic Pixel 6 Playwright QA; any physical Android session is
+  optional supplemental evidence Daniel may request; and
 - preserve manual-save conflicts, draft durability, WYSIWYG/Markdown
   round-tripping, URL navigation, and Sentry-disabled behavior.
 

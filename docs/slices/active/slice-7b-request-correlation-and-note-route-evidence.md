@@ -7,35 +7,40 @@ two focused adversarial contract reviews on 2026-07-11. Implementation,
 automated verification, and desktop enabled/disabled Sentry QA passed on
 2026-07-11.
 
-Physical Pixel 6 QA is deliberately deferred. Post-implementation adversarial
-review found two save-result ownership defects, and production desktop QA found
-a Back/sidebar divergence that still needs pre-7B regression classification.
-Slice 7B is not complete, must remain in `docs/slices/active/`, and must not be
-archived until those review gates and the exact physical-phone acceptance
-session pass. The phone gate is deferred, not passed or waived.
+Synthetic Pixel 6 Playwright QA across the optimized production preview and
+Vite development build ran on 2026-07-12 at Daniel's direction. It confirmed
+the phone workflow and exposed product findings recorded in the authoritative
+QA record, but it ran before the existing review-repair gate and does not close
+it. Post-implementation adversarial review found two save-result ownership
+defects, and production desktop QA found a Back/sidebar divergence that still
+needs pre-7B regression classification. Slice 7B remains active and must not be
+archived until those review gates close and Codex re-runs the closing synthetic
+matrix on the repaired state.
 
-The authoritative implementation and desktop QA record is
+The authoritative implementation and QA record is
 `docs/qa/slice-7b-request-correlation.md`. Keep concrete commands, IDs, hashes,
-event joins, and the remaining phone gate there rather than duplicating them
-through this plan.
+event joins, findings, and the closing synthetic matrix there rather than
+duplicating them through this plan.
 
-The review repair gate is also authoritative in that QA record. Phone QA must
-not begin until both save-integrity findings are fixed and the route finding is
-classified.
+The review repair gate is also authoritative in that QA record. The final
+closing synthetic QA run must follow both save-integrity repairs and route
+classification; the 2026-07-12 baseline run was explicitly authorized early to
+surface mobile evidence, not to waive those gates.
 
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
-and physical-phone runtime evidence is now an implemented dependency, not a
-future prerequisite. Slice 7C is the next planned product slice in
+and historical physical-phone runtime evidence is now an implemented dependency,
+not a future prerequisite. Slice 7C is the next planned product slice in
 `docs/slices/planned/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
 Slice 7D remains planned after it in
 `docs/slices/planned/slice-7d-semantic-editor-and-persistence-diagnostics.md`.
 
-The physical-phone session also recorded the mobile Markdown newline reversion
-and unexplained recovered-draft state in
+The historical physical-phone session recorded the mobile Markdown newline
+reversion and unexplained recovered-draft state in
 `docs/qa/mobile-markdown-newline-reversion.md`. Slice 7B must preserve those
-findings without diagnosing or fixing them. Mobile save-correlation QA will use
-a disposable WYSIWYG edit because that path was proven to complete on the phone.
+findings without diagnosing or fixing them. Synthetic mobile save-correlation QA
+uses a disposable WYSIWYG edit because source-mode Enter remains outside 7B's
+acceptance path.
 
 ## Product Decision
 
@@ -219,8 +224,8 @@ proposal. The implementation must extend these facts:
   API and cluster-identity contracts.
 - Keep operation context isolated across overlapping requests and stale
   responses.
-- Prove the same request and operation IDs in exact desktop and physical-phone
-  Sentry evidence.
+- Prove the same request and operation IDs in exact desktop and synthetic Pixel
+  6 Sentry evidence.
 - Preserve all Sentry-disabled and existing product behavior.
 
 ## Non-Goals
@@ -1137,11 +1142,14 @@ created before its callback already knows a terminal result.
   intentional history.
 - Preserve all existing 7A helper, preload, tracing, Replay, and shutdown tests.
 
-### 10. Run Desktop And Physical-Phone Acceptance QA
+### 10. Run Desktop And Synthetic Pixel 6 Acceptance QA
 
 - Use a disposable two-note cluster and an explicit Sentry-enabled debug run.
-- Keep Vite bound only to the selected Tailscale interface and Fastify on
-  localhost for phone QA.
+- Use the Codex Playwright CLI with its `Pixel 6` device descriptor in both the
+  optimized production preview and Vite development build.
+- Preserve the backend boundary by keeping Fastify on localhost and verifying
+  its listener and direct-Tailscale inaccessibility. A physical Tailscale bind
+  is optional supplemental evidence, not the standard QA path.
 - Record exact event names and IDs in completion evidence rather than writing
   only "Sentry worked."
 - Use WYSIWYG for the phone save marker. Do not use the known-broken Markdown
@@ -1194,8 +1202,9 @@ observability-specific protections:
 - Sentry failure, latency, or disabled state must not change callback count, API
   response shapes, status codes, filesystem writes, draft behavior, navigation,
   or conflict protection.
-- Phone QA must preserve the current network boundary: frontend on the selected
-  Tailscale interface, backend local-only behind the Vite proxy.
+- Synthetic phone QA must prove the backend remains local-only behind the Vite
+  proxy. If Daniel requests supplemental Tailscale evidence, bind the frontend
+  only to the selected Tailscale interface.
 - The known mobile editor findings remain recorded and unfixed; a WYSIWYG save
   passing 7B must not be presented as editor correctness.
 
@@ -1298,10 +1307,12 @@ trace is corroborating evidence rather than the semantic acceptance key. Replay
 must still load and remain unmasked; 7B does not require new editor-specific
 Replay content.
 
-### Exact Physical-Phone Sentry Evidence
+### Exact Synthetic Pixel 6 Sentry Evidence
 
-Use the current MagicDNS URL on the Pixel 6/Android Chrome path and a disposable
-note:
+Use the Codex Playwright CLI with `--browser chrome --device 'Pixel 6'` and a
+disposable note. Run the workflow against both the optimized production preview
+and the Vite development build. Record the emulated Android Chrome user agent,
+412 by 839 viewport, 412 by 915 screen, 2.625 device scale, and touch profile.
 
 1. Open the disposable cluster and confirm browser/server `notes.list.succeeded`
    share a request ID and report no note operation ID.
@@ -1313,13 +1324,18 @@ note:
 5. Confirm browser/server save events share new request and operation IDs,
    status `200`, and expected/returned hashes.
 6. Read the note again and confirm the marker persisted.
-7. Confirm `sentry-trace` and `baggage` still reach Fastify and the phone Replay
-   remains distinct and unmasked.
-8. Confirm Fastify is not directly reachable through its Tailscale address.
+7. Confirm `sentry-trace` and `baggage` reach the proxy request, visible Replay
+   marker text remains unmasked in the diagnostics panel, browser envelopes
+   succeed, and the deliberate server route reports both trace headers. When an
+   authenticated Sentry UI session is available, additionally verify the
+   distinct Replay and server lifecycle evidence there; never claim that visual
+   proof when access is unavailable.
+8. Confirm Fastify listens only on `127.0.0.1` and is not directly reachable at
+   the Mac's Tailscale address.
 
-The phone QA record must explicitly say that Markdown source Enter was not used
-as the save path because its newline reversion remains scheduled for diagnosis
-in 7D and repair immediately afterward.
+The QA record must explicitly say that Markdown source Enter was not used as the
+save path because its newline reversion remains scheduled for diagnosis in 7D
+and repair immediately afterward.
 
 ### Sentry-Disabled And Carrier-Failure Evidence
 
@@ -1374,8 +1390,8 @@ Start without enabled Sentry configuration and prove:
   behavior remains intact.
 - Existing routing, save, conflict, draft, recovery, filesystem, and Tailscale
   behavior remains intact.
-- Desktop and physical-phone Sentry QA produce the exact join evidence defined
-  above.
+- Desktop and synthetic Pixel 6 Sentry QA produce the exact join evidence
+  defined above.
 - The mobile Markdown newline and recovered-draft findings remain explicitly
   unfixed and handed to 7D.
 - `packages/core` remains Sentry-free and no code file exceeds 400 lines.
@@ -1387,7 +1403,8 @@ Start without enabled Sentry configuration and prove:
 
 ## Immediate Handoff To Slice 7C
 
-After the repair, classification, and phone gates close Slice 7B, promote
+After the repair, classification, and closing synthetic QA run close Slice 7B,
+promote
 `docs/slices/planned/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
 Slice 7C may rely on repaired exact-session save-result ownership, current
 content-hash conflict behavior, exact draft cleanup, and the correlated note
@@ -1436,6 +1453,7 @@ Slice 7D may rely on these completed 7B truths:
   did production QA expose a pre-existing route-state defect?
 
 The two save-result ownership findings are confirmed defects, not open design
-questions. Repair them before phone QA using the authoritative evidence record.
-If new implementation evidence contradicts a settled decision, pause and update
-this active slice before changing the architecture.
+questions. Repair them before the closing synthetic phone re-run using the
+authoritative evidence record. If new implementation evidence contradicts a
+settled decision, pause and update this active slice before changing the
+architecture.

@@ -10,7 +10,7 @@ The required sequence before promotion is:
 1. repair the two open Slice 7B adversarial-review save-integrity findings;
 2. classify the Back/sidebar selection divergence against the pre-7B baseline
    and either repair a 7B regression or record a separate route-state slice;
-3. complete and record the deferred Slice 7B physical Pixel 6 acceptance gate;
+3. re-run and record the closing Slice 7B synthetic Pixel 6 Playwright matrix;
 4. archive Slice 7B and refresh this plan against that implemented baseline;
 5. promote this file to `docs/slices/active/` without changing its product
    decision unless new evidence requires scope re-selection.
@@ -806,15 +806,16 @@ CPU-throttled cold start:
   Back/Forward, and reload; confirm supported transitions retain the edit; and
 - inspect touch interaction, console output, network requests, and IndexedDB.
 
-Synthetic mobile evidence covers viewport, touch, throttled lifecycle, and
-mobile-browser emulation. It does not replace physical Android keyboard/IME,
-device performance, Tailscale, or hardware-specific Chrome evidence.
+Synthetic mobile evidence is the required phone-acceptance path. It covers
+viewport, touch, throttled lifecycle, and mobile-browser emulation. It does not
+claim to model a physical Android IME, device performance, Tailscale, or
+hardware-specific Chrome behavior; Daniel may request those as supplemental
+evidence, but they are not completion gates.
 
-### Physical-Phone Smoke QA
+### Optional Physical-Phone Smoke QA
 
-Because this boundary participates in the real Crepe/browser lifecycle, repeat
-the non-input fidelity smoke on the physical Pixel 6 through the established
-Tailscale runbook:
+If Daniel requests supplemental physical evidence, repeat the non-input
+fidelity smoke on the Pixel 6 through the established Tailscale runbook:
 
 - open a disposable real-format note in WYSIWYG;
 - wait for readiness and confirm `Saved` with Save disabled;
@@ -873,9 +874,9 @@ finding. That remains the mandatory correctness work after Slice 7D.
   Dexie, and serializable snapshots.
 - The architecture documentation records the exact-authority versus projection
   boundary and the honest limitation after real WYSIWYG edits.
-- The desktop QA matrix passes in both dev and production preview, synthetic
-  Pixel 6 QA passes in both runtimes, and the physical-phone non-input smoke
-  passes without claiming the Android input bug.
+- The desktop QA matrix and synthetic Pixel 6 QA pass in both development and
+  production preview without claiming the Android input bug. A physical-phone
+  non-input smoke is optional supplemental evidence when Daniel requests it.
 - The unrelated production findings remain separately tracked rather than
   silently absorbed.
 - `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and

@@ -19,10 +19,11 @@ truth.
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Active: Slice 7B, request correlation and note-route evidence. Implementation,
    automated verification, and desktop enabled/disabled Sentry QA passed on
-   2026-07-11. It remains incomplete and unarchived. Before physical Pixel 6
-   acceptance, repair the two adversarial-review save-integrity findings and
-   classify the Back/sidebar divergence against the pre-7B baseline. Exact
-   current evidence lives in `docs/qa/slice-7b-request-correlation.md`.
+   2026-07-11. Synthetic Pixel 6 Playwright QA across both builds ran on
+   2026-07-12, but it does not close the open save-integrity and route-review
+   gates. Repair those findings, classify the Back/sidebar divergence against
+   the pre-7B baseline, then re-run the closing synthetic matrix. Exact current
+   evidence lives in `docs/qa/slice-7b-request-correlation.md`.
 3. Planned: Slice 7C, Markdown fidelity and honest dirty state. It preserves
    exact untouched Markdown across editor readiness and mode switching, and
    prevents projection-only drafts, saves, and file rewrites. Its plan is

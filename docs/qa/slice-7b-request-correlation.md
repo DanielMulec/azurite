@@ -8,12 +8,16 @@
 - Post-implementation adversarial code review: two save-integrity findings open.
 - Production desktop QA route finding: Back/sidebar regression classification
   open.
-- Physical Pixel 6 QA: deliberately deferred because Daniel was away from the
-  Mac and participating by phone.
+- Synthetic Pixel 6 Playwright QA: completed on 2026-07-12 against optimized
+  production preview and Vite development builds, each with Sentry enabled and
+  disabled. Detailed evidence and findings appear below.
+- Physical-phone QA: no longer a standard Slice 7B completion gate. It is
+  optional supplemental evidence only when Daniel explicitly requests it.
 - Completion decision: Slice 7B remains active and is **not complete**. Repair
-  and verify both adversarial findings, classify the route finding, and only
-  then perform the physical-phone acceptance session with Codex. The phone gate
-  is deferred, not passed or waived.
+  and verify both adversarial findings, classify the route finding, and then
+  re-run the closing synthetic Pixel 6 matrix. The 2026-07-12 baseline run was
+  explicitly authorized before those repairs; it surfaces mobile evidence but
+  does not waive the repair or route-classification gates.
 
 This document is the authoritative implementation and QA evidence record for
 Slice 7B. The active slice links here instead of duplicating these results.
@@ -117,12 +121,125 @@ Automated disabled-runtime and throwing-carrier tests additionally prove that
 correlation headers, Fastify request context, URL behavior, conflict behavior,
 and product results do not depend on an initialized SDK.
 
+## Synthetic Pixel 6 QA — 2026-07-12
+
+### Decision And Method
+
+Daniel changed Azurite's standard phone-acceptance path from a deferred physical
+Pixel 6 session to Codex-operated Playwright emulation. The synthetic matrix
+uses the bundled Playwright CLI with installed Google Chrome and the built-in
+`Pixel 6` descriptor. It exercises the actual frontend and Fastify processes,
+not mocked API responses, against disposable markdown clusters.
+
+The verified device profile was Android Chrome with a `412` by `839` CSS
+viewport, `412` by `915` CSS screen, `2.625` device scale factor, one touch
+point, coarse pointer, and no hover. Every run used a fresh browser session and
+disposable workspace, then deleted its browser profile, screenshots, traces,
+and fixture files after evidence was recorded. No Daniel note was opened or
+written.
+
+Synthetic QA is now the normal completion path. It proves mobile layout, touch
+emulation, browser storage, URL behavior, browser-to-proxy traffic, correlation
+headers, and the local-only backend boundary. It does not claim to reproduce a
+physical Android IME, device performance, remote tailnet transport, or
+hardware-specific Chrome behavior; Daniel may request those as optional
+supplemental evidence.
+
+### Runtime Matrix
+
+| Runtime                      | Sentry   | Synthetic phone result                                                                                                                                       | Observability and preservation proof                                                                                                          |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Optimized production preview | Enabled  | List, direct read, WYSIWYG save, reload, draft recovery, conflict, missing-note route, traversal-like URL, history, and local-only backend checks completed. | Browser sent successful envelopes; list/read/save requests carried correlation IDs plus `sentry-trace` and `baggage`.                         |
+| Optimized production preview | Disabled | List, read, WYSIWYG save, and reload completed with the same product responses.                                                                              | Zero envelope requests; correlation IDs remained present while `sentry-trace` and `baggage` were absent.                                      |
+| Vite development build       | Enabled  | List, read, WYSIWYG save, reload, and diagnostics-panel interactions completed.                                                                              | Deliberate web evidence succeeded; deliberate server event returned `sentry-trace=true` and `baggage=true`; browser envelopes returned `200`. |
+| Vite development build       | Disabled | List, read, WYSIWYG save, reload, and disabled diagnostics-path checks completed.                                                                            | Zero envelope requests; the diagnostics panel was absent and its guarded backend route returned `404`.                                        |
+
+Across the matrix, the document width remained exactly `412` CSS pixels with no
+horizontal page overflow. Sidebar note buttons measured `56` CSS pixels high.
+Save measured `38` pixels and WYSIWYG/Markdown mode buttons `36` pixels high;
+that is an ergonomic observation against a common `44`-pixel recommendation,
+not an established accessibility failure.
+
+### Exact Correlation And Product Evidence
+
+The enabled-production phone session produced these browser request identifiers:
+
+| Workflow     | Request ID                             | Note operation ID                      | Evidence                                                                                                                                                                         |
+| ------------ | -------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| List         | `c3a33470-4e65-4294-849a-844fe5443113` | none                                   | `GET /api/notes` returned `200`; its Pixel 6 request carried `sentry-trace` and `baggage`.                                                                                       |
+| Read         | `1f1f591a-4815-47b4-b41b-100abe1e2e76` | `a35f317c-523b-4f7a-919c-2978fc4f6fd2` | `GET /api/notes/content` returned `200`; both correlation headers and trace headers crossed the proxy.                                                                           |
+| WYSIWYG save | `c7b9c1a9-b861-46f3-bad1-485b21e2981a` | `ca88b731-d17b-408a-b0f5-9b2ef756f1db` | `PUT /api/notes/content` returned `200`; `PHONE-QA-7B-PROD-ENABLED-SAVED-2026-07-12` survived reload.                                                                            |
+| Conflict     | `964dc876-55ad-4dbc-b88c-3abcec79c401` | `6c2679c9-db2c-4df4-81bf-dc639f13b331` | A real external fixture edit produced one `409 note_write_conflict`; the disk retained the external text, the client draft remained recoverable, and discard reloaded disk text. |
+
+The enabled-development WYSIWYG save used request
+`18cabb3b-f209-483f-b451-ce1510bbee38` and operation
+`3a17c292-b03f-40a4-bbdd-8294aa92e1ac`; it persisted the development marker
+through reload. The disabled-production save used request
+`d64476a3-d7bc-48e5-935c-98ace0b6b8d5` and operation
+`34ee3a00-ca42-46ed-9d3b-1d954e761273`. The disabled-development save used
+request `23f1092a-5617-42f4-b3c2-b1ad1de77ba5` and operation
+`5db47bef-9843-427d-b1e7-07feefc85b77`. Both disabled requests retained only
+the Azurite correlation headers, as intended.
+
+An unsaved WYSIWYG edit recovered after reload with the visible
+`Recovered unsaved draft` state and remained browser-only before manual save.
+The normal missing-note route showed `Note not found` without a save action, and
+a traversal-like URL normalized to a safe first note without issuing an unsafe
+note request. The history test returned the correct article and current
+`aria-current` sidebar item in the small disposable fixture; it does not settle
+the separate desktop Back/sidebar classification because that production finding
+depends on a different fixture and pre-7B comparison.
+
+The expected conflict produced only Chrome's failed-resource line for the
+intentional `409`, not an unhandled product error. The known source-mode Enter
+reversion was not used as a save path. A synthetic keypress retained a marker,
+but that does not resolve or contradict the recorded physical Android-IME
+finding in `docs/qa/mobile-markdown-newline-reversion.md`.
+
+### Development Diagnostics And Boundary Evidence
+
+The enabled-development Pixel 6 session displayed the explicit diagnostics
+panel and unmasked `AZURITE-SENTRY-7A-UNMASKED-REPLAY-MARKER`. Its web button
+reported `Web event and console evidence emitted.` Its server button returned
+the marker with `status: sent`, `sentryTrace: true`, and `baggage: true`.
+Browser envelope requests returned `200` throughout the enabled runs.
+
+Fastify listened only on `127.0.0.1:3000`; Vite preview listened only on
+`127.0.0.1:4173`. A direct probe to the Mac's Tailscale address could not reach
+Fastify, while the loopback health check succeeded. This preserves the current
+network boundary without making a physical-phone session a prerequisite.
+
+For dashboard corroboration, Codex made the user-authorized disposable clone of
+the Default Google Chrome profile and opened Sentry through Playwright. The
+clone contained no valid signed-in Sentry session, so Logs, Trace Explorer,
+server-side lifecycle records, and Replay could not be inspected. This is a
+QA-evidence limitation, not a product failure: the local proof consists of
+visible marker text, successful browser envelopes, Fastify request handling,
+and successful trace-header responses. Do not claim a new dashboard Replay or
+server-side Sentry event join was visually verified from this run.
+
+### Findings And Scope Classification
+
+| Severity | Finding                                                                                   | Evidence                                                                                                                                                                                                                               | Disposition                                                                                                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1       | Untouched Markdown can become dirty and save an unintended formatting rewrite.            | Fresh enabled-production Pixel 6 sessions opened `index.md` and the nested note as `Unsaved changes`; a no-input save changed `-` list markers to `*`, added blank lines, and reformatted table separators.                            | Confirmed existing Slice 7C Markdown Fidelity And Honest Dirty State finding. It remains outside 7B.                                                                          |
+| P2       | A failed note selection triggers two identical read attempts after the backend goes down. | One Pixel 6 click on `nested/overlap-and-conflict.md` generated two `502` reads and two failed-resource lines, then showed the recovery error. The relevant navigation code predates 7B in the 2026-07-08 `271c820`/`f068375` history. | Add to the already separate local-runtime resilience and recovery-copy outcome; do not annex it to 7B or 7C. It needs a dedicated failure-navigation and error-copy contract. |
+| P3       | Backend-unavailable copy mislabels the proxy failure.                                     | With Fastify stopped, the mobile UI said `Azurite returned an unexpected response shape.` after the proxy returned `502`.                                                                                                              | Confirmed existing production-desktop finding; same separate local-runtime resilience and recovery-copy outcome as the duplicate-attempt finding.                             |
+| P3       | Vite development sessions emit a Vue feature-flags warning.                               | Both enabled and disabled Pixel 6 dev sessions logged the missing `__VUE_OPTIONS_API__`, `__VUE_PROD_DEVTOOLS__`, and `__VUE_PROD_HYDRATION_MISMATCH_DETAILS__` warning. Production preview had no warning.                            | Separate dev-tooling/console-noise candidate. In enabled debug mode it can contaminate Sentry console evidence.                                                               |
+| Advisory | Save and editor-mode controls are smaller than a common 44-pixel touch target.            | Save is `38` pixels high; WYSIWYG and Markdown are `36` pixels.                                                                                                                                                                        | Record as a future mobile ergonomics review, not a hard accessibility failure or Slice 7B scope.                                                                              |
+
+The P2/P3 resilience findings are independently useful local-runtime behavior,
+not required to complete the current request-correlation user story. The
+existing desktop QA record already classified recovery copy as separate; this
+run adds the failure-navigation duplication evidence. No implementation work was
+silently annexed to Slice 7B.
+
 ## Remaining Completion Gates
 
 ### Adversarial Review Repair Gate
 
 The post-implementation adversarial review found two save-result ownership
-defects that must be repaired before phone QA:
+defects that must be repaired before the closing synthetic phone re-run:
 
 1. `applySaveFailure` captures the current editor, awaits latest-draft
    persistence, and then applies a failure/conflict state copied from the stale
@@ -142,16 +259,18 @@ baseline. If 7B introduced it through route synchronization, repair and verify
 it in 7B. If it predates 7B, record a separate route-state correctness slice;
 do not annex it to Slice 7C.
 
-### Phone Acceptance After Repair
+### Closing Synthetic Pixel 6 Matrix After Repair
 
-After both code findings are fixed and the route finding is classified, Daniel
-and Codex must run the physical Pixel 6 acceptance session defined in the active
-slice. That session must record exact phone request and operation IDs for list,
-read, and a successful WYSIWYG save; confirm the marker persists; confirm trace
-headers and an unmasked distinct Replay; and confirm Fastify remains unreachable
-directly over Tailscale.
+After both code findings are fixed and the route finding is classified, Codex
+must re-run the synthetic Pixel 6 matrix defined in the active slice. It must
+record exact request and operation IDs for list, read, and a successful WYSIWYG
+save; confirm the marker persists; confirm trace headers, visible unmasked
+marker, and successful envelopes; and confirm Fastify remains locally bound and
+unreachable directly over Tailscale. When an authenticated dashboard session is
+available, also record the distinct Replay; otherwise record that limitation
+without claiming visual Replay proof.
 
 The phone save must use WYSIWYG. Markdown source Enter remains an explicitly
 unfixed Slice 7D diagnostic target and is not a 7B completion path. After the
-repair and phone evidence pass, update this record, mark the active slice
-complete, move it to `archive/`, and only then promote Slice 7C.
+repair and closing synthetic evidence pass, update this record, mark the active
+slice complete, move it to `archive/`, and only then promote Slice 7C.

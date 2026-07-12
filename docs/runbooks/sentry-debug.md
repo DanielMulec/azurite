@@ -185,11 +185,15 @@ On enabled `SIGINT` or `SIGTERM`, Azurite:
 A hung flush cannot keep the backend alive indefinitely. Disabled shutdown
 closes only Fastify and retains its `500ms` fallback.
 
-## Tailscale Phone Verification
+## Optional Physical Tailscale Phone Verification
 
-Follow `docs/runbooks/tailscale-phone-access.md`. Keep Fastify on
-`127.0.0.1:3000`, bind only Vite to the current Tailscale IPv4 interface, and
-use the current `Self.DNSName` as the phone origin.
+Routine phone acceptance uses Codex Playwright's Pixel 6 emulation. It proves
+the mobile viewport, touch profile, proxy requests, trace headers, and local
+backend boundary without requiring a Tailscale bind. Follow
+`docs/runbooks/tailscale-phone-access.md` only when Daniel explicitly requests
+supplemental physical-tailnet evidence. Keep Fastify on `127.0.0.1:3000`, bind
+only Vite to the current Tailscale IPv4 interface, and use the current
+`Self.DNSName` as the phone origin.
 
 Open:
 

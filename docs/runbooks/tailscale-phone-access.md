@@ -1,10 +1,15 @@
-# Tailscale Phone Access
+# Optional Physical Phone And Tailscale Access
 
 ## Purpose
 
-Start Azurite for private phone QA while exposing only the Vite frontend to the
-tailnet. Fastify remains local-only and receives browser API traffic through the
-Vite proxy.
+This is an optional supplemental runbook when Daniel explicitly asks for a
+physical-phone or tailnet session. Routine phone acceptance uses Codex
+Playwright's Pixel 6 emulation against both the development build and optimized
+production preview; it does not require a physical device or a Tailscale bind.
+
+For this optional physical path, expose only the Vite frontend to the tailnet.
+Fastify remains local-only and receives browser API traffic through the Vite
+proxy.
 
 ## Preconditions
 
@@ -77,7 +82,7 @@ For a longer session, keep the backend and frontend in a named `tmux` session.
 Record the session name in the task handoff so the next operator can inspect or
 stop the processes intentionally.
 
-## Verification
+## Physical-Session Verification
 
 - The phone reaches the MagicDNS URL.
 - Note-list, read, edit, draft recovery, and manual save requests work through
@@ -86,7 +91,7 @@ stop the processes intentionally.
 - Reloads continue on the same MagicDNS origin.
 - Stopping both processes produces the documented clean shutdown behavior.
 
-## Sentry Debug Sessions
+## Optional Sentry Debug Sessions
 
 When the current QA session also verifies Sentry, enable the root `.env.local`
 workflow from `docs/runbooks/sentry-debug.md` before starting either runtime.

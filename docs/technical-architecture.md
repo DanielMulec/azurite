@@ -276,12 +276,13 @@ The local Fastify server shuts down gracefully on `SIGINT` and `SIGTERM`.
 
 ## Local And Tailscale Access
 
-Azurite binds locally by default. For phone QA, the backend remains on
-`127.0.0.1` while Vite binds only to the required Tailscale interface and proxies
-API requests.
+Azurite binds locally by default. Routine Pixel 6 synthetic QA runs through the
+loopback Vite proxy while the backend remains on `127.0.0.1`. When Daniel
+explicitly requests supplemental physical-phone or tailnet evidence, Vite binds
+only to the required Tailscale interface and continues to proxy API requests.
 
-The operational procedure, including MagicDNS and allowed-host handling, lives
-in `docs/runbooks/tailscale-phone-access.md`.
+The optional physical-phone procedure, including MagicDNS and allowed-host
+handling, lives in `docs/runbooks/tailscale-phone-access.md`.
 
 Authentication, packaged-service hosting, and any broader network exposure
 remain explicit future architecture decisions. Public internet exposure is not

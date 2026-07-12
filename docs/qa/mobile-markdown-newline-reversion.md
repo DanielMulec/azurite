@@ -5,7 +5,7 @@
 - Reported: 2026-07-10
 - Reporter: Daniel
 - Environment: Pixel 6, Android Chrome, Tailscale MagicDNS Azurite URL
-- QA context: deferred Slice 7A physical-phone and mobile-Replay verification
+- QA context: historical Slice 7A physical-phone and mobile-Replay verification
 - Current disposition: required first product fix after Slice 7D; use Slice 7B
   correlation, Slice 7C Markdown authority, and Slice 7D semantic diagnostics
   to define the durable fix
@@ -70,8 +70,8 @@ defect. Slice 7D diagnostics should make the recovery transition explainable.
   correlation so a mobile read or save can be followed across browser and
   Fastify evidence.
 - Slice 7C fixes projection-only false dirty state and establishes the accepted
-  source/WYSIWYG content-change boundary. Its physical-phone smoke does not test
-  or accept Android source input.
+  source/WYSIWYG content-change boundary. Its standard synthetic Pixel 6 QA
+  does not test or accept Android source input.
 - Slice 7D adds the Milkdown/Crepe, Markdown source, Zustand, and Dexie semantic
   evidence needed to determine why the newline and draft states change.
 - The product fix is the required first delivery after Slice 7D. Its focused
@@ -102,8 +102,10 @@ defect. Slice 7D diagnostics should make the recovery transition explainable.
 - WYSIWYG and Markdown modes round-trip the same intended markdown.
 - The fix covers desktop keyboard input and Android keyboard input without
   weakening content-hash conflict protection or draft durability.
-- Automated tests cover the controlled-state boundary, and physical-phone QA
-  confirms the behavior that browser automation cannot faithfully simulate.
+- Automated tests and synthetic Pixel 6 QA cover the controlled-state boundary.
+  The historical Android-IME observation remains an explicit limitation of that
+  synthetic evidence; Daniel may request a real-device follow-up, but it is not
+  a default completion gate.
 
 ## Negative Side-Effect Guardrails For A Future Fix
 
