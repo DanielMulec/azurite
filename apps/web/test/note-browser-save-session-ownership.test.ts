@@ -37,15 +37,15 @@ describe("save failure post-persistence ownership", () => {
     "applies $name state to the latest exact-session edit",
     async ({ error, expectedRecovery, expectedStatus }) => {
       const drafts = createMemoryDraftPersistence();
-      const writeStarted = createDeferred<void>();
-      const releaseWrite = createDeferred<void>();
+      const writeStarted = createDeferred<undefined>();
+      const releaseWrite = createDeferred<undefined>();
       let shouldPauseWrite = true;
       const draftPersistence: DraftPersistence = {
         ...drafts.persistence,
         writeDraft: async (draft) => {
           if (shouldPauseWrite) {
             shouldPauseWrite = false;
-            writeStarted.resolve();
+            writeStarted.resolve(undefined);
             await releaseWrite.promise;
           }
           return await drafts.persistence.writeDraft(draft);
@@ -64,7 +64,7 @@ describe("save failure post-persistence ownership", () => {
       saveResult.reject(error);
       await writeStarted.promise;
       store.getState().updateDraftMarkdown("# Edit during persistence");
-      releaseWrite.resolve();
+      releaseWrite.resolve(undefined);
       await save;
 
       expect(store.getState().noteState).toMatchObject({

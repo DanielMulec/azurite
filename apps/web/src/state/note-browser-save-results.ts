@@ -52,6 +52,14 @@ export async function applySaveFailure(input: {
     return;
   }
   await input.persistLatestDraft();
+  applySaveFailureToCurrentSession(input);
+}
+
+function applySaveFailureToCurrentSession(input: {
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly error: unknown;
+}): void {
   const currentEditor = getCurrentEditorForSession(input.editor, input.context);
   if (currentEditor === undefined) {
     return;
