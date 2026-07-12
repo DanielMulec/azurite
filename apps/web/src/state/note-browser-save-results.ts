@@ -5,7 +5,7 @@ import {
   applyClusterIdentity,
   createEditorSession,
   degradeDraftRecovery,
-  getCurrentEditorForNote,
+  getCurrentEditorForSession,
   getReadyClusterId,
   isNoteWriteConflictError,
   isSameSaveSnapshot,
@@ -27,10 +27,7 @@ export async function applySaveResponse(
   persistLatestDraft: () => Promise<unknown>,
 ): Promise<void> {
   const reconciliation = await reconcileSavedDraft(input);
-  const currentEditor = getCurrentEditorForNote(
-    input.editor.note.id,
-    input.context,
-  );
+  const currentEditor = getCurrentEditorForSession(input.editor, input.context);
   if (currentEditor === undefined) {
     return;
   }
@@ -51,14 +48,14 @@ export async function applySaveFailure(input: {
   readonly error: unknown;
   readonly persistLatestDraft: () => Promise<unknown>;
 }): Promise<void> {
-  const currentEditor = getCurrentEditorForNote(
-    input.editor.note.id,
-    input.context,
-  );
-  if (currentEditor === undefined) {
+  if (getCurrentEditorForSession(input.editor, input.context) === undefined) {
     return;
   }
   await input.persistLatestDraft();
+  const currentEditor = getCurrentEditorForSession(input.editor, input.context);
+  if (currentEditor === undefined) {
+    return;
+  }
   if (isNoteWriteConflictError(input.error)) {
     applySaveConflict(currentEditor, input.context);
   } else {

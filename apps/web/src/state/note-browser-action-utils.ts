@@ -127,6 +127,18 @@ export function getCurrentEditorForNote(
   return noteState.editor.note.id === noteId ? noteState.editor : undefined;
 }
 
+/** Returns the current editor only when the exact originating session owns it. */
+export function getCurrentEditorForSession(
+  editor: Pick<EditorSession, "note" | "sessionKey">,
+  context: Pick<StoreContext, "get">,
+): EditorSession | undefined {
+  const currentEditor = getCurrentEditorForNote(editor.note.id, context);
+
+  return currentEditor?.sessionKey === editor.sessionKey
+    ? currentEditor
+    : undefined;
+}
+
 /** Returns whether a save response still targets the exact editor snapshot. */
 export function isSameSaveSnapshot(
   currentEditor: EditorSession,
