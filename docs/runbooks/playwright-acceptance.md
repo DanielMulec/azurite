@@ -52,8 +52,9 @@ authority participate in one workflow while retaining separate ownership.
   every stable, deterministic browser discovery into Vitest when it can be
   proved without weakening the real-browser assertion.
 - Use authenticated Chrome data only when Daniel explicitly authorizes Sentry
-  dashboard inspection. Follow `docs/runbooks/sentry-debug.md` for the complete
-  disposable Chrome-clone and credential-cleanup procedure.
+  dashboard inspection. Follow the complete-clone procedure below and
+  `docs/runbooks/sentry-debug.md`; a selected profile, cookies-only copy, or
+  Playwright-created profile is not an acceptable substitute.
 
 The Codex Playwright CLI wrapper depends on `npx`. Verify it and configure the
 wrapper before proposing or running browser commands:
@@ -178,6 +179,58 @@ harness actions are valid only when the slice explicitly defines a test-only
 browser boundary for a state that cannot be made deterministic through ordinary
 interaction.
 
+## Complete Authenticated Chrome Clone
+
+Use this procedure only when acceptance depends on Daniel's existing signed-in
+Chrome state, such as authenticated Sentry Logs, Trace Explorer, Issues, or
+Replay inspection, and Daniel has explicitly authorized the clone for that QA
+run. Ordinary Azurite product cells use fresh isolated browser sessions and do
+not clone Chrome.
+
+When authorized, the clone must contain the entire on-disk Chrome user-data
+root, normally `~/Library/Application Support/Google/Chrome`. Do not copy only
+`Default`, one named profile, `Local State`, cookies, or selected storage. The
+clone includes every profile and all available cookies and WAL files, sessions,
+session restore data, local and session storage, IndexedDB, service workers,
+caches, extensions, preferences, account metadata, browser metadata, and every
+other file and directory present in the root. Preserve directory structure,
+permissions, timestamps, extended attributes, resource forks, and other
+filesystem metadata supported by the copy mechanism.
+
+The only permitted omissions are Chrome's live `SingletonLock`,
+`SingletonCookie`, and `SingletonSocket` process locks. Exclude them during the
+copy or remove them only from the disposable clone before launch; never remove
+them from Daniel's real Chrome root. Do not introduce any other allowlist,
+exclusion pattern, privacy filter, or profile reduction.
+
+Before launching the clone:
+
+1. Record the source and clone aggregate byte totals plus regular-file and
+   directory counts without listing filenames or reading credential values.
+2. Reconcile every difference. Only the three live singleton locks and changes
+   made by a still-running source Chrome process may explain a mismatch.
+3. If live writes prevent a trustworthy clone, ask Daniel to close Chrome or
+   authorize a controlled shutdown, then repeat the complete copy. Do not claim
+   complete authenticated evidence from a knowingly partial clone.
+
+Do not launch the clone through `playwright-cli open --persistent --profile` on
+macOS. Its mock-keychain and basic-password-store flags may make the cloned
+authentication unreadable. Instead:
+
+1. Launch ordinary Google Chrome with the disposable root as
+   `--user-data-dir` and `--remote-debugging-port=0`.
+2. Read the local endpoint from the clone's `DevToolsActivePort` file and attach
+   the Playwright CLI over CDP.
+3. Inspect only the authenticated surfaces required by the QA plan. Never print
+   cookie values, session tokens, authorization headers, DSNs, passwords, or
+   other credentials into terminal output or evidence.
+4. Detach Playwright, stop the disposable Chrome process, and delete the entire
+   cloned user-data root and all clone-specific artifacts immediately after the
+   durable non-secret evidence is recorded.
+
+The clone is sensitive disposable QA infrastructure. It must never enter Git,
+be retained as a reusable test profile, or be treated as an Azurite fixture.
+
 ## Compact Baseline Flow
 
 Every matrix cell must prove:
@@ -257,8 +310,8 @@ repeatable improvement to setup, evidence, scenario selection, or cleanup.
 1. Close every Playwright session.
 2. Stop Vite or preview and Fastify gracefully.
 3. Verify ports `3000`, `5173`, and `4173` are free.
-4. Delete the disposable cluster, browser profiles, Chrome clone, and temporary
-   artifacts after durable evidence has been recorded.
+4. Delete the disposable cluster, browser profiles, complete Chrome clone, and
+   temporary artifacts after durable evidence has been recorded.
 5. Confirm no credential, cookie, token, DSN, authorization header, or real note
    content entered Git or the QA record.
 6. Record the chosen matrix cells, scenario coverage, fixture hashes where

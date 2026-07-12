@@ -185,15 +185,25 @@ workflow: its Chrome launch adds `--use-mock-keychain` and
 authentication state. Instead:
 
 1. Create a disposable directory and copy the entire on-disk Chrome user-data
-   root, not just `Default` or `Local State`. Exclude only `SingletonLock`,
+   root, not just `Default`, another selected profile, `Local State`, cookies,
+   or selected storage. Include every profile and all available WAL files,
+   sessions, storage, IndexedDB, service workers, caches, extensions,
+   preferences, account/browser metadata, and other root contents. Preserve
+   supported filesystem metadata. Exclude only `SingletonLock`,
    `SingletonCookie`, and `SingletonSocket`, which belong to the running Chrome
-   process.
-2. Start ordinary Google Chrome with the disposable directory as
+   process; never remove them from the source root.
+2. Compare aggregate bytes plus regular-file and directory counts between the
+   source and clone without listing or reading credentials. Resolve every
+   difference other than the three live singleton locks or source files Chrome
+   demonstrably changed during the copy. If live writes prevent a trustworthy
+   snapshot, ask Daniel to close Chrome or authorize a controlled shutdown and
+   repeat the complete copy.
+3. Start ordinary Google Chrome with the disposable directory as
    `--user-data-dir` and `--remote-debugging-port=0`. Read its local CDP endpoint
    from the clone's `DevToolsActivePort` file.
-3. Attach the Playwright CLI with `attach --cdp <endpoint>` and inspect the
+4. Attach the Playwright CLI with `attach --cdp <endpoint>` and inspect the
    authenticated Sentry UI.
-4. Detach Playwright, stop the disposable Chrome process, and delete the entire
+5. Detach Playwright, stop the disposable Chrome process, and delete the entire
    clone and temporary Playwright artifacts before completing QA.
 
 This preserves the real profile, keeps credentials out of terminal evidence,
