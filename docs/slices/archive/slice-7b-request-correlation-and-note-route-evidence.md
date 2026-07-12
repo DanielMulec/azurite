@@ -2,20 +2,17 @@
 
 ## Status
 
-Active. Daniel approved implementation after reconciliation on 2026-07-10 and
-two focused adversarial contract reviews on 2026-07-11. Implementation,
-automated verification, and desktop enabled/disabled Sentry QA passed on
-2026-07-11.
+Complete and archived on 2026-07-12. Daniel approved implementation after
+reconciliation on 2026-07-10 and two focused adversarial contract reviews on
+2026-07-11. Implementation, both save-integrity review repairs, automated
+verification, desktop and Pixel 6 acceptance across development and production
+with Sentry enabled and disabled, authenticated Sentry proof, and the local-only
+backend boundary all passed.
 
-Synthetic Pixel 6 Playwright QA across the optimized production preview and
-Vite development build ran on 2026-07-12 at Daniel's direction. It confirmed
-the phone workflow and exposed product findings recorded in the authoritative
-QA record, but it ran before the existing review-repair gate and does not close
-it. Post-implementation adversarial review found two save-result ownership
-defects, and production desktop QA found a Back/sidebar divergence that still
-needs pre-7B regression classification. Slice 7B remains active and must not be
-archived until those review gates close and Codex re-runs the closing synthetic
-matrix on the repaired state.
+The Back/sidebar divergence was decisively reproduced in the exact pre-7B tree
+with real API responses under controlled latency. It is a pre-existing
+route-selection race, not a 7B regression, and is ordered separately as Slice
+7F. No route repair was annexed to 7B or 7C.
 
 The authoritative implementation and QA record is
 `docs/qa/slice-7b-request-correlation.md`. Keep concrete commands, IDs, hashes,
@@ -30,8 +27,8 @@ surface mobile evidence, not to waive those gates.
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
 and historical physical-phone runtime evidence is now an implemented dependency,
-not a future prerequisite. Slice 7C is the next planned product slice in
-`docs/slices/planned/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
+not a future prerequisite. Slice 7C is the next active product slice in
+`docs/slices/active/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
 Slice 7D remains planned after it in
 `docs/slices/planned/slice-7d-semantic-editor-and-persistence-diagnostics.md`.
 
@@ -1405,7 +1402,7 @@ Start without enabled Sentry configuration and prove:
 
 After the repair, classification, and closing synthetic QA run close Slice 7B,
 promote
-`docs/slices/planned/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
+`docs/slices/active/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
 Slice 7C may rely on repaired exact-session save-result ownership, current
 content-hash conflict behavior, exact draft cleanup, and the correlated note
 workflow. It owns only projection-versus-authoritative Markdown fidelity; it
@@ -1447,13 +1444,20 @@ Slice 7D may rely on these completed 7B truths:
   active diagnostic targets, followed immediately by the required
   editor-correctness slice.
 
-## Open Questions
+## Completion Evidence
 
-- Did Slice 7B introduce the browser Back/sidebar selected-item divergence, or
-  did production QA expose a pre-existing route-state defect?
+The authoritative QA record contains the full commands, IDs, test totals,
+matrix, authenticated Sentry views, and finding classifications. Concisely:
 
-The two save-result ownership findings are confirmed defects, not open design
-questions. Repair them before the closing synthetic phone re-run using the
-authoritative evidence record. If new implementation evidence contradicts a
-settled decision, pause and update this active slice before changing the
-architecture.
+- exact-session save-result ownership and post-persistence revalidation close
+  both adversarial findings with five deterministic race tests;
+- all 287 tests, strict validation, production build, and diff checks pass;
+- all eight desktop/Pixel 6, development/production, enabled/disabled browser
+  cells pass the current 7B workflow and preservation checks;
+- closing Sentry Replay and Trace Explorer visibly join the unmasked Pixel
+  workflow to the correlated Fastify save and report no unexpected issue;
+- Fastify remains loopback-only and unreachable directly over Tailscale;
+- the Back/sidebar race predates 7B and has a separate Slice 7F owner;
+- Slice 7C is refreshed against this completed baseline and promoted next.
+
+There are no unresolved Slice 7B implementation or acceptance questions.

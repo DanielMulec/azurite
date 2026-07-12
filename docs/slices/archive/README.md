@@ -11,3 +11,9 @@ contracts belong in `docs/reference/`, and operational procedures belong in
 Slice 7A's archive record includes its desktop Sentry/runtime evidence, the
 original decision to defer physical-phone QA, and the successful follow-up
 phone-Sentry evidence from 2026-07-10.
+
+Slice 7B's archive record establishes request/note-operation correlation,
+fail-open observability, exact-session save-result ownership, in-process
+same-note write ordering, and desktop/Pixel 6 acceptance across both builds and
+Sentry modes. Its detailed implementation and dashboard evidence is in
+`docs/qa/slice-7b-request-correlation.md`.

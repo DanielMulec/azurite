@@ -2,18 +2,19 @@
 
 ## Status
 
-Planned. Promote this document to `docs/slices/active/` only after Slice 7B is
-cleanly completed and archived.
+Active as of 2026-07-12 after Slice 7B completed and moved to archive.
 
-The required sequence before promotion is:
+The promotion prerequisites are closed:
 
-1. repair the two open Slice 7B adversarial-review save-integrity findings;
-2. classify the Back/sidebar selection divergence against the pre-7B baseline
-   and either repair a 7B regression or record a separate route-state slice;
-3. re-run and record the closing Slice 7B synthetic Pixel 6 Playwright matrix;
-4. archive Slice 7B and refresh this plan against that implemented baseline;
-5. promote this file to `docs/slices/active/` without changing its product
-   decision unless new evidence requires scope re-selection.
+1. both 7B save-result ownership findings are repaired with exact-session race
+   coverage;
+2. the Back/sidebar divergence is proven pre-existing and ordered separately as
+   Slice 7F, URL Selection And History Coherence;
+3. the closing eight-cell desktop/Pixel 6, development/production,
+   Sentry-enabled/disabled Playwright matrix passed;
+4. authenticated Sentry Replay and Trace Explorer proof passed; and
+5. this plan was refreshed without changing its Markdown-authority product
+   decision or annexing the separate route capability.
 
 The production evidence that created this slice is authoritative in
 `docs/qa/production-desktop-2026-07-11.md`.
@@ -96,8 +97,8 @@ conflict contract, and preserves the intentional edit across reload.
   after deliberate source input.
 - Replacing Milkdown/Crepe, adding another editor framework, or changing the
   CommonMark-plus-GFM product dialect.
-- Fixing the Back/sidebar route-state divergence. It must first be classified
-  against Slice 7B as described in Status.
+- Fixing the pre-existing Back/sidebar route-state divergence. Slice 7F owns
+  that capability and its overlapping-history repair.
 - Fixing Crepe's block `+` menu, the Android source-mode newline reversion, or
   the unexplained fresh-cluster recovered-draft observation.
 - Changing backend-unavailable copy, adding retry UI, lazy-loading the editor,
@@ -109,8 +110,8 @@ conflict contract, and preserves the intentional edit across reload.
   before this authority contract existed.
 - Adding a custom ProseMirror transaction plugin while Crepe's public lifecycle,
   `getMarkdown()`, listener, and action APIs can complete the user story.
-- Repairing the two Slice 7B save-result ownership findings inside this slice;
-  they are prerequisites, not annexed 7C work.
+- Reworking the completed Slice 7B save-result ownership repairs; 7C relies on
+  their exact-session contract and preserves their regression coverage.
 
 ## Future Workflow Boundary
 

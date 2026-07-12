@@ -2,25 +2,25 @@
 
 ## Status
 
-- Automated verification: passed on 2026-07-11.
-- Desktop Sentry-enabled QA: passed on 2026-07-11.
-- Desktop Sentry-disabled QA: passed on 2026-07-11.
-- Post-implementation adversarial code review: two save-integrity findings open.
-- Production desktop QA route finding: Back/sidebar regression classification
-  open.
-- Synthetic Pixel 6 Playwright QA: completed on 2026-07-12 against optimized
-  production preview and Vite development builds, each with Sentry enabled and
-  disabled. Detailed evidence and findings appear below.
-- Physical-phone QA: no longer a standard Slice 7B completion gate. It is
-  optional supplemental evidence only when Daniel explicitly requests it.
-- Completion decision: Slice 7B remains active and is **not complete**. Repair
-  and verify both adversarial findings, classify the route finding, and then
-  re-run the closing synthetic Pixel 6 matrix. The 2026-07-12 baseline run was
-  explicitly authorized before those repairs; it surfaces mobile evidence but
-  does not waive the repair or route-classification gates.
+- Completion decision: **passed and complete on 2026-07-12**.
+- Automated verification: passed after both save-integrity repairs with 287
+  tests, both typecheck layers, strict lint, formatting, the 400-line limit,
+  production build, and diff-integrity checks.
+- Save-integrity review gate: closed by exact editor-session result ownership
+  and post-persistence revalidation, with five deterministic race regressions.
+- Back/sidebar classification: closed as a pre-7B route-state defect. The exact
+  historical tree reproduced it with real API responses under controlled
+  latency; it is ordered separately as Slice 7F.
+- Closing Playwright matrix: passed on desktop Chrome and Pixel 6 across Vite
+  development and optimized production, each with Sentry enabled and disabled.
+- Authenticated Sentry proof: passed through a disposable full Chrome clone;
+  closing Replay, Trace Explorer, web/server joins, exact IDs, unmasked content,
+  and absence of unexpected issues were visibly verified.
+- Physical-phone QA: optional supplemental evidence only when Daniel explicitly
+  requests behavior not modelled by the standard Pixel 6 path.
 
 This document is the authoritative implementation and QA evidence record for
-Slice 7B. The active slice links here instead of duplicating these results.
+Slice 7B. The archived slice links here instead of duplicating these results.
 
 ## Automated Verification
 
@@ -40,9 +40,9 @@ and every package test suite. The passing test totals were:
 | --------- | ------: |
 | Shared    |      56 |
 | Core      |      43 |
-| Web       |     127 |
+| Web       |     132 |
 | Server    |      56 |
-| **Total** | **282** |
+| **Total** | **287** |
 
 The production build passed with the existing non-blocking Vite chunk-size
 warning. No ESLint configuration, rule, or package script was weakened. Slice
@@ -254,43 +254,143 @@ existing desktop QA record already classified recovery copy as separate; this
 run adds the failure-navigation duplication evidence. No implementation work was
 silently annexed to Slice 7B.
 
-## Remaining Completion Gates
+## Closing Repair And Acceptance Evidence — 2026-07-12
 
-### Adversarial Review Repair Gate
+### Save-Integrity Repairs
 
-The post-implementation adversarial review found two save-result ownership
-defects that must be repaired before the closing synthetic phone re-run:
+`getCurrentEditorForSession` now requires the exact originating `sessionKey`
+before a save result can mutate an editor. Failure and conflict settlement also
+revalidate that exact session after awaiting latest-draft persistence instead of
+reusing a pre-await editor snapshot.
 
-1. `applySaveFailure` captures the current editor, awaits latest-draft
-   persistence, and then applies a failure/conflict state copied from the stale
-   pre-await editor. A newer edit made while IndexedDB persistence is pending can
-   therefore be overwritten. The repair must revalidate and mutate the exact
-   current session after the await, with a regression test that pauses draft
-   persistence and edits before settlement.
-2. Save result ownership currently looks up a current editor by note ID. If an
-   old same-note save settles after that note is closed and freshly reopened,
-   the old operation can mutate the new session. The repair must require exact
-   editor-session ownership for result mutation while preserving the intended
-   edit-during-save reconciliation inside the original session.
+`apps/web/test/note-browser-save-session-ownership.test.ts` adds five focused
+regressions:
 
-Production desktop QA also found that browser Back can restore URL and content
-while leaving the wrong sidebar item selected. Classify this against the pre-7B
-baseline. If 7B introduced it through route synchronization, repair and verify
-it in 7B. If it predates 7B, record a separate route-state correctness slice;
-do not annex it to Slice 7C.
+- failure and conflict pause draft persistence, accept a newer edit, and prove
+  the latest Markdown, revision, dirty state, recovery state, and terminal
+  result survive settlement;
+- stale success, failure, and conflict settle after close/reopen of the same
+  note and prove the fresh session remains entirely unchanged.
 
-### Closing Synthetic Pixel 6 Matrix After Repair
+The repairs preserve edit-during-save reconciliation in the original session,
+single-flight same-note saves, exact matching-draft cleanup after navigation,
+different-note isolation, correlation identity, and the server's same-path
+write coordinator. The implementation commits are `87e29cf` and `01a0555`.
 
-After both code findings are fixed and the route finding is classified, Codex
-must re-run the synthetic Pixel 6 matrix defined in the active slice. It must
-record exact request and operation IDs for list, read, and a successful WYSIWYG
-save; confirm the marker persists; confirm trace headers, visible unmasked
-marker, and successful envelopes; and confirm Fastify remains locally bound and
-unreachable directly over Tailscale. When an authenticated dashboard session is
-available, also record the distinct Replay; otherwise record that limitation
-without claiming visual Replay proof.
+### Back/Sidebar Classification
 
-The phone save must use WYSIWYG. Markdown source Enter remains an explicitly
-unfixed Slice 7D diagnostic target and is not a 7B completion path. After the
-repair and closing synthetic evidence pass, update this record, mark the active
-slice complete, move it to `archive/`, and only then promote Slice 7C.
+The exact pre-7B baseline is
+`ac4f4a709b52c78537adf493dbd368039fa5e4fc`, the parent of the 7B
+implementation commit. An initial unthrottled comparison happened to complete
+coherently, but code ownership and a deterministic real-runtime comparison
+proved the timing-dependent defect predates 7B:
+
+- `shouldSkipNoteSelection` and `keepRenderedNoteWhileLoading` originate in
+  `271c820` on 2026-07-08;
+- the shortcut treats a requested note as already selected when its editor is
+  merely still rendered, without requiring `selectedNoteId` to own that note;
+- on the exported pre-7B tree, Playwright delayed only the real nested-note
+  response by five seconds, never replacing or mocking its body;
+- after a fully settled Back, the exact `Forward` then immediate `Back` sequence
+  remained at URL `qa-enabled-prod-pixel.md` while the rendered article,
+  `aria-current`, and focused item all became
+  `nested/overlap-and-conflict.md`, even after 6.5 seconds;
+- the pre-7B requests were real list/read calls, with no final target read after
+  the last Back.
+
+This is a pre-existing route-selection race, not a 7B regression. Repair is
+therefore excluded from 7B and 7C and ordered as Slice 7F, URL Selection And
+History Coherence. Ordinary awaited Back/Forward navigation remained coherent
+in every final matrix cell. Slice 7F owns the overlapping-history failure.
+
+### Final Eight-Cell Playwright Matrix
+
+Each cell used a fresh Chrome session and a dedicated disposable note. The
+browser exercised real Vite or preview assets, the relative API proxy, Fastify,
+IndexedDB, and filesystem writes without mocked API responses.
+
+| Runtime           | Device         | Sentry   | Result                                                                 |
+| ----------------- | -------------- | -------- | ---------------------------------------------------------------------- |
+| Vite development  | Desktop Chrome | Enabled  | Passed; only the already classified Vue feature-flag warning appeared. |
+| Optimized preview | Desktop Chrome | Enabled  | Passed with no unexpected console output.                              |
+| Vite development  | Pixel 6        | Enabled  | Passed; only the already classified Vue feature-flag warning appeared. |
+| Optimized preview | Pixel 6        | Enabled  | Passed with no unexpected console output.                              |
+| Vite development  | Desktop Chrome | Disabled | Passed with zero envelopes and no tracing headers.                     |
+| Optimized preview | Desktop Chrome | Disabled | Passed with zero envelopes and no tracing headers.                     |
+| Vite development  | Pixel 6        | Disabled | Passed with zero envelopes and no tracing headers.                     |
+| Optimized preview | Pixel 6        | Disabled | Passed with zero envelopes and no tracing headers.                     |
+
+Every cell proved list, direct read, sidebar selection, ordinary Back/Forward
+URL-content-`aria-current` coherence, WYSIWYG edit, successful manual save,
+reload persistence, unsaved-draft recovery, recovered-draft save, a real
+external-write conflict, conflict discard back to disk truth, missing-note UI,
+and traversal-like URL normalization to `100%.md`. Expected conflicts produced
+one browser failed-resource line for `409` and no unhandled product error.
+
+The Pixel 6 cells verified Android Chrome, a `412` by `839` viewport, `412` by
+`915` screen, DPR `2.625`, one touch point, coarse pointer, no hover, and zero
+horizontal overflow. WYSIWYG was the phone save path. The separate physical
+Android source-mode Enter finding remains unfixed and assigned to 7D diagnosis
+plus its required follow-up repair.
+
+### Exact Closing Correlation Examples
+
+| Cell and workflow                   | Request ID                             | Note operation ID                      |
+| ----------------------------------- | -------------------------------------- | -------------------------------------- |
+| Enabled production Pixel list       | `94721b78-35a0-4cc0-93b5-494810bedc9a` | none                                   |
+| Enabled production Pixel read       | `c2c32d0a-8a33-4bca-b142-a1e7f3f08d7a` | `42ea09d9-6aa0-4b5f-89d7-e243317b743c` |
+| Enabled production Pixel save       | `2bc3ed69-5807-4cfe-bd17-732916bc5a96` | `3ea0b8e4-dc35-41a4-9bec-fea3aee0ff10` |
+| Enabled production Pixel conflict   | `a81fb679-e821-41a1-b66b-516c783ec170` | `227b938a-8fbf-4a8e-b796-ef0521e7b004` |
+| Enabled production desktop save     | `68aec645-cde9-4971-bb3c-bb3eeda3b6cc` | `8559e714-4cde-4e12-bd27-0ed24b0d66dd` |
+| Enabled production desktop conflict | `bb211b5c-5fb5-4da7-8990-245b9b59d9ad` | `017897df-b91c-46ee-9ca0-2b98c78da25d` |
+| Disabled production Pixel save      | `d307461e-1356-41d0-aa93-1e4e3d400013` | `fffb7014-f6da-4bf0-8107-cd81baa04d0f` |
+| Disabled production Pixel conflict  | `699da4f4-64ac-409d-b30f-42f941cb8c14` | `7525e78c-af2e-408c-afce-7d67b2f3cfee` |
+
+All enabled examples carried `sentry-trace` and `baggage`; their browser
+envelopes returned `200`. All disabled examples retained Azurite correlation
+headers while omitting both tracing headers, and their request logs contained
+no Sentry envelope.
+
+### Authenticated Sentry Closing Proof
+
+Daniel authorized a complete disposable copy of the Google Chrome user-data
+root. Codex copied the 3.8 GB root with all 31,538 regular files, profiles,
+cookie databases and WAL files, sessions, local storage, service workers,
+extensions, metadata, and `Local State`; only the clone's live `Singleton*`
+process locks were removed before launch. Ordinary Google Chrome ran against
+the clone, and Playwright attached over local CDP. No credential, cookie value,
+token, authorization header, DSN, or secret was printed or retained. The cloned
+browser and all clone data were deleted immediately after evidence capture.
+
+Sentry visibly proved:
+
+- Replay `9890d905f9b74dbc954ac6341f9e0992` is the closing optimized Pixel
+  session, reports zero Replay errors, renders the actual narrow Android UI, and
+  shows the full unmasked save, draft, and conflict text;
+- Trace `4af3367352f0495ebef4c63c5dcda5c6` has zero issues, 17 spans, and 31
+  logs; its waterfall joins the browser interaction to Fastify read and save
+  routes;
+- the server `azurite.server.route` `note.save` span visibly carries request
+  `2bc3ed69-5807-4cfe-bd17-732916bc5a96`, operation
+  `3ea0b8e4-dc35-41a4-9bec-fea3aee0ff10`, accepted/client ownership,
+  `matrix-en-prod-pixel.md`, `PUT /api/notes/content`, and the expected content
+  hash;
+- conflict trace `88d7e489f4a4474992ee2408b5994eec` reports one linked Replay, 49 spans,
+  29 logs, Android Chrome, and zero issues;
+- the Logs surface visibly contains the closing `note.save.succeeded`,
+  `note.save.conflicted`, API, route, load, and list lifecycle entries at the
+  matching run times;
+- the issue feed gained no issue from any expected final conflict.
+
+### Network Boundary And Completion Decision
+
+Fastify listened only on `127.0.0.1:3000`; loopback health returned success and
+direct access through the Mac's Tailscale address was unreachable. Frontend
+proxy access remained functional.
+
+No new unclassified finding appeared. The known Markdown-fidelity, local-runtime
+failure-copy/duplicate-read, Vue warning, mobile ergonomics, block-menu, and
+physical Android newline findings retain their existing separate dispositions.
+Both save-integrity findings are repaired, the route finding is decisively
+classified, the closing matrix and authenticated Sentry proof pass, and Slice
+7B is complete and ready for archive.

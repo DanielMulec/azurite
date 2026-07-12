@@ -116,6 +116,13 @@ State ownership is explicit:
 Do not move canonical note content into a database without explicitly revisiting
 the markdown-first product promise.
 
+The current route boundary has one classified timing defect: a note that is
+still rendered while another route intent loads can be mistaken for the current
+selection. Under overlapping Back/Forward navigation, URL, rendered article,
+and sidebar `aria-current` can therefore diverge. Slice 7F owns the durable
+selected-intent versus rendered-projection repair; editor-fidelity slices must
+not absorb it.
+
 ## API And Contract Boundaries
 
 Stable routes, query parameters, error codes, note IDs, cluster metadata, and
@@ -163,10 +170,13 @@ request-owned. Startup same-note synchronization reuses one load intent;
 overlapping reads retain independent context and stale completions cannot
 replace newer state. Manual save is single-flight per note in the browser.
 Editing during an active save preserves newer dirty markdown while the original
-snapshot settles, and successful save cleanup removes only an exact matching
-recovery draft. Core's keyed write coordinator provides the corresponding
-same-path in-process conflict guarantee without introducing Sentry or telemetry
-into `packages/core`.
+snapshot settles. Every editor lifetime has an exact session key; success,
+conflict, or failure may mutate only the session that originated the save, and
+failure/conflict paths revalidate that owner after asynchronous draft
+persistence before applying terminal state. Successful save cleanup removes
+only an exact matching recovery draft. Core's keyed write coordinator provides
+the corresponding same-path in-process conflict guarantee without introducing
+Sentry or telemetry into `packages/core`.
 
 ### Cluster Resolution And Filesystem Error Evolution
 
@@ -230,8 +240,8 @@ new explicit product decision.
 The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
-loading the rich editor. Do not implement that boundary before Slice 7B is
-complete. Default its delivery until after Slice 7C fidelity, Slice 7D
+loading the rich editor. Slice 7B is complete. Default the loading boundary's
+delivery until after Slice 7C fidelity, Slice 7D
 diagnostics, and the mandatory editor-correctness follow-up so those repairs and
 their QA observe the current editor lifecycle before its loading order changes.
 
