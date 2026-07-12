@@ -26,18 +26,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/azurite_git_policy.py\" title",
-            "timeout": 10,
-            "statusMessage": "Synchronizing the Codex task title"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
