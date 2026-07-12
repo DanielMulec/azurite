@@ -14,94 +14,94 @@ documentation commit.
 
 ## Mandatory Reorientation After Compaction Or Continuation
 
-- [ ] Read `agents.md` completely.
-- [ ] Read `docs/working-agreement.md` completely.
-- [ ] Read `docs/engineering-standards.md` and
+- [x] Read `agents.md` completely.
+- [x] Read `docs/working-agreement.md` completely.
+- [x] Read `docs/engineering-standards.md` and
       `docs/reference/product-guardrails.md` completely.
-- [ ] Read
+- [x] Read
       `docs/slices/active/slice-7b-request-correlation-and-note-route-evidence.md`
       completely.
-- [ ] Read `docs/qa/slice-7b-request-correlation.md` completely.
-- [ ] Read this checklist completely and inspect its current checked state.
-- [ ] Read the Codex Playwright skill completely before browser QA and confirm
+- [x] Read `docs/qa/slice-7b-request-correlation.md` completely.
+- [x] Read this checklist completely and inspect its current checked state.
+- [x] Read the Codex Playwright skill completely before browser QA and confirm
       `npx` plus the bundled wrapper are available.
-- [ ] Run `git status --short --branch`; remain on `main`, preserve unrelated
+- [x] Run `git status --short --branch`; remain on `main`, preserve unrelated
       work, create no side branch, and keep the full repository state synced to
       `origin/main` after every completed write batch.
-- [ ] Inspect the current diff, recent commits, test baseline, and relevant
+- [x] Inspect the current diff, recent commits, test baseline, and relevant
       editor/save/router code before changing anything.
 
 ## Scope And Decision Ownership
 
-- [ ] Treat the active 7B slice as the implementation authority and
+- [x] Treat the active 7B slice as the implementation authority and
       `docs/qa/slice-7b-request-correlation.md` as the evidence authority; do
       not create another implementation proposal for the closing work.
-- [ ] Repair only work required to close the two confirmed 7B save-integrity
+- [x] Repair only work required to close the two confirmed 7B save-integrity
       defects and any Back/sidebar regression proven to have been introduced by
       7B.
-- [ ] If Back/sidebar divergence predates 7B, record and order a separate
+- [x] If Back/sidebar divergence predates 7B, record and order a separate
       route-state correctness slice instead of annexing its repair.
-- [ ] Apply scope re-selection if implementation or QA reveals another product
+- [x] Apply scope re-selection if implementation or QA reveals another product
       capability, state owner, persistence boundary, architectural foundation,
       or independently useful outcome.
-- [ ] Keep the already classified Markdown-fidelity, local-runtime recovery
+- [x] Keep the already classified Markdown-fidelity, local-runtime recovery
       copy/duplicate-read, Vue warning, mobile ergonomics, block-menu, and
       Android newline findings outside 7B.
 
 ## Baseline And Reproduction
 
-- [ ] Identify the exact pre-7B Git baseline used to classify Back/sidebar
+- [x] Identify the exact pre-7B Git baseline used to classify Back/sidebar
       behavior and record its commit ID in the QA evidence.
-- [ ] Record the current implementations and tests governing save-operation
+- [x] Record the current implementations and tests governing save-operation
       ownership, editor-session identity, draft reconciliation, route/store
       synchronization, history navigation, and sidebar selection.
-- [ ] Run focused existing tests before edits and record any genuine baseline
+- [x] Run focused existing tests before edits and record any genuine baseline
       failure without weakening lint, formatting, validation, or test policy.
-- [ ] Use only disposable note clusters and browser state for destructive QA;
+- [x] Use only disposable note clusters and browser state for destructive QA;
       never open, edit, or overwrite Daniel's real Markdown notes.
 
 ## Save-Integrity Repair 1: Revalidate After Draft Persistence
 
-- [ ] Reproduce the `applySaveFailure` stale pre-await editor overwrite with a
+- [x] Reproduce the `applySaveFailure` stale pre-await editor overwrite with a
       deterministic test that pauses latest-draft persistence, accepts a newer
       edit, and then settles the original save failure/conflict path.
-- [ ] Change failure application so it revalidates and mutates the exact current
+- [x] Change failure application so it revalidates and mutates the exact current
       editor session after the await instead of applying a copied stale editor
       snapshot.
-- [ ] Prove the newer Markdown, revision, dirty state, recovery availability,
+- [x] Prove the newer Markdown, revision, dirty state, recovery availability,
       save availability, and correct failure/conflict state survive settlement.
-- [ ] Prove draft-persistence failure remains visible and cannot destroy the
+- [x] Prove draft-persistence failure remains visible and cannot destroy the
       only live dirty copy.
-- [ ] Prove successful save, expected conflict, unexpected failure, and
+- [x] Prove successful save, expected conflict, unexpected failure, and
       edit-during-save behavior remain correct.
 
 ## Save-Integrity Repair 2: Exact Editor-Session Result Ownership
 
-- [ ] Reproduce an old same-note save settling after the note was closed and
+- [x] Reproduce an old same-note save settling after the note was closed and
       freshly reopened into a new editor session.
-- [ ] Require exact editor-session ownership, not note ID alone, before a save
+- [x] Require exact editor-session ownership, not note ID alone, before a save
       result may mutate editor/session state.
-- [ ] Preserve intended reconciliation for a newer edit made inside the
+- [x] Preserve intended reconciliation for a newer edit made inside the
       original still-active session while its save is pending.
-- [ ] Prove stale success, conflict, and failure settlements cannot mutate a
+- [x] Prove stale success, conflict, and failure settlements cannot mutate a
       reopened same-note session, its saved baseline, dirty state, recovery
       state, status, or draft.
-- [ ] Prove exact matching draft cleanup after navigation remains safe and does
+- [x] Prove exact matching draft cleanup after navigation remains safe and does
       not delete differing, newer-baseline, different-session, or different-note
       recovery data.
-- [ ] Preserve one active same-note save promise, operation/request correlation,
+- [x] Preserve one active same-note save promise, operation/request correlation,
       and current server-side same-path write ordering.
 
 ## Back/Sidebar Divergence Classification
 
-- [ ] Define one deterministic fixture and exact steps that reproduce browser
+- [x] Define one deterministic fixture and exact steps that reproduce browser
       Back restoring URL/content while leaving the wrong sidebar item selected.
-- [ ] Reproduce and capture the behavior on current `main` in both development
+- [x] Reproduce and capture the behavior on current `main` in both development
       and optimized production builds.
-- [ ] Inspect the relevant 7B diff and history for route synchronization,
+- [x] Inspect the relevant 7B diff and history for route synchronization,
       selection ownership, `aria-current`, startup replacement, and stale-load
       changes.
-- [ ] Exercise the same deterministic scenario against the exact pre-7B
+- [x] Exercise the same deterministic scenario against the exact pre-7B
       baseline without switching `main` or creating a branch; use a disposable
       exported historical tree outside the repository if runtime comparison is
       needed.
@@ -115,19 +115,19 @@ documentation commit.
 
 ## Automated And Static Verification
 
-- [ ] Run focused tests after each repair and add deterministic regression tests
+- [x] Run focused tests after each repair and add deterministic regression tests
       for both save-ownership defects plus any in-scope route repair.
-- [ ] Verify preserved list, read, save, conflict, draft, recovery, routing,
+- [x] Verify preserved list, read, save, conflict, draft, recovery, routing,
       stale-response, observability fail-open, correlation-isolation, filesystem,
       and security behavior named by the active slice and product guardrails.
-- [ ] Confirm every code file remains at or below 400 lines and responsibilities
+- [x] Confirm every code file remains at or below 400 lines and responsibilities
       remain modular.
-- [ ] Run `/opt/homebrew/bin/pnpm validate` without adding or broadening lint
+- [x] Run `/opt/homebrew/bin/pnpm validate` without adding or broadening lint
       exceptions, ignores, overrides, or policy changes.
-- [ ] Run `/opt/homebrew/bin/pnpm build`.
-- [ ] Run task-relevant focused typechecks/tests if they are not fully expressed
+- [x] Run `/opt/homebrew/bin/pnpm build`.
+- [x] Run task-relevant focused typechecks/tests if they are not fully expressed
       by `pnpm validate`.
-- [ ] Run `git diff --check` and inspect the complete diff for unrelated changes,
+- [x] Run `git diff --check` and inspect the complete diff for unrelated changes,
       accidental formatting, generated artifacts, credentials, and secrets.
 
 ## Playwright Runtime Matrix
