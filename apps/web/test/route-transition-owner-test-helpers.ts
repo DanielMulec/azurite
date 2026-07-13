@@ -15,7 +15,8 @@ type NavigationMode =
   | "normal"
   | "reject_after_echo"
   | "reject_before_echo"
-  | "resolve_before_router";
+  | "resolve_before_router"
+  | "throw_sync";
 
 type HarnessRuntime = {
   browserIndex: number;
@@ -151,14 +152,22 @@ function createRouterBoundary(
 ): RouteTransitionRouterAdapter {
   return {
     historyLocation: () => readRouterLocation(runtime),
-    navigate: async (input) => {
-      await navigateApplication(input, runtime);
-    },
+    navigate: (input) => startHarnessNavigation(input, runtime),
     subscribeHistory: (listener) =>
       subscribe(runtime.historyListeners, listener),
     subscribeResolved: (listener) =>
       subscribe(runtime.resolvedListeners, listener),
   };
+}
+
+function startHarnessNavigation(
+  input: HarnessRuntime["navigations"][number],
+  runtime: HarnessRuntime,
+): Promise<void> {
+  if (runtime.mode === "throw_sync") {
+    throw new Error("Injected synchronous navigation failure.");
+  }
+  return navigateApplication(input, runtime);
 }
 
 async function navigateApplication(

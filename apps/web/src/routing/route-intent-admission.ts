@@ -12,6 +12,7 @@ import {
   supersededOutcome,
 } from "./route-intent-outcomes.js";
 import { registerLocationConfirmation } from "./route-location-confirmation.js";
+import { getRenderedOwnerKeySafely } from "./route-store-executor.js";
 import {
   isCurrentIntent,
   type RouteIntent,
@@ -146,7 +147,7 @@ async function prepareGate(
   const gate = runtime.gateRegistry.prepare({
     cause: intent.cause,
     leaseKey: gateLeaseKey(intent.intentKey),
-    outgoingOwnerKey: runtime.storeRegistry.get()?.getRenderedOwnerKey(),
+    outgoingOwnerKey: getRenderedOwnerKeySafely(runtime.storeRegistry.get()),
   });
   intent.gate = gate;
   const result = await gate.decision;

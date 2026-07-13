@@ -63,6 +63,30 @@ export type RouteStoreExecutorRegistry = {
   readonly wait: () => Promise<RouteStoreExecutor | undefined>;
 };
 
+/** Invokes store intent activation without letting application code strand routing. */
+export function activateRouteIntentSafely(
+  executor: RouteStoreExecutor,
+  intentKey: string,
+): boolean {
+  try {
+    executor.activateRouteIntent(intentKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Reads the rendered session owner without allowing a store throw to escape. */
+export function getRenderedOwnerKeySafely(
+  executor: RouteStoreExecutor | undefined,
+): string | undefined {
+  try {
+    return executor?.getRenderedOwnerKey();
+  } catch {
+    return undefined;
+  }
+}
+
 /** Creates the replaceable store-executor slot for one route owner. */
 export function createRouteStoreExecutorRegistry(): RouteStoreExecutorRegistry {
   let current: RouteStoreExecutor | undefined;

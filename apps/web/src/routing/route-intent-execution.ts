@@ -10,6 +10,7 @@ import type {
   RouteStoreApplyResult,
   RouteNotesResult,
 } from "./route-store-executor.js";
+import { activateRouteIntentSafely } from "./route-store-executor.js";
 import {
   isCurrentIntent,
   type RouteIntent,
@@ -120,7 +121,17 @@ async function completeAfterExecutorWait(
     );
     return true;
   }
-  executor.activateRouteIntent(input.intent.intentKey);
+  if (!activateRouteIntentSafely(executor, input.intent.intentKey)) {
+    await completeRouteIntent(
+      {
+        gate: input.gate,
+        intent: input.intent,
+        outcome: mapStoreOutcome(input.intent, storeApplyFailed),
+      },
+      dependencies.runtime,
+    );
+    return true;
+  }
   return await completeIfNotCurrent(input, "awaiting_executor", dependencies);
 }
 
@@ -316,3 +327,8 @@ function notesFailedOutcome(intent: RouteIntent): RouteTransitionOutcome {
     surfaceEffect: "retained",
   };
 }
+
+const storeApplyFailed: RouteStoreApplyResult = Object.freeze({
+  reason: "store_apply_failed",
+  status: "failed",
+});

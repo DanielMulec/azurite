@@ -16,6 +16,7 @@ import {
   registerLocationConfirmation,
 } from "./route-location-confirmation.js";
 import {
+  activateRouteIntentSafely,
   createRouteStoreExecutorRegistry,
   type RouteStoreExecutor,
 } from "./route-store-executor.js";
@@ -252,8 +253,13 @@ function getCoherentView(
   if (executor === undefined) {
     return undefined;
   }
-  const result = executor.getCoherentView(runtime.currentOccurrence, noteId);
-  return readCoherentResult(result);
+  try {
+    return readCoherentResult(
+      executor.getCoherentView(runtime.currentOccurrence, noteId),
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 function readCoherentResult(
@@ -343,7 +349,7 @@ function registerStoreExecutor(
 ): () => void {
   const unregister = runtime.storeRegistry.register(executor);
   if (runtime.currentIntentKey !== undefined) {
-    executor.activateRouteIntent(runtime.currentIntentKey);
+    activateRouteIntentSafely(executor, runtime.currentIntentKey);
   }
   return unregister;
 }

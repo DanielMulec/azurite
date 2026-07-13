@@ -15,6 +15,7 @@ import {
   type RouteTransitionRouterAdapter,
   type RouteTransitionRuntime,
 } from "./route-transition-runtime.js";
+import { activateRouteIntentSafely } from "./route-store-executor.js";
 import type {
   RouteGateCause,
   RouteTransitionOutcome,
@@ -39,19 +40,37 @@ export function startApplicationNavigation(
   const pending = createPendingApplication(input, dependencies.runtime);
   dependencies.runtime.pendingApplications.set(pending.token, pending);
   dependencies.runtime.currentIntentKey = pending.intentKey;
-  dependencies.runtime.storeRegistry
-    .get()
-    ?.activateRouteIntent(pending.intentKey);
-  void dependencies.router
-    .navigate({
+  const executor = dependencies.runtime.storeRegistry.get();
+  if (executor !== undefined) {
+    activateRouteIntentSafely(executor, pending.intentKey);
+  }
+  startRouterNavigation(
+    pending,
+    {
       href: createDestinationHref(input.noteId, dependencies.runtime),
       replace: input.kind !== "application_push",
       token: pending.token,
-    })
-    .catch(() => {
+    },
+    dependencies,
+  );
+  return pending.result.promise;
+}
+
+function startRouterNavigation(
+  pending: PendingApplicationNavigation,
+  navigation: Parameters<RouteTransitionRouterAdapter["navigate"]>[0],
+  dependencies: {
+    readonly router: RouteTransitionRouterAdapter;
+    readonly runtime: RouteTransitionRuntime;
+  },
+): void {
+  try {
+    void dependencies.router.navigate(navigation).catch(() => {
       void failPendingNavigation(pending, dependencies.runtime);
     });
-  return pending.result.promise;
+  } catch {
+    void failPendingNavigation(pending, dependencies.runtime);
+  }
 }
 
 /** Removes and returns the pending application request for its one echo. */

@@ -1,6 +1,7 @@
 import type { StoreApi } from "zustand/vanilla";
 
 import type { NoteBrowserStore } from "./note-browser-contracts.js";
+import { getRenderedOwnerKey } from "./note-browser-route-predicates.js";
 
 type RoutePredecessor = Pick<
   NoteBrowserStore,
@@ -76,27 +77,5 @@ function hasSameRenderedOwner(
   current: NoteBrowserStore,
 ): boolean {
   const ownerKey = predecessor.committedRouteView?.renderedOwnerKey;
-  if (ownerKey === undefined) {
-    return false;
-  }
-  return (
-    hasReadyOwner(current, ownerKey) || hasMissingDraftOwner(current, ownerKey)
-  );
-}
-
-function hasReadyOwner(current: NoteBrowserStore, ownerKey: string): boolean {
-  return (
-    current.noteState.status === "ready" &&
-    current.noteState.editor.sessionKey === ownerKey
-  );
-}
-
-function hasMissingDraftOwner(
-  current: NoteBrowserStore,
-  ownerKey: string,
-): boolean {
-  return (
-    current.noteState.status === "missing-draft" &&
-    current.noteState.renderedOwnerKey === ownerKey
-  );
+  return ownerKey !== undefined && getRenderedOwnerKey(current) === ownerKey;
 }

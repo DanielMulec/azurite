@@ -189,8 +189,8 @@ function configureContext(
   get: StoreContext["get"],
 ): void {
   Object.assign(runtime.context, {
+    ...createRouteRollbackContext(runtime, set, get),
     api: runtime.api,
-    beginRouteApplication: () => runtime.routeRollback.begin(get()),
     clearActiveNoteLoad: (promise: ActiveNoteLoad["promise"]) => {
       if (runtime.activeNoteLoad?.promise === promise) {
         runtime.activeNoteLoad = undefined;
@@ -206,7 +206,6 @@ function configureContext(
         runtime.activeNotesLoad = undefined;
       }
     },
-    commitRouteApplication: runtime.routeRollback.commit,
     draftPersistence: runtime.draftPersistence,
     get,
     getActiveNoteLoad: () => runtime.activeNoteLoad,
@@ -225,7 +224,6 @@ function configureContext(
       nextEditorSessionKey(noteId, contentHash, runtime),
     nextNoteRequestSequence: () => incrementNoteRequestSequence(runtime),
     nextNotesRequestSequence: () => incrementNotesRequestSequence(runtime),
-    restoreRoutePredecessor: () => runtime.routeRollback.restore(get(), set),
     set,
     setActiveNoteLoad: (load: ActiveNoteLoad) => {
       runtime.activeNoteLoad = load;
@@ -240,6 +238,25 @@ function configureContext(
       activateRouteIntent(intentKey, runtime);
     },
   } satisfies StoreContext);
+}
+
+function createRouteRollbackContext(
+  runtime: NoteBrowserRuntime,
+  set: StoreContext["set"],
+  get: StoreContext["get"],
+): Pick<
+  StoreContext,
+  "beginRouteApplication" | "commitRouteApplication" | "restoreRoutePredecessor"
+> {
+  return {
+    beginRouteApplication: () => {
+      runtime.routeRollback.begin(get());
+    },
+    commitRouteApplication: runtime.routeRollback.commit,
+    restoreRoutePredecessor: () => {
+      runtime.routeRollback.restore(get(), set);
+    },
+  };
 }
 
 function isCurrentNoteRequest(

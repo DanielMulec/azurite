@@ -1,6 +1,7 @@
 import { hasInvalidNoteSearch } from "./app-route-search.js";
 import { consumePendingApplication } from "./route-application-navigation.js";
 import type { HistoryAdmissionCandidate } from "./route-history-admission.js";
+import { activateRouteIntentSafely } from "./route-store-executor.js";
 import {
   createControlledResult,
   nextRuntimeIdentity,
@@ -66,7 +67,10 @@ export function registerRouteIntent(
 ): void {
   runtime.currentIntentKey = intent.intentKey;
   runtime.activeIntents.set(intent.intentKey, intent);
-  runtime.storeRegistry.get()?.activateRouteIntent(intent.intentKey);
+  const executor = runtime.storeRegistry.get();
+  if (executor !== undefined) {
+    activateRouteIntentSafely(executor, intent.intentKey);
+  }
 }
 
 function createApplicationEchoIntent(

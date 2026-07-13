@@ -14,7 +14,11 @@ import {
 import { createTestRouteExecutor } from "./route-store-executor-test-helper.js";
 
 describe("route owner navigation rejection", () => {
-  it.each(["reject_before_echo", "reject_after_echo"] as const)(
+  it.each([
+    "reject_before_echo",
+    "reject_after_echo",
+    "throw_sync",
+  ] as const)(
     "settles %s without applying the rejected target",
     async (mode) => {
       const harness = createRouteOwnerHarness();
@@ -29,10 +33,59 @@ describe("route owner navigation rejection", () => {
       });
       expect(executor.applyRoute).toHaveBeenCalledOnce();
       expect(harness.entries()).toHaveLength(
-        mode === "reject_before_echo" ? 1 : 2,
+        mode === "reject_after_echo" ? 2 : 1,
       );
     },
   );
+});
+
+describe("route owner application fault containment", () => {
+  it("settles a store activation throw without stranding its gate lease", async () => {
+    const harness = createRouteOwnerHarness();
+    const initial = createTestRouteExecutor();
+    const unregisterInitial = await settleInitialRoute(harness, initial);
+    unregisterInitial();
+    const activateRouteIntent = vi.fn(() => {
+      throw new Error("Injected store activation failure.");
+    });
+    const failing = createTestRouteExecutor({ activateRouteIntent });
+    harness.owner.registerStoreExecutor(failing.executor);
+    const settle = vi.fn<RouteTransitionGate["settle"]>();
+    harness.owner.registerGate({ prepare: () => ({ status: "continue" }), settle });
+
+    await expect(harness.owner.selectNote("b.md")).resolves.toMatchObject({
+      noteId: "b.md",
+      reason: "store_apply_failed",
+      status: "failed",
+    });
+    expect(failing.applyRoute).not.toHaveBeenCalled();
+    expect(settle).toHaveBeenCalledOnce();
+  });
+
+  it("treats selector and rendered-owner throws as unavailable observations", async () => {
+    const harness = createRouteOwnerHarness();
+    const executor = createTestRouteExecutor({
+      getCoherentView: () => {
+        throw new Error("Injected coherent-view failure.");
+      },
+      getRenderedOwnerKey: () => {
+        throw new Error("Injected rendered-owner failure.");
+      },
+    });
+    await settleInitialRoute(harness, executor);
+    const prepare = vi.fn<RouteTransitionGate["prepare"]>(() => ({
+      status: "continue",
+    }));
+    harness.owner.registerGate({ prepare, settle: vi.fn() });
+
+    await expect(harness.owner.selectNote("a.md")).resolves.toMatchObject({
+      noteId: "a.md",
+      status: "applied",
+    });
+    expect(prepare).toHaveBeenCalledWith(
+      expect.objectContaining({ outgoingOwnerKey: undefined }),
+    );
+  });
 });
 
 describe("route owner disposal", () => {
@@ -168,10 +221,11 @@ function createSettlement(leaseKey: string) {
 async function settleInitialRoute(
   harness: RouteOwnerHarness,
   executor: ReturnType<typeof createTestRouteExecutor>,
-): Promise<void> {
-  harness.owner.registerStoreExecutor(executor.executor);
+): Promise<() => void> {
+  const unregister = harness.owner.registerStoreExecutor(executor.executor);
   harness.resolveCurrent();
   await vi.waitFor(() => {
     expect(executor.applyRoute).toHaveBeenCalledOnce();
   });
+  return unregister;
 }

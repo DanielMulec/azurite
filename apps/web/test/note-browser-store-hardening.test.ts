@@ -21,6 +21,7 @@ import {
 } from "./note-browser-store-test-helpers.js";
 import {
   loadTestRoute,
+  selectTestNote,
   syncTestRoute,
 } from "./note-browser-route-test-helpers.js";
 
@@ -189,6 +190,50 @@ describe("note browser store route hardening", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: { note: { id: "Projects/azurite.md" } },
       status: "ready",
+    });
+  });
+});
+
+describe("note browser store route application rollback", () => {
+  it("restores the coherent predecessor after a terminal subscriber throws", async () => {
+    const projectRead =
+      createDeferred<ReturnType<NoteBrowserApi["readNote"]>>();
+    const readNote = vi.fn<NoteBrowserApi["readNote"]>(
+      () => projectRead.promise,
+    );
+    const store = createLoadedStore({ api: createApi({ readNote }) });
+    const unsubscribe = store.subscribe((state) => {
+      if (state.committedRouteView?.noteId === "Projects/azurite.md") {
+        throw new Error("Injected terminal subscriber failure.");
+      }
+    });
+
+    const navigation = selectTestNote(store, "Projects/azurite.md");
+    await vi.waitFor(() => {
+      expect(readNote).toHaveBeenCalledOnce();
+    });
+    store.getState().updateDraftMarkdown("# Home\nEdit during navigation");
+    await store.getState().flushPendingDraft();
+    projectRead.resolve({
+      clusterIdentity: readyClusterIdentity,
+      note: createNote("Projects/azurite.md", "# Project", "sha256-project"),
+    });
+
+    await expect(navigation).resolves.toEqual({
+      reason: "store_apply_failed",
+      status: "failed",
+    });
+    unsubscribe();
+    expect(store.getState()).toMatchObject({
+      committedRouteView: { noteId: "index.md", view: "ready" },
+      noteState: {
+        editor: {
+          currentMarkdown: "# Home\nEdit during navigation",
+          note: { id: "index.md" },
+        },
+        status: "ready",
+      },
+      selectedNoteId: "index.md",
     });
   });
 });
