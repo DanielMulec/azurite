@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import type {
   DraftRecoveryStatus,
@@ -91,24 +92,46 @@ function SelectedNote({
     { readonly status: "ready" }
   >["editor"];
 }): ReactElement {
+  const gateSnapshot = useSyncExternalStore(
+    sessionGate.subscribe,
+    sessionGate.getSnapshot,
+    sessionGate.getSnapshot,
+  );
+  const isFrozen = gateSnapshot.frozenSessionKey === editor.sessionKey;
   return (
-    <article className="mx-auto max-w-3xl" data-note-id={editor.note.id}>
-      <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
-        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
-          {editor.note.relativePath}
+    <article
+      aria-busy={isFrozen || undefined}
+      className="mx-auto max-w-3xl"
+      data-note-id={editor.note.id}
+    >
+      <div
+        data-testid="editor-interaction-region"
+        inert={isFrozen || undefined}
+      >
+        <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
+            {editor.note.relativePath}
+          </p>
+          <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
+            {editor.note.title}
+          </h2>
+        </header>
+        <SaveableNoteEditor
+          editor={editor}
+          onDiscardDraftAndReloadDiskVersion={
+            onDiscardDraftAndReloadDiskVersion
+          }
+          onEditorModeChange={onEditorModeChange}
+          onPublishMarkdown={onPublishMarkdown}
+          onSaveNote={onSaveNote}
+          sessionGate={sessionGate}
+        />
+      </div>
+      {isFrozen ? (
+        <p className="mt-4 text-sm text-[var(--azurite-muted)]" role="status">
+          {gateSnapshot.message}
         </p>
-        <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-          {editor.note.title}
-        </h2>
-      </header>
-      <SaveableNoteEditor
-        editor={editor}
-        onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
-        onEditorModeChange={onEditorModeChange}
-        onPublishMarkdown={onPublishMarkdown}
-        onSaveNote={onSaveNote}
-        sessionGate={sessionGate}
-      />
+      ) : null}
     </article>
   );
 }
@@ -154,39 +177,51 @@ function MissingNoteDraft({
   >;
   readonly onDiscardMissingDraft: () => Promise<void>;
 }): ReactElement {
+  const [isDiscarding, setIsDiscarding] = useState(false);
   return (
-    <article className="mx-auto max-w-3xl" data-note-id={noteState.noteId}>
-      <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
-        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
-          {noteState.noteId}
-        </p>
-        <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-          Recovered draft for missing note
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
-          The file is no longer present on disk, but Azurite recovered the
-          browser draft. Save is disabled until note restore or creation exists.
-        </p>
-      </header>
-      <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
-        <button
-          className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
-          onClick={() => {
-            if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
-              void onDiscardMissingDraft();
-            }
-          }}
-          type="button"
-        >
-          Discard recovered draft
-        </button>
+    <article
+      aria-busy={isDiscarding || undefined}
+      className="mx-auto max-w-3xl"
+      data-note-id={noteState.noteId}
+    >
+      <div inert={isDiscarding || undefined}>
+        <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
+            {noteState.noteId}
+          </p>
+          <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
+            Recovered draft for missing note
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
+            The file is no longer present on disk, but Azurite recovered the
+            browser draft. Save is disabled until note restore or creation
+            exists.
+          </p>
+        </header>
+        <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
+          <button
+            className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+            onClick={() => {
+              if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
+                setIsDiscarding(true);
+                void onDiscardMissingDraft().finally(() => {
+                  setIsDiscarding(false);
+                });
+              }
+            }}
+            type="button"
+          >
+            Discard recovered draft
+          </button>
+        </div>
+        <textarea
+          className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
+          readOnly
+          spellCheck={false}
+          value={noteState.draft.markdown}
+        />
       </div>
-      <textarea
-        className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
-        readOnly
-        spellCheck={false}
-        value={noteState.draft.markdown}
-      />
+      {isDiscarding ? <p role="status">Discarding browser draft...</p> : null}
     </article>
   );
 }

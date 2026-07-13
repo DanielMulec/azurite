@@ -13,22 +13,46 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AzuriteRouterProvider } from "../src/app-router.js";
 
-vi.mock("../src/components/MilkdownEditor.js", () => ({
-  MilkdownEditor: ({
-    initialMarkdown,
-    noteId,
-    title,
-  }: {
-    readonly initialMarkdown: string;
-    readonly noteId: string;
-    readonly title: string;
-  }) => (
-    <div data-testid="milkdown-editor" data-note-id={noteId}>
-      <p>Mock editor for {title}</p>
-      <pre>{initialMarkdown}</pre>
-    </div>
-  ),
-}));
+vi.mock("../src/components/MilkdownEditor.js", async () => {
+  const { useEffect } = await import("react");
+  return {
+    MilkdownEditor: (props: {
+      readonly initialMarkdown: string;
+      readonly noteId: string;
+      readonly sessionGate: {
+        readonly registerController: (controller: {
+          readonly commit: (cause: string) => unknown;
+          readonly sessionKey: string;
+          readonly setFrozen: (frozen: boolean) => void;
+        }) => () => void;
+      };
+      readonly sessionKey: string;
+      readonly title: string;
+    }) => {
+      useEffect(
+        () =>
+          props.sessionGate.registerController({
+            commit: (cause) => ({
+              cause,
+              reason: "source_authority_current",
+              revision: 0,
+              sessionKey: props.sessionKey,
+              status: "no_change",
+            }),
+            sessionKey: props.sessionKey,
+            setFrozen: () => {},
+          }),
+        [props.sessionGate, props.sessionKey],
+      );
+      return (
+        <div data-testid="milkdown-editor" data-note-id={props.noteId}>
+          <p>Mock editor for {props.title}</p>
+          <pre>{props.initialMarkdown}</pre>
+        </div>
+      );
+    },
+  };
+});
 
 const readyClusterIdentity = {
   clusterId: "019f42cc-eb37-7849-ac5a-e0209d409678",

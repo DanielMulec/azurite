@@ -86,6 +86,7 @@ describe("MilkdownEditor lifecycle", () => {
         initialMarkdown="# Home"
         initialMode="wysiwyg"
         initialRevision={0}
+        noteId="index.md"
         onEditorModeChange={() => {}}
         onPublishMarkdown={createAcknowledgingPublisher()}
         sessionGate={createTestEditorSessionGate()}
@@ -111,6 +112,7 @@ describe("MilkdownEditor lifecycle", () => {
         initialMarkdown="# Home"
         initialMode="wysiwyg"
         initialRevision={0}
+        noteId="index.md"
         onEditorModeChange={() => {}}
         onPublishMarkdown={createAcknowledgingPublisher()}
         sessionGate={createTestEditorSessionGate()}
@@ -128,6 +130,7 @@ describe("MilkdownEditor lifecycle", () => {
         initialMarkdown="# Project"
         initialMode="wysiwyg"
         initialRevision={0}
+        noteId="Projects/azurite.md"
         onEditorModeChange={() => {}}
         onPublishMarkdown={createAcknowledgingPublisher()}
         sessionGate={createTestEditorSessionGate()}
@@ -156,6 +159,7 @@ describe("MilkdownEditor source mode", () => {
         initialMarkdown="# Home"
         initialMode="wysiwyg"
         initialRevision={0}
+        noteId="index.md"
         onEditorModeChange={() => {}}
         onPublishMarkdown={createAcknowledgingPublisher()}
         sessionGate={createTestEditorSessionGate()}

@@ -4,9 +4,7 @@ import type {
   CommitCause,
   CommitResult,
 } from "../domain/markdown-authority-types.js";
-import type {
-  DurabilityResult,
-} from "../persistence/draft-workflow-types.js";
+import type { DurabilityResult } from "../persistence/draft-workflow-types.js";
 import type {
   RouteGatePrepareInput,
   RouteGateResult,
@@ -162,9 +160,7 @@ class EditorSessionGateRuntime {
     return controller?.commit(cause);
   }
 
-  async commitLifecycle(
-    cause: "pagehide" | "visibilitychange",
-  ): Promise<void> {
+  async commitLifecycle(cause: "pagehide" | "visibilitychange"): Promise<void> {
     const commit = this.commitCurrent(cause);
     if (commit?.status === "failed") {
       return;
@@ -333,7 +329,8 @@ class EditorSessionGateRuntime {
   }
 
   #publishSnapshot(): void {
-    const active = this.#leases.values().next().value as ActiveLease | undefined;
+    const active = this.#leases.values().next().value as
+      ActiveLease | undefined;
     this.#setSnapshot(
       active?.sessionKey,
       active === undefined ? undefined : "Opening note...",

@@ -44,12 +44,14 @@ export function SaveableNoteEditor({
             await onSaveNote();
           }
         }}
+        sessionGate={sessionGate}
       />
       <MilkdownEditor
         initialDisposition={editor.draftDisposition}
         initialMarkdown={editor.currentMarkdown}
         initialMode={editor.editorMode}
         initialRevision={editor.revision}
+        noteId={editor.note.id}
         onEditorModeChange={onEditorModeChange}
         onPublishMarkdown={onPublishMarkdown}
         sessionGate={sessionGate}
@@ -65,11 +67,13 @@ function SaveToolbar({
   isDirty,
   onDiscardDraftAndReloadDiskVersion,
   onSave,
+  sessionGate,
 }: {
   readonly editor: EditorSession;
   readonly isDirty: boolean;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onSave: () => Promise<void>;
+  readonly sessionGate: EditorSessionGate;
 }): ReactElement {
   const showDiscard =
     editor.draftDisposition === "recovered" ||
@@ -87,7 +91,10 @@ function SaveToolbar({
               className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
               onClick={() => {
                 if (confirmDraftDiscard(editor.currentMarkdown)) {
-                  void onDiscardDraftAndReloadDiskVersion();
+                  void sessionGate.runTerminalAction(
+                    editor.sessionKey,
+                    onDiscardDraftAndReloadDiskVersion,
+                  );
                 }
               }}
               type="button"
@@ -153,7 +160,4 @@ const draftDispositionStatusText = {
   preserved_unknown: "A newer Azurite build owns this recovery record",
   recovered: "Recovered unsaved draft",
   recovery_read_unavailable: "Browser recovery could not be read",
-} satisfies Record<
-  EditorSession["draftDisposition"],
-  string | undefined
->;
+} satisfies Record<EditorSession["draftDisposition"], string | undefined>;

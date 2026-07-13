@@ -19,6 +19,7 @@ export type MilkdownEditorProps = {
   readonly initialMarkdown: string;
   readonly initialMode: EditorMode;
   readonly initialRevision: number;
+  readonly noteId: string;
   readonly onEditorModeChange: (editorMode: EditorMode) => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
@@ -38,7 +39,11 @@ function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
   const editor = useMilkdownEditorController(props);
 
   return (
-    <div className="azurite-editor-surface" data-editor-session={props.sessionKey}>
+    <div
+      className="azurite-editor-surface"
+      data-editor-session={props.sessionKey}
+      data-note-id={props.noteId}
+    >
       <EditorModeToolbar
         isReady={editor.isEditorReady}
         isSourceMode={editor.isSourceMode}
@@ -104,7 +109,11 @@ function EditorStatus(props: {
       <div className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
         <p>{props.error}</p>
         {props.hasPublicationRetry ? (
-          <button className="mt-2 underline" onClick={props.onRetry} type="button">
+          <button
+            className="mt-2 underline"
+            onClick={props.onRetry}
+            type="button"
+          >
             Retry editor change
           </button>
         ) : null}

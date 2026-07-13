@@ -72,8 +72,7 @@ export function useMilkdownEditorController(
         onModeChange: (mode) => {
           callbacksRef.current.onEditorModeChange(mode);
         },
-        publish: (command) =>
-          callbacksRef.current.onPublishMarkdown(command),
+        publish: (command) => callbacksRef.current.onPublishMarkdown(command),
         readProjection: () => requireRuntime(runtimeRef.current).getMarkdown(),
         replaceProjection: (markdown) => {
           requireRuntime(runtimeRef.current).replaceMarkdown(markdown);
@@ -165,7 +164,13 @@ function useCrepeLifecycle(input: {
       input.controller.destroy();
       void runtime.destroy().catch(noop);
     };
-  }, [input.controller, input.createRuntime, input.initialMarkdown, input.rootRef, input.runtimeRef]);
+  }, [
+    input.controller,
+    input.createRuntime,
+    input.initialMarkdown,
+    input.rootRef,
+    input.runtimeRef,
+  ]);
 }
 
 function requireRuntime(runtime: CrepeRuntime | undefined): CrepeRuntime {

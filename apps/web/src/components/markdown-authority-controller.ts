@@ -115,7 +115,11 @@ export class MarkdownAuthorityController {
     if (this.#state.lifecycle === "destroyed") {
       return;
     }
-    this.#patch({ editorError: message, lifecycle: "failed", mode: "markdown" });
+    this.#patch({
+      editorError: message,
+      lifecycle: "failed",
+      mode: "markdown",
+    });
     this.#input.onModeChange("markdown");
   }
 
@@ -178,7 +182,10 @@ export class MarkdownAuthorityController {
     } catch {
       return this.#commitFailure(cause, "projection_read_failed");
     }
-    if (projection === this.#acknowledgedProjection && this.#retry === undefined) {
+    if (
+      projection === this.#acknowledgedProjection &&
+      this.#retry === undefined
+    ) {
       return this.#commitNoChange(cause, "projection_unchanged");
     }
     const change = this.publishWysiwyg(projection, toPublicationTrigger(cause));
@@ -197,7 +204,10 @@ export class MarkdownAuthorityController {
     if (commit.status === "failed") {
       return commit;
     }
-    this.#patch({ mode: "markdown", sourceMarkdown: this.#acknowledgedAuthority });
+    this.#patch({
+      mode: "markdown",
+      sourceMarkdown: this.#acknowledgedAuthority,
+    });
     this.#input.onModeChange("markdown");
     return commit;
   }
@@ -357,7 +367,13 @@ export class MarkdownAuthorityController {
     cause: CommitCause,
     reason: "projection_unchanged" | "source_authority_current",
   ): CommitResult {
-    return { cause, reason, revision: this.#revision, sessionKey: this.sessionKey, status: "no_change" };
+    return {
+      cause,
+      reason,
+      revision: this.#revision,
+      sessionKey: this.sessionKey,
+      status: "no_change",
+    };
   }
 
   #commitFailure(
@@ -375,13 +391,22 @@ export class MarkdownAuthorityController {
       | "projection_read_failed"
       | "stale_session",
   ): SynchronizationResult {
-    return { cause, reason, sessionKey: this.sessionKey, stateEffect: "none", status: "failed" };
+    return {
+      cause,
+      reason,
+      sessionKey: this.sessionKey,
+      stateEffect: "none",
+      status: "failed",
+    };
   }
 
-  #synchronizationNoChange(
-    cause: "same_mode",
-  ): SynchronizationResult {
-    return { cause, sessionKey: this.sessionKey, stateEffect: "none", status: "no_change" };
+  #synchronizationNoChange(cause: "same_mode"): SynchronizationResult {
+    return {
+      cause,
+      sessionKey: this.sessionKey,
+      stateEffect: "none",
+      status: "no_change",
+    };
   }
 
   #patch(patch: Partial<MarkdownAuthorityState>): void {

@@ -14,32 +14,67 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiErrorCodes } from "@azurite/shared";
 import { AzuriteRouterProvider } from "../src/app-router.js";
 
-vi.mock("../src/components/MilkdownEditor.js", () => ({
-  MilkdownEditor: ({
-    initialMarkdown,
-    onMarkdownChange,
-    noteId,
-    title,
-  }: {
-    readonly initialMarkdown: string;
-    readonly noteId: string;
-    readonly onMarkdownChange?: (markdown: string) => void;
-    readonly title: string;
-  }) => (
-    <div data-testid="milkdown-editor" data-note-id={noteId}>
-      <p>Mock editor for {title}</p>
-      <pre>{initialMarkdown}</pre>
-      <button
-        onClick={() => {
-          onMarkdownChange?.(`${initialMarkdown}\nDraft edit`);
-        }}
-        type="button"
-      >
-        Mock edit
-      </button>
-    </div>
-  ),
-}));
+vi.mock("../src/components/MilkdownEditor.js", async () => {
+  const { useEffect } = await import("react");
+  return {
+    MilkdownEditor: (props: {
+      readonly initialMarkdown: string;
+      readonly noteId: string;
+      readonly onPublishMarkdown: (command: {
+        readonly markdown: string;
+        readonly origin: "source_input";
+        readonly resolution: "exact_input";
+        readonly sessionKey: string;
+        readonly trigger: "direct_input";
+      }) => unknown;
+      readonly sessionGate: {
+        readonly registerController: (controller: {
+          readonly commit: (cause: string) => unknown;
+          readonly sessionKey: string;
+          readonly setFrozen: (frozen: boolean) => void;
+        }) => () => void;
+      };
+      readonly sessionKey: string;
+      readonly title: string;
+    }) => {
+      useEffect(
+        () =>
+          props.sessionGate.registerController({
+            commit: (cause) => ({
+              cause,
+              reason: "source_authority_current",
+              revision: 0,
+              sessionKey: props.sessionKey,
+              status: "no_change",
+            }),
+            sessionKey: props.sessionKey,
+            setFrozen: () => {},
+          }),
+        [props.sessionGate, props.sessionKey],
+      );
+      return (
+        <div data-testid="milkdown-editor" data-note-id={props.noteId}>
+          <p>Mock editor for {props.title}</p>
+          <pre>{props.initialMarkdown}</pre>
+          <button
+            onClick={() => {
+              props.onPublishMarkdown({
+                markdown: `${props.initialMarkdown}\nDraft edit`,
+                origin: "source_input",
+                resolution: "exact_input",
+                sessionKey: props.sessionKey,
+                trigger: "direct_input",
+              });
+            }}
+            type="button"
+          >
+            Mock edit
+          </button>
+        </div>
+      );
+    },
+  };
+});
 
 const readyClusterIdentity = {
   clusterId: "019f42cc-eb37-7849-ac5a-e0209d409678",
