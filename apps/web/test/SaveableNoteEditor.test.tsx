@@ -11,6 +11,7 @@ import {
   createAcknowledgingPublisher,
   createTestEditorSessionGate,
 } from "./editor-session-gate-test-helpers.js";
+import { markdownEqualityCases } from "./markdown-fidelity-cases.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
@@ -103,6 +104,26 @@ describe("SaveableNoteEditor save state", () => {
     expect(screen.getByText("Saved")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
+
+  it.each(markdownEqualityCases)(
+    "$name drives the shared Save and status decision",
+    ({ current, equal, saved }) => {
+      renderEditor({
+        editor: createEditor({
+          currentMarkdown: current,
+          savedMarkdown: saved,
+        }),
+      });
+
+      expect(screen.getByRole("button", { name: "Save" })).toHaveProperty(
+        "disabled",
+        equal,
+      );
+      expect(
+        screen.getByText(equal ? "Saved" : "Unsaved changes"),
+      ).toBeInTheDocument();
+    },
+  );
 });
 
 describe("SaveableNoteEditor recovery state", () => {

@@ -13,6 +13,7 @@ import {
   createDraftRecordId,
   type DraftRecord,
 } from "../src/persistence/draft-records.js";
+import { markdownEqualityCases } from "./markdown-fidelity-cases.js";
 
 const clusterId = "1bdbab0a-79c5-4c6d-a6b5-30bf65a49793";
 const otherClusterId = "a0c11d04-bc50-4d48-a564-a4a9c21edb28";
@@ -173,25 +174,28 @@ describe("draft database scoping", () => {
 });
 
 describe("successful-save draft reconciliation", () => {
-  it("deletes only an exact base-hash and normalized-markdown match", async () => {
-    const { persistence } = createTestPersistence();
-    const draft = createTestDraft({ markdown: "# Saved\r\n" });
-    await persistence.writeDraft(draft);
+  it.each(markdownEqualityCases)(
+    "$name consumes the shared exact-text contract",
+    async ({ current, equal, saved }) => {
+      const { persistence } = createTestPersistence();
+      const draft = createTestDraft({ markdown: current });
+      await persistence.writeDraft(draft);
 
-    await expect(
-      persistence.deleteDraftIfSavedSnapshotMatches({
-        baseContentHash: draft.baseContentHash,
-        clusterId,
-        markdown: "# Saved\n",
-        noteId,
-      }),
-    ).resolves.toEqual({ status: "deleted" });
-    await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
-      clusterId,
-      noteId,
-      status: "absent",
-    });
-  });
+      await expect(
+        persistence.deleteDraftIfSavedSnapshotMatches({
+          baseContentHash: draft.baseContentHash,
+          clusterId,
+          markdown: saved,
+          noteId,
+        }),
+      ).resolves.toEqual({ status: equal ? "deleted" : "not_matching" });
+      await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual(
+        equal
+          ? { clusterId, noteId, status: "absent" }
+          : { draft, status: "found_current" },
+      );
+    },
+  );
 
   it.each([
     [{ baseContentHash: "different" }, "# Draft"],
