@@ -11,12 +11,11 @@ compact boundary table from `docs/working-agreement.md`. Replace copied baseline
 regression catalogs with a link to `docs/reference/product-guardrails.md` and
 retain only risks unique to that slice.
 
-Current order after active Slice 7C:
+Current order after active Slice 7D:
 
-1. Slice 7D, Markdown fidelity and honest dirty state.
-2. Slice 7E, semantic editor and persistence diagnostics, gated by a substantive
+1. Slice 7E, semantic editor and persistence diagnostics, gated by a substantive
    refresh against the completed Slice 7D implementation.
-3. Required Slice 7F editor correctness immediately after 7E; no unrelated
+2. Required Slice 7F editor correctness immediately after 7E; no unrelated
    capability may intervene.
 
 Slice 7F intentionally has no speculative plan file yet. Slice 7E must write it

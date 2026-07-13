@@ -2,18 +2,19 @@
 
 ## Status
 
-Planned immediately after Slice 7C. Promotion to active is blocked until Slice
-7C has implemented and verified its validated action-aware history owner, typed
-pre-transition gate, rendered outgoing-session identity, route-or-reload load
-authorization, exact-current revalidation, coherent no-op predicate, and typed
-terminal outcome.
+Active as of 2026-07-13 after Slice 7C implemented and verified its validated
+action-aware history owner, typed target-free pre-transition gate, rendered
+outgoing-session identity, route-or-reload load authorization, exact-current
+revalidation, coherent no-op predicate, and typed terminal outcome. This slice
+consumes that implemented seam without becoming a second route owner.
 
 The 2026-07-13 adversarial review proved that the earlier plan secretly depended
-on those route guarantees while calling route coherence a non-goal. In particular,
-today's rendered-note-only skip can return after this slice has closed the
-outgoing controller, leaving no replacement session. A note ID alone also cannot
-identify which of two same-target history intents may continue or cancel. The scope
-was therefore re-selected to `7B -> 7C -> 7D -> 7E -> 7F`.
+on those route guarantees while calling route coherence a non-goal. In
+particular, the pre-7C rendered-note-only skip could return after this slice had
+closed the outgoing controller, leaving no replacement session. A note ID alone
+also could not identify which of two same-target history intents might continue
+or cancel. The scope was therefore re-selected to
+`7B -> 7C -> 7D -> 7E -> 7F`.
 
 This revision also makes five previously implicit failure boundaries explicit:
 
@@ -201,8 +202,8 @@ replacement” and “browser record resolved” true. Omitting them permits a
 debounced edit, stale read, older write, failed cleanup, or post-Discard timer to
 outlive the exact session being handed off.
 
-Slice 7C must be a completed prerequisite before this slice is promoted; it is
-not a sibling exclusion. Its owner validates and admits each history intent,
+Slice 7C is the completed prerequisite for this active slice; it is not a
+sibling exclusion. Its owner validates and admits each history intent,
 passes this slice the exact rendered outgoing session, revalidates after the gate
 settles, starts or skips the route transition, restores cancelled traversal when
 required, and returns the terminal route outcome. This slice receives the current
@@ -996,15 +997,17 @@ Implementation requirements:
 
 - Split `apps/web/src/components/MilkdownEditor.tsx` before adding behavior; it
   is already 382 lines and cannot cross the 400-line hard limit.
-- Treat current line counts as an implementation constraint across the workflow,
-  not only in Milkdown: `note-browser-editor-actions.ts` is 314 lines,
-  pre-7C `note-browser-route-actions.ts` 314,
-  `note-browser-action-utils.ts` 310, `note-browser-store.ts` 271,
-  `draft-database.ts` 243, and `NoteEditorSurface.tsx` 223 at planning time.
-  Recount the post-7C route/gate modules before promotion.
-  Allocate authority, disposition, coordinator, and accessible freeze modules by
-  responsibility before editing any pressured file; do not finish at 400 by
-  compressing unrelated concerns.
+- Treat post-7C line counts as an implementation constraint across the workflow,
+  not only in Milkdown: `note-browser-store.ts` is 396 lines,
+  `note-browser-read-actions.ts` 384, `MilkdownEditor.tsx` 382,
+  `route-transition-owner.ts` 355, `route-intent-execution.ts` 334,
+  `note-browser-editor-actions.ts` 316, `note-browser-action-utils.ts` 315,
+  `note-browser-route-actions.ts` and `route-intent-admission.ts` 281 each,
+  `route-history-admission.ts` 276, and the acceptance-only
+  `route-transition-controller.ts` 266. Split `note-browser-store.ts` before
+  adding any Slice 7D behavior. Allocate authority, disposition, coordinator,
+  and accessible freeze modules by responsibility before editing any pressured
+  file; do not finish at 400 by compressing unrelated concerns.
 - Keep rendering and accessible controls in the component file. Move lifecycle,
   instance ownership, authority/projection transitions, and Crepe integration
   into focused modules with beginner-readable exported API documentation.

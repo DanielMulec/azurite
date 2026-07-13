@@ -2,20 +2,18 @@
 
 ## Status
 
-Active as of 2026-07-13 after Slice 7B completed and adversarial review proved
-that the previously later route repair is a prerequisite for safe editor
-handoff. A second readiness review then replaced destructive URL repair with
-action-aware history admission, made rendered-session ownership explicit, and
-kept exact draft durability in Slice 7D.
-
-This reviewed plan is implementation-ready. Installed-version qualification is
-the first implementation step and resolves adapter mechanics inside the committed
-product contract; it is not another open-ended planning gate.
+Completed on 2026-07-13. The validated action-aware history owner, target-free
+pre-transition gate, rendered-session ownership, exact route/reload
+authorization, committed route views, and acceptance-only fault harness are
+implemented and verified. Detailed evidence is in
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`.
 
 The sequence is deliberately re-selected to `7B -> 7C -> 7D -> 7E -> 7F`:
 
-- this slice establishes route-intent ownership and the pre-transition gate;
-- Slice 7D consumes that gate for Markdown authority and draft durability;
+- this completed slice establishes route-intent ownership and the
+  pre-transition gate;
+- active Slice 7D consumes that gate for Markdown authority and draft
+  durability;
 - Slice 7E is refreshed after the implemented Slice 7D contracts exist; and
 - Slice 7F performs the diagnosed editor-correctness repair immediately after
   Slice 7E.
@@ -787,13 +785,28 @@ The shared baseline is `docs/reference/product-guardrails.md`. This slice adds:
 - Full repository validation, production build, diff integrity, clean `main`,
   and synchronization with `origin/main` pass.
 
+## Completion Evidence
+
+Installed TanStack History behavior is qualified by direct contract tests and a
+focused inverse-delta cancellation patch. The complete route owner, store
+authorization boundary, temporary fail-open draft adapter, and dedicated QA
+entry passed focused and repository-wide automated coverage. The ordinary
+eight-cell desktop/Pixel 6, development/preview, Sentry-disabled/enabled matrix
+and four-cell fault-harness matrix passed, including the supplemental URL,
+history, Discard, IndexedDB-unavailable, backend-down, and empty-cluster cases.
+
+The authoritative commands, exact browser evidence, finding dispositions, and
+cleanup ledger live in
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`. No known unresolved
+Slice 7C bug, regression, side effect, or in-scope issue remains.
+
 ## Open Questions
 
 None for planning. The validated history-admission owner, action-aware
 cancellation, same-target policy, committed-view/outgoing-owner identity,
 route-or-reload authorization, temporary fail-open adapter, executable QA seam,
 and Slice 7D boundary are committed decisions. Installed-version qualification
-is the first implementation proof, not another design-review loop; its focused
+was the first implementation proof, not another design-review loop; its focused
 adapter/dependency correction remains part of 7C. Evidence that instead requires
 a new persistent owner, storage boundary, or independently useful product
 capability triggers the working agreement's Scope Re-selection During Review

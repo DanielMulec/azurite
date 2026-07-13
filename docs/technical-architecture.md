@@ -116,13 +116,30 @@ State ownership is explicit:
 Do not move canonical note content into a database without explicitly revisiting
 the markdown-first product promise.
 
-The current route boundary has one classified timing defect: a note that is
-still rendered while another route intent loads can be mistaken for the current
-selection. Under overlapping Back/Forward navigation, URL, rendered article,
-and sidebar `aria-current` can therefore diverge. Slice 7C owns the durable
-selected-intent versus rendered-projection repair and typed pre-transition
-gate. Slice 7D may register editor durability through that gate but must not
-create another route-intent owner.
+One action-aware route-transition owner is created beside the TanStack Router
+before React renders. It validates each immutable history occurrence, admits
+application and traversal navigation through a target-free pre-transition gate,
+and alone owns current-intent revalidation, exact occurrence confirmation, and
+terminal route outcomes. The installed TanStack History cancellation path is
+patched so Back, Forward, and multi-entry Go restore the predecessor by the
+exact inverse delta without replacing or losing an entry. An unconfirmed
+restoration retains the predecessor surface and publishes visible degraded
+status instead of claiming coherent cancellation. Native `beforeunload`
+blocking remains disabled.
+
+Zustand distinguishes the live selected transition, the last committed route
+view, and the rendered editor-session owner. Route reads require an exact
+`route_intent` authorization; Discard retains a fresh `explicit_reload`
+authorization without route or history mutation. Only matching authorization,
+request, and intent identity may apply ready, missing, missing-draft, error, or
+empty route truth. The temporary production gate joins the existing best-effort
+draft flush and fails open after its existing degraded-state recording. Slice 7D
+replaces that adapter with exact editor durability while consuming the same
+target-free gate; it does not become another route owner.
+
+The deterministic route fault controller is available only through dedicated
+development and optimized QA entries. It is absent from the ordinary Vite
+application graph and production build.
 
 ## API And Contract Boundaries
 
@@ -241,11 +258,10 @@ new explicit product decision.
 The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
-loading the rich editor. Slice 7B is complete. Default the loading boundary's
-delivery until after active Slice 7C route coherence, Slice 7D fidelity, Slice
-7E diagnostics, and the mandatory Slice 7F editor-correctness follow-up so those
-repairs and their QA observe the current editor lifecycle before its loading
-order changes.
+loading the rich editor. Slices 7B and 7C are complete. Default the loading
+boundary's delivery until after Slice 7D fidelity, Slice 7E diagnostics, and the
+mandatory Slice 7F editor-correctness follow-up so those repairs and their QA
+observe the current editor lifecycle before its loading order changes.
 
 A focused future performance slice must measure development and built-preview
 cold start, time to application shell, time to editor readiness, emitted chunk

@@ -17,3 +17,9 @@ fail-open observability, exact-session save-result ownership, in-process
 same-note write ordering, and desktop/Pixel 6 acceptance across both builds and
 Sentry modes. Its detailed implementation and dashboard evidence is in
 `docs/qa/slice-7b-request-correlation.md`.
+
+Slice 7C's archive record establishes validated action-aware route ownership,
+exact browser-history cancellation, selected/rendered/committed-view coherence,
+route-or-reload authorization, and the target-free editor-durability seam. Its
+desktop/Pixel 6 normal and deterministic fault-harness evidence is in
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`.
