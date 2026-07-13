@@ -22,7 +22,7 @@ describe("baseline route draft gate ownership", () => {
     const writeDraft = vi
       .fn<DraftPersistence["writeDraft"]>()
       .mockImplementationOnce(() => firstWrite.promise)
-      .mockResolvedValue({ status: "ok" });
+      .mockResolvedValue({ status: "written" });
     const store = createGateStore(writeDraft);
     const gate = createBaselineRouteDraftGate(store);
     store.getState().updateDraftMarkdown("# First edit");
@@ -32,7 +32,7 @@ describe("baseline route draft gate ownership", () => {
     store.getState().updateDraftMarkdown("# Later edit");
     const second = gate.prepare(createInput("lease-two"));
     expect(writeDraft).toHaveBeenCalledOnce();
-    firstWrite.resolve({ status: "ok" });
+    firstWrite.resolve({ status: "written" });
 
     await expect(Promise.all([first, second])).resolves.toEqual([
       { status: "continue" },
@@ -64,7 +64,7 @@ describe("baseline route draft gate degradation", () => {
     const writeDraft = vi
       .fn<DraftPersistence["writeDraft"]>()
       .mockRejectedValueOnce(new Error("Injected persistence throw."))
-      .mockResolvedValueOnce({ status: "ok" });
+      .mockResolvedValueOnce({ status: "written" });
     const store = createGateStore(writeDraft);
     const unsubscribe = store.subscribe((state) => {
       if (state.draftRecoveryStatus.status === "degraded") {

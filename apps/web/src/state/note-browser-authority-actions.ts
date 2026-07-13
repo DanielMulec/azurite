@@ -3,13 +3,8 @@ import type {
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
-import type { DraftSnapshotResult } from "../persistence/draft-persistence-coordinator.js";
-import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import type { EditorMode } from "../persistence/draft-records.js";
-import type {
-  DraftDisposition,
-  DraftMutationSnapshot,
-} from "../persistence/draft-workflow-types.js";
+import type { DraftMutationSnapshot } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
 import type {
   StoreContext,
@@ -18,10 +13,15 @@ import type { EditorSession } from "./note-browser-types.js";
 import {
   getCurrentEditor,
   getExactEditor,
-  getStateEditor,
   readyEditorPatch,
   stateOwnsEditor,
 } from "./note-browser-editor-state.js";
+import {
+  applySnapshotSettlement,
+  getNextDraftDisposition,
+  getSnapshotAdmissionIssue,
+  shouldPersistDraftMode,
+} from "./note-browser-draft-settlement.js";
 import {
   createNoChangePublication,
   createRejectedPublication,
@@ -67,7 +67,7 @@ export function updateEditorModeWithSnapshot(
   if (editor === undefined || editor.editorMode === editorMode) {
     return;
   }
-  if (!shouldPersistMode(editor.draftDisposition)) {
+  if (!shouldPersistDraftMode(editor.draftDisposition)) {
     patchModeOnly(editor, editorMode, context);
     return;
   }
@@ -93,7 +93,7 @@ export function updateEditorModeWithSnapshot(
         ...editor,
         editorMode,
         lastSnapshotKey: snapshot.snapshotKey,
-        persistenceIssue: getAdmissionIssue(snapshot, editor, context),
+        persistenceIssue: getSnapshotAdmissionIssue(snapshot, editor, context),
         revision: snapshot.revision,
       });
     });
@@ -144,7 +144,7 @@ function applyPreparedPublication(
         currentMarkdown: command.markdown,
         draftDisposition: snapshot.disposition,
         lastSnapshotKey: snapshot.snapshotKey,
-        persistenceIssue: getAdmissionIssue(snapshot, editor, context),
+        persistenceIssue: getSnapshotAdmissionIssue(snapshot, editor, context),
         revision: snapshot.revision,
         saveStatus: getNextSaveStatus(editor),
       });
@@ -192,7 +192,10 @@ function createAuthoritySnapshot(
     cause: "accepted_change",
     clusterId: getReadyClusterId(context.get().clusterIdentity),
     contentDirty,
-    disposition: getNextDisposition(editor.draftDisposition, contentDirty),
+    disposition: getNextDraftDisposition(
+      editor.draftDisposition,
+      contentDirty,
+    ),
     draftEpoch: editor.draftEpoch,
     editorMode: editor.editorMode,
     markdown,
@@ -228,129 +231,6 @@ function createModeSnapshot(
   };
 }
 
-function applySnapshotSettlement(
-  snapshot: DraftMutationSnapshot,
-  result: DraftSnapshotResult,
-  context: StoreContext,
-): void {
-  context.set((state) => {
-    const editor = getStateEditor(state);
-    if (!editorOwnsSnapshot(editor, snapshot)) {
-      return state;
-    }
-    const patch = getSettlementPatch(editor, snapshot, result);
-    return patch === undefined
-      ? state
-      : readyEditorPatch({ ...editor, ...patch });
-  });
-}
-
-function getSettlementPatch(
-  editor: EditorSession,
-  snapshot: DraftMutationSnapshot,
-  result: DraftSnapshotResult,
-): Partial<EditorSession> | undefined {
-  if (result.status === "superseded" || result.status === "record_protected") {
-    return undefined;
-  }
-  if (result.status === "written") {
-    return {
-      draftDisposition:
-        editor.draftDisposition === "generated_pending"
-          ? "generated_durable"
-          : editor.draftDisposition,
-      durableSnapshotKey: snapshot.snapshotKey,
-      persistenceIssue: undefined,
-    };
-  }
-  if (result.status === "preserved_unknown") {
-    return {
-      draftDisposition: "preserved_unknown",
-      persistenceIssue: undefined,
-      preservedSchemaVersion: result.schemaVersion,
-    };
-  }
-  if (result.status === "unavailable") {
-    return {
-      persistenceIssue: createDraftPersistenceIssue({
-        clusterId: snapshot.clusterId,
-        draftEpoch: snapshot.draftEpoch,
-        failure: { reason: result.reason, source: "persistence" },
-        noteId: snapshot.noteId,
-        operation:
-          snapshot.cause === "mode_change" ? "mode_write" : "content_write",
-        ownerKey: snapshot.sessionKey,
-        retryAction: "retry_draft_persistence",
-        revision: snapshot.revision,
-        sessionKey: snapshot.sessionKey,
-        snapshotKey: snapshot.snapshotKey,
-      }),
-    };
-  }
-  if (result.outcome === "no_record" || result.outcome.status !== "not_matching") {
-    return {
-      draftDisposition: "none",
-      durableSnapshotKey: undefined,
-      persistenceIssue: undefined,
-    };
-  }
-  return undefined;
-}
-
-function getAdmissionIssue(
-  snapshot: DraftMutationSnapshot,
-  editor: EditorSession,
-  context: StoreContext,
-) {
-  if (snapshot.disposition === "recovery_read_unavailable") {
-    const issue = editor.persistenceIssue;
-    return issue === undefined ? undefined : { ...issue, retryAction: undefined };
-  }
-  if (snapshot.disposition === "preserved_unknown") {
-    return undefined;
-  }
-  const identity = context.get().clusterIdentity;
-  if (snapshot.clusterId !== undefined || identity?.status !== "unavailable") {
-    return undefined;
-  }
-  return createDraftPersistenceIssue({
-    clusterId: undefined,
-    draftEpoch: snapshot.draftEpoch,
-    failure: { reason: identity.reason, source: "cluster_identity" },
-    noteId: snapshot.noteId,
-    operation: snapshot.cause === "mode_change" ? "mode_write" : "content_write",
-    ownerKey: snapshot.sessionKey,
-    retryAction: "retry_draft_persistence",
-    revision: snapshot.revision,
-    sessionKey: snapshot.sessionKey,
-    snapshotKey: snapshot.snapshotKey,
-  });
-}
-
-function getNextDisposition(
-  disposition: DraftDisposition,
-  contentDirty: boolean,
-): DraftDisposition {
-  if (
-    disposition === "recovered" ||
-    disposition === "conflict" ||
-    disposition === "recovery_read_unavailable" ||
-    disposition === "preserved_unknown"
-  ) {
-    return disposition;
-  }
-  return contentDirty ? "generated_pending" : disposition;
-}
-
-function shouldPersistMode(disposition: DraftDisposition): boolean {
-  return [
-    "generated_pending",
-    "generated_durable",
-    "recovered",
-    "conflict",
-  ].includes(disposition);
-}
-
 function patchModeOnly(
   editor: EditorSession,
   editorMode: EditorMode,
@@ -378,17 +258,5 @@ function isCurrentSnapshot(
     editor !== undefined &&
     editor.draftEpoch === snapshot.draftEpoch &&
     editor.revision <= snapshot.revision
-  );
-}
-
-function editorOwnsSnapshot(
-  editor: EditorSession | undefined,
-  snapshot: DraftMutationSnapshot,
-): editor is EditorSession {
-  return (
-    editor?.sessionKey === snapshot.sessionKey &&
-    editor.draftEpoch === snapshot.draftEpoch &&
-    editor.revision === snapshot.revision &&
-    editor.lastSnapshotKey === snapshot.snapshotKey
   );
 }

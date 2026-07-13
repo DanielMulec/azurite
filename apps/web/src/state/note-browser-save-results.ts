@@ -34,7 +34,7 @@ export async function applySaveResponse(
     input.editor.sessionKey,
     input.editor.revision,
   );
-  applySuccessfulSave(input, currentEditor, reconciliation);
+  applySuccessfulSave(input, reconciliation);
 }
 
 /** Applies a failed Save to the latest exact session without restoring text. */
@@ -63,7 +63,6 @@ export function applySaveFailure(input: {
 
 function applySuccessfulSave(
   input: SaveResponseInput,
-  currentEditor: EditorSession,
   reconciliation: DraftRecordMutationResult | undefined,
 ): void {
   input.context.set((state) => {

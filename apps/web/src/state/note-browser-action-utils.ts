@@ -109,7 +109,12 @@ export function patchSavedNoteSummary(
 
 /** Returns whether the current editor session may be saved manually. */
 export function canSaveEditor(editor: EditorSession): boolean {
-  return hasDirtyMarkdown(editor) && !isEditorSaveBlocked(editor);
+  if (isEditorSaveBlocked(editor)) {
+    return false;
+  }
+  return (
+    hasDirtyMarkdown(editor) || editor.draftDisposition === "recovered"
+  );
 }
 
 /** Returns whether current markdown differs from the saved disk baseline. */

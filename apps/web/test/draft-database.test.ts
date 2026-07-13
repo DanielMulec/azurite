@@ -30,12 +30,12 @@ describe("draft database current records", () => {
     const draft = createTestDraft({ markdown: "# Unsaved" });
 
     await expect(persistence.writeDraft(draft)).resolves.toEqual({
-      status: "ok",
+      status: "written",
     });
 
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
       draft,
-      status: "ok",
+      status: "found_current",
     });
   });
 
@@ -50,8 +50,10 @@ describe("draft database current records", () => {
     });
 
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
+      clusterId,
+      noteId,
       reason: "validation_failed",
-      status: "unavailable",
+      status: "invalid_deleted",
     });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
@@ -67,8 +69,10 @@ describe("draft database current records", () => {
     });
 
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
+      clusterId,
+      noteId,
       reason: "validation_failed",
-      status: "unavailable",
+      status: "invalid_deleted",
     });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
@@ -93,8 +97,10 @@ describe("draft database note ID validation", () => {
     await expect(
       persistence.readDraft(clusterId, unsafeNoteId),
     ).resolves.toEqual({
+      clusterId,
+      noteId: unsafeNoteId,
       reason: "validation_failed",
-      status: "unavailable",
+      status: "invalid_deleted",
     });
     await expect(database.drafts.get(draftId)).resolves.toBeUndefined();
   });
@@ -117,8 +123,10 @@ describe("draft database future records", () => {
     await putRawDraft(database, futureDraft);
 
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
-      draft: undefined,
-      status: "ok",
+      clusterId,
+      noteId,
+      schemaVersion: 2,
+      status: "preserved_unknown",
     });
     await expect(rawDrafts(database).get(draftId)).resolves.toEqual(
       futureDraft,
@@ -145,19 +153,20 @@ describe("draft database scoping", () => {
     await persistence.deleteDraft(clusterId, noteId);
 
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
-      draft: undefined,
-      status: "ok",
+      clusterId,
+      noteId,
+      status: "absent",
     });
     await expect(
       persistence.readDraft(otherClusterId, noteId),
     ).resolves.toEqual({
       draft: sameNoteOtherCluster,
-      status: "ok",
+      status: "found_current",
     });
     await expect(persistence.readDraft(clusterId, "other.md")).resolves.toEqual(
       {
         draft: sameClusterOtherNote,
-        status: "ok",
+        status: "found_current",
       },
     );
   });
@@ -176,10 +185,11 @@ describe("successful-save draft reconciliation", () => {
         markdown: "# Saved\n",
         noteId,
       }),
-    ).resolves.toEqual({ status: "ok" });
+    ).resolves.toEqual({ status: "deleted" });
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
-      draft: undefined,
-      status: "ok",
+      clusterId,
+      noteId,
+      status: "absent",
     });
   });
 
@@ -191,15 +201,17 @@ describe("successful-save draft reconciliation", () => {
     const draft = createTestDraft(patch);
     await persistence.writeDraft(draft);
 
-    await persistence.deleteDraftIfSavedSnapshotMatches({
-      baseContentHash: "sha256-base",
-      clusterId,
-      markdown: savedMarkdown,
-      noteId,
-    });
+    await expect(
+      persistence.deleteDraftIfSavedSnapshotMatches({
+        baseContentHash: "sha256-base",
+        clusterId,
+        markdown: savedMarkdown,
+        noteId,
+      }),
+    ).resolves.toEqual({ status: "not_matching" });
     await expect(persistence.readDraft(clusterId, noteId)).resolves.toEqual({
       draft,
-      status: "ok",
+      status: "found_current",
     });
   });
 });
@@ -212,6 +224,8 @@ describe("draft database failure reporting", () => {
         noteId,
       ),
     ).resolves.toEqual({
+      clusterId,
+      noteId,
       reason: "database_unavailable",
       status: "unavailable",
     });

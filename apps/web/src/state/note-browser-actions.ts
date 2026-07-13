@@ -1,9 +1,7 @@
 export {
   discardDraftAndReloadDiskVersionAction,
   discardMissingDraftAction,
-  persistCurrentDraft,
   saveSelectedNoteAction,
-  updateCurrentEditor,
 } from "./note-browser-editor-actions.js";
 export {
   applyRouteAction,

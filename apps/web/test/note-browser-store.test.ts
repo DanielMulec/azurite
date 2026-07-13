@@ -312,10 +312,11 @@ describe("note browser store draft write degradation", () => {
   it("surfaces failed draft writes as degraded recovery state", async () => {
     const store = createLoadedStore({
       draftPersistence: {
-        deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraft: () => Promise.resolve({ status: "absent" }),
         deleteDraftIfSavedSnapshotMatches: () =>
-          Promise.resolve({ status: "ok" }),
-        readDraft: () => Promise.resolve({ draft: undefined, status: "ok" }),
+          Promise.resolve({ status: "absent" }),
+        readDraft: (clusterId, noteId) =>
+          Promise.resolve({ clusterId, noteId, status: "absent" }),
         writeDraft: () =>
           Promise.resolve({
             reason: "write_failed",

@@ -1,5 +1,6 @@
 import type { NoteContentWithHash } from "@azurite/shared";
 
+import { markdownEquals } from "../src/domain/markdown-equality.js";
 import type { DraftPersistence } from "../src/persistence/draft-database.js";
 import {
   createDraftRecord,
@@ -126,26 +127,33 @@ export function createMemoryDraftPersistence(
   return {
     persistence: {
       deleteDraft: (clusterId, noteId) => {
-        drafts.delete(createDraftRecordId(clusterId, noteId));
-        return Promise.resolve({ status: "ok" });
+        const deleted = drafts.delete(createDraftRecordId(clusterId, noteId));
+        return Promise.resolve({ status: deleted ? "deleted" : "absent" });
       },
       deleteDraftIfSavedSnapshotMatches: (snapshot) => {
         const draft = drafts.get(
           createDraftRecordId(snapshot.clusterId, snapshot.noteId),
         );
+        if (draft === undefined) {
+          return Promise.resolve({ status: "absent" });
+        }
         if (draftMatchesSnapshot(draft, snapshot)) {
           drafts.delete(draft.id);
+          return Promise.resolve({ status: "deleted" });
         }
-        return Promise.resolve({ status: "ok" });
+        return Promise.resolve({ status: "not_matching" });
       },
-      readDraft: (clusterId, noteId) =>
-        Promise.resolve({
-          draft: drafts.get(createDraftRecordId(clusterId, noteId)),
-          status: "ok",
-        }),
+      readDraft: (clusterId, noteId) => {
+        const draft = drafts.get(createDraftRecordId(clusterId, noteId));
+        return Promise.resolve(
+          draft === undefined
+            ? { clusterId, noteId, status: "absent" }
+            : { draft, status: "found_current" },
+        );
+      },
       writeDraft: (draft) => {
         drafts.set(draft.id, draft);
-        return Promise.resolve({ status: "ok" });
+        return Promise.resolve({ status: "written" });
       },
     },
     read: (draftClusterId, draftNoteId) =>
@@ -165,13 +173,7 @@ function draftMatchesSnapshot(
   ) {
     return false;
   }
-  return (
-    normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown)
-  );
-}
-
-function normalizeMarkdown(markdown: string): string {
-  return markdown.replace(/\r\n/g, "\n");
+  return markdownEquals(draft.markdown, snapshot.markdown);
 }
 
 export function createTestDraft(
@@ -237,7 +239,7 @@ function getLoadedNote(options: LoadedStoreOptions): NoteContentWithHash {
 
 function getLoadedRecovery(
   options: LoadedStoreOptions,
-): EditorSession["recovery"] {
+): "conflict" | "draft" | "none" {
   return options.recovery ?? "none";
 }
 
@@ -253,14 +255,22 @@ function getDraftPersistenceOption(
 
 function createReadyEditor(
   note: NoteContentWithHash,
-  recovery: EditorSession["recovery"],
+  recovery: "conflict" | "draft" | "none",
 ): EditorSession {
+  const draftDisposition = recovery === "draft" ? "recovered" : recovery;
   return {
     baseContentHash: getBaseContentHash(note, recovery),
     currentMarkdown: note.markdown,
+    draftDisposition,
+    draftEpoch: 0,
+    durableSnapshotKey:
+      draftDisposition === "none" ? undefined : "recovered-record",
     editorMode: "wysiwyg",
+    lastSnapshotKey:
+      draftDisposition === "none" ? undefined : "recovered-record",
     note,
-    recovery,
+    persistenceIssue: undefined,
+    preservedSchemaVersion: undefined,
     revision: 0,
     savedMarkdown: getSavedMarkdown(note, recovery),
     saveStatus: getSaveStatus(recovery),
@@ -270,20 +280,20 @@ function createReadyEditor(
 
 function getBaseContentHash(
   note: NoteContentWithHash,
-  recovery: EditorSession["recovery"],
+  recovery: "conflict" | "draft" | "none",
 ): string {
   return recovery === "none" ? note.contentHash : "sha256-old";
 }
 
 function getSavedMarkdown(
   note: NoteContentWithHash,
-  recovery: EditorSession["recovery"],
+  recovery: "conflict" | "draft" | "none",
 ): string {
   return recovery === "none" ? note.markdown : "# Disk";
 }
 
 function getSaveStatus(
-  recovery: EditorSession["recovery"],
+  recovery: "conflict" | "draft" | "none",
 ): EditorSession["saveStatus"] {
   return recovery === "conflict" ? "conflict" : "idle";
 }

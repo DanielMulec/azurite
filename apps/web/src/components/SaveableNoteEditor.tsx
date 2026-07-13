@@ -1,13 +1,9 @@
 import type { ReactElement } from "react";
 
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
+import { canSaveEditor } from "../state/note-browser-action-utils.js";
 import type { EditorSession } from "../state/note-browser-types.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
-
-const blockedSaveStatuses: readonly EditorSession["saveStatus"][] = [
-  "conflict",
-  "saving",
-];
 
 type SaveableNoteEditorProps = {
   readonly editor: EditorSession;
@@ -59,7 +55,9 @@ function SaveToolbar({
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onSave: () => Promise<void>;
 }): ReactElement {
-  const showDiscard = editor.recovery === "conflict";
+  const showDiscard =
+    editor.draftDisposition === "recovered" ||
+    editor.draftDisposition === "conflict";
 
   return (
     <div className="mb-4 flex flex-col gap-3 border-b border-[var(--azurite-border)] pb-4">
@@ -83,7 +81,7 @@ function SaveToolbar({
           ) : null}
           <button
             className="w-fit border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-3 py-1.5 text-sm font-medium text-[var(--azurite-text)] hover:bg-[var(--azurite-hover)] disabled:cursor-not-allowed disabled:text-[var(--azurite-muted)]"
-            disabled={!canSave(editor, isDirty)}
+            disabled={!canSaveEditor(editor)}
             onClick={() => {
               void onSave();
             }}
@@ -99,7 +97,7 @@ function SaveToolbar({
 
 function getStatusText(editor: EditorSession, isDirty: boolean): string {
   return (
-    recoveryStatusText[editor.recovery] ??
+    draftDispositionStatusText[editor.draftDisposition] ??
     statusText[editor.saveStatus] ??
     getIdleStatusText(isDirty)
   );
@@ -107,17 +105,6 @@ function getStatusText(editor: EditorSession, isDirty: boolean): string {
 
 function getIdleStatusText(isDirty: boolean): string {
   return isDirty ? "Unsaved changes" : "Saved";
-}
-
-function canSave(editor: EditorSession, isDirty: boolean): boolean {
-  return isDirty && !isSaveBlocked(editor);
-}
-
-function isSaveBlocked(editor: EditorSession): boolean {
-  return (
-    blockedSaveStatuses.includes(editor.saveStatus) ||
-    editor.recovery === "conflict"
-  );
 }
 
 function confirmDraftDiscard(markdown: string): boolean {
@@ -141,8 +128,16 @@ const statusText = {
   saving: "Saving...",
 } satisfies Record<EditorSession["saveStatus"], string | undefined>;
 
-const recoveryStatusText = {
+const draftDispositionStatusText = {
+  cleanup_required: "Saved; browser draft cleanup needs retry",
   conflict: "Recovered draft changed on disk",
-  draft: "Recovered unsaved draft",
+  generated_durable: undefined,
+  generated_pending: undefined,
   none: undefined,
-} satisfies Record<EditorSession["recovery"], string | undefined>;
+  preserved_unknown: "A newer Azurite build owns this recovery record",
+  recovered: "Recovered unsaved draft",
+  recovery_read_unavailable: "Browser recovery could not be read",
+} satisfies Record<
+  EditorSession["draftDisposition"],
+  string | undefined
+>;

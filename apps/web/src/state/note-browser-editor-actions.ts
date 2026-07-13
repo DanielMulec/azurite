@@ -4,19 +4,13 @@ import {
   runtimeSpanNames,
 } from "@azurite/shared";
 
-import type { DraftWriteResult } from "../persistence/draft-database.js";
-import { createDraftRecord } from "../persistence/draft-records.js";
+import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
+import type { DraftRecordMutationResult } from "../persistence/draft-database.js";
 import {
   canSaveEditor,
-  degradeDraftRecovery,
   getReadyClusterId,
-  hasEditorPatchChange,
-  hasDirtyMarkdown,
 } from "./note-browser-action-utils.js";
-import type {
-  NoteBrowserStore,
-  StoreContext,
-} from "./note-browser-contracts.js";
+import type { StoreContext } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 import {
   createBrowserOperationEvidence,
@@ -32,90 +26,16 @@ import {
   applySaveResponse,
 } from "./note-browser-save-results.js";
 
-type DraftTarget = {
-  readonly clusterId: string;
-  readonly editor: EditorSession;
-};
-
-/** Applies editor markdown or mode changes to the current ready session. */
-export function updateCurrentEditor(
-  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
-  context: Pick<StoreContext, "set">,
-): void {
-  context.set((state) => patchCurrentEditorState(state, patch));
-}
-
-function patchCurrentEditorState(
-  state: NoteBrowserStore,
-  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
-) {
-  if (state.noteState.status !== "ready") {
-    return state;
-  }
-
-  return createReadyEditorStatePatch(state.noteState.editor, patch) ?? state;
-}
-
-function createReadyEditorStatePatch(
-  editor: EditorSession,
-  patch: Partial<Pick<EditorSession, "currentMarkdown" | "editorMode">>,
-) {
-  if (!hasEditorPatchChange(editor, patch)) {
-    return undefined;
-  }
-
-  return {
-    noteState: {
-      editor: {
-        ...editor,
-        ...patch,
-        revision: editor.revision + 1,
-        saveStatus: getNextPatchSaveStatus(editor),
-      },
-      status: "ready" as const,
-    },
-  };
-}
-
-function getNextPatchSaveStatus(
-  editor: EditorSession,
-): EditorSession["saveStatus"] {
-  if (editor.saveStatus === "conflict" || editor.saveStatus === "saving") {
-    return editor.saveStatus;
-  }
-
-  return "idle";
-}
-
-/** Persists or clears the current ready editor draft in IndexedDB. */
-export async function persistCurrentDraft(
-  context: StoreContext,
-): Promise<DraftWriteResult | undefined> {
-  const target = getCurrentDraftTarget(context);
-
-  if (target === undefined) {
-    return undefined;
-  }
-
-  const result = await persistDraftTarget(target, context);
-  applyDraftWriteResult(result, context);
-
-  return result;
-}
-
-/** Saves the selected note through the Slice 5 content-hash contract. */
+/** Saves the selected note through the existing content-hash contract. */
 export function saveSelectedNoteAction(context: StoreContext): Promise<void> {
   const activePromise = getActiveSavePromise(context);
   if (activePromise !== undefined) {
     return activePromise;
   }
-
   const editor = getSaveableEditor(context);
-
   if (editor === undefined) {
     return Promise.resolve();
   }
-
   const metadata = createNoteRequestMetadata();
   const evidence = createBrowserOperationEvidence({
     expectedContentHash: editor.baseContentHash,
@@ -139,112 +59,48 @@ export function saveSelectedNoteAction(context: StoreContext): Promise<void> {
   return promise;
 }
 
-function getActiveSavePromise(
-  context: StoreContext,
-): Promise<void> | undefined {
-  const noteState = context.get().noteState;
-  if (noteState.status !== "ready") {
-    return undefined;
-  }
-  return context.getActiveNoteSave(noteState.editor.note.id)?.promise;
-}
-
-/** Deletes a recovered draft and reloads the current disk version. */
+/** Deletes a compatible recovered draft before reloading its disk version. */
 export async function discardDraftAndReloadDiskVersionAction(
   context: StoreContext,
 ): Promise<void> {
   const noteState = context.get().noteState;
-
   if (noteState.status === "missing-draft") {
-    await discardMissingNoteDraftState(noteState.noteId, context);
+    await discardMissingNoteDraftState(noteState, context);
     return;
   }
-
-  if (noteState.status !== "ready") {
+  if (
+    noteState.status !== "ready" ||
+    !isDiscardable(noteState.editor.draftDisposition)
+  ) {
     return;
   }
-
-  const noteId = noteState.editor.note.id;
-  await clearDraftForNote(noteId, context);
-  await reloadSelectedNoteAction(context);
+  const editor = noteState.editor;
+  const clusterId = getReadyClusterId(context.get().clusterIdentity);
+  if (clusterId === undefined) {
+    restoreFailedEditorDiscard(editor, clusterIdentityFailure(context), context);
+    return;
+  }
+  const result = await context.draftCoordinator.discard({
+    clusterId,
+    draftEpoch: editor.draftEpoch,
+    noteId: editor.note.id,
+    ownerKey: editor.sessionKey,
+  });
+  if (isDeletionComplete(result)) {
+    await reloadSelectedNoteAction(context);
+    return;
+  }
+  restoreEditorAfterDiscardResult(editor, result, context);
 }
 
-/** Deletes a recovered draft for a note that no longer exists on disk. */
+/** Deletes a compatible recovered draft for a note missing from disk. */
 export async function discardMissingDraftAction(
   context: StoreContext,
 ): Promise<void> {
   const noteState = context.get().noteState;
-
-  if (noteState.status !== "missing-draft") {
-    return;
+  if (noteState.status === "missing-draft") {
+    await discardMissingNoteDraftState(noteState, context);
   }
-
-  await discardMissingNoteDraftState(noteState.noteId, context);
-}
-
-function getCurrentDraftTarget(context: StoreContext): DraftTarget | undefined {
-  const noteState = context.get().noteState;
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
-
-  if (noteState.status !== "ready" || clusterId === undefined) {
-    return undefined;
-  }
-
-  return { clusterId, editor: noteState.editor };
-}
-
-async function persistDraftTarget(
-  target: DraftTarget,
-  context: StoreContext,
-): Promise<DraftWriteResult> {
-  if (hasDirtyMarkdown(target.editor)) {
-    return await context.draftPersistence.writeDraft(
-      createDraftRecord({
-        baseContentHash: target.editor.baseContentHash,
-        clusterId: target.clusterId,
-        editorMode: target.editor.editorMode,
-        markdown: target.editor.currentMarkdown,
-        noteId: target.editor.note.id,
-      }),
-    );
-  }
-
-  return await context.draftPersistence.deleteDraft(
-    target.clusterId,
-    target.editor.note.id,
-  );
-}
-
-function applyDraftWriteResult(
-  result: DraftWriteResult,
-  context: StoreContext,
-): void {
-  if (result.status === "unavailable") {
-    degradeDraftRecovery(result.reason, context);
-  }
-}
-
-function getSaveableEditor(context: StoreContext): EditorSession | undefined {
-  const noteState = context.get().noteState;
-
-  if (noteState.status !== "ready") {
-    return undefined;
-  }
-
-  if (!canSaveEditor(noteState.editor)) {
-    return undefined;
-  }
-
-  return noteState.editor;
-}
-
-function markEditorSaving(editor: EditorSession, context: StoreContext): void {
-  context.set({
-    noteState: {
-      editor: { ...editor, saveStatus: "saving" },
-      status: "ready",
-    },
-  });
 }
 
 async function saveEditor(
@@ -261,35 +117,48 @@ async function saveEditor(
       },
       evidence.metadata,
     );
-    await applySaveResponse(
-      {
-        clusterIdentity: response.clusterIdentity,
-        context,
-        editor,
-        note: response.note,
-      },
-      () => persistCurrentDraft(context),
-    );
+    await applySaveResponse({
+      clusterIdentity: response.clusterIdentity,
+      context,
+      editor,
+      note: response.note,
+    });
     recordSaveResult(evidence, {
       clusterIdentity: response.clusterIdentity,
       contentHash: response.note.contentHash,
     });
   } catch (error) {
-    await applySaveFailure({
-      context,
-      editor,
-      error,
-      persistLatestDraft: () => persistCurrentDraft(context),
-    });
+    applySaveFailure({ context, editor, error });
     recordSaveResult(evidence, { error });
   }
 }
 
 async function discardMissingNoteDraftState(
-  noteId: string,
+  noteState: Extract<
+    ReturnType<StoreContext["get"]>["noteState"],
+    { status: "missing-draft" }
+  >,
   context: StoreContext,
 ): Promise<void> {
-  await clearDraftForNote(noteId, context);
+  const clusterId = getReadyClusterId(context.get().clusterIdentity);
+  if (clusterId === undefined) {
+    restoreFailedMissingDiscard(noteState, clusterIdentityFailure(context), context);
+    return;
+  }
+  const result = await context.draftCoordinator.discard({
+    clusterId,
+    draftEpoch: noteState.draftEpoch,
+    noteId: noteState.noteId,
+    ownerKey: noteState.renderedOwnerKey,
+  });
+  if (isDeletionComplete(result)) {
+    applyMissingAfterDiscard(noteState.noteId, context);
+    return;
+  }
+  restoreMissingAfterDiscardResult(noteState, result, context);
+}
+
+function applyMissingAfterDiscard(noteId: string, context: StoreContext): void {
   const location = context.get().committedRouteView?.location;
   if (location === undefined) {
     context.set({ noteState: { noteId, status: "missing" } });
@@ -298,19 +167,183 @@ async function discardMissingNoteDraftState(
   applyMissingRoute({ location, noteId }, context);
 }
 
-async function clearDraftForNote(
-  noteId: string,
+function restoreEditorAfterDiscardResult(
+  editor: EditorSession,
+  result: DraftRecordMutationResult,
   context: StoreContext,
-): Promise<void> {
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
-
-  if (clusterId === undefined) {
+): void {
+  if (result.status === "preserved_unknown") {
+    context.set((state) =>
+      state.noteState.status === "ready" &&
+      state.noteState.editor.sessionKey === editor.sessionKey
+        ? {
+            noteState: {
+              editor: {
+                ...state.noteState.editor,
+                draftDisposition: "preserved_unknown",
+                draftEpoch: editor.draftEpoch + 1,
+                persistenceIssue: undefined,
+                preservedSchemaVersion: result.schemaVersion,
+              },
+              status: "ready",
+            },
+          }
+        : state,
+    );
     return;
   }
-
-  const result = await context.draftPersistence.deleteDraft(clusterId, noteId);
-
-  if (result.status === "unavailable") {
-    degradeDraftRecovery(result.reason, context);
+  const failure = getMutationFailure(result);
+  if (failure !== undefined) {
+    restoreFailedEditorDiscard(editor, failure, context);
   }
+}
+
+function restoreFailedEditorDiscard(
+  editor: EditorSession,
+  failure: Parameters<typeof createDraftPersistenceIssue>[0]["failure"],
+  context: StoreContext,
+): void {
+  const restoredEpoch = editor.draftEpoch + 1;
+  context.set((state) =>
+    state.noteState.status === "ready" &&
+    state.noteState.editor.sessionKey === editor.sessionKey
+      ? {
+          noteState: {
+            editor: {
+              ...state.noteState.editor,
+              draftEpoch: restoredEpoch,
+              persistenceIssue: createDiscardIssue(
+                editor.sessionKey,
+                editor.note.id,
+                restoredEpoch,
+                failure,
+              ),
+            },
+            status: "ready",
+          },
+        }
+      : state,
+  );
+}
+
+function restoreMissingAfterDiscardResult(
+  noteState: Extract<
+    ReturnType<StoreContext["get"]>["noteState"],
+    { status: "missing-draft" }
+  >,
+  result: DraftRecordMutationResult,
+  context: StoreContext,
+): void {
+  const failure = getMutationFailure(result);
+  if (failure !== undefined) {
+    restoreFailedMissingDiscard(noteState, failure, context);
+  }
+}
+
+function restoreFailedMissingDiscard(
+  noteState: Extract<
+    ReturnType<StoreContext["get"]>["noteState"],
+    { status: "missing-draft" }
+  >,
+  failure: Parameters<typeof createDraftPersistenceIssue>[0]["failure"],
+  context: StoreContext,
+): void {
+  const restoredEpoch = noteState.draftEpoch + 1;
+  context.set((state) =>
+    state.noteState.status === "missing-draft" &&
+    state.noteState.renderedOwnerKey === noteState.renderedOwnerKey
+      ? {
+          noteState: {
+            ...state.noteState,
+            draftEpoch: restoredEpoch,
+            persistenceIssue: createDiscardIssue(
+              noteState.renderedOwnerKey,
+              noteState.noteId,
+              restoredEpoch,
+              failure,
+            ),
+          },
+        }
+      : state,
+  );
+}
+
+function createDiscardIssue(
+  ownerKey: string,
+  noteId: string,
+  draftEpoch: number,
+  failure: Parameters<typeof createDraftPersistenceIssue>[0]["failure"],
+) {
+  return createDraftPersistenceIssue({
+    clusterId: undefined,
+    draftEpoch,
+    failure,
+    noteId,
+    operation: "discard",
+    ownerKey,
+    retryAction: "retry_discard",
+  });
+}
+
+function getMutationFailure(
+  result: DraftRecordMutationResult,
+): Parameters<typeof createDraftPersistenceIssue>[0]["failure"] | undefined {
+  if (result.status === "unavailable") {
+    return { reason: result.reason, source: "persistence" };
+  }
+  return result.status === "not_matching"
+    ? { reason: "queue_task_failed", source: "coordinator" }
+    : undefined;
+}
+
+function clusterIdentityFailure(
+  context: StoreContext,
+): Parameters<typeof createDraftPersistenceIssue>[0]["failure"] {
+  const identity = context.get().clusterIdentity;
+  return {
+    reason:
+      identity?.status === "unavailable"
+        ? identity.reason
+        : "metadata_unavailable",
+    source: "cluster_identity",
+  };
+}
+
+function isDeletionComplete(result: DraftRecordMutationResult): boolean {
+  return (
+    result.status === "deleted" ||
+    result.status === "absent" ||
+    result.status === "invalid_deleted"
+  );
+}
+
+function isDiscardable(
+  disposition: EditorSession["draftDisposition"],
+): boolean {
+  return disposition === "recovered" || disposition === "conflict";
+}
+
+function getActiveSavePromise(
+  context: StoreContext,
+): Promise<void> | undefined {
+  const noteState = context.get().noteState;
+  return noteState.status === "ready"
+    ? context.getActiveNoteSave(noteState.editor.note.id)?.promise
+    : undefined;
+}
+
+function getSaveableEditor(context: StoreContext): EditorSession | undefined {
+  const noteState = context.get().noteState;
+  return noteState.status === "ready" && canSaveEditor(noteState.editor)
+    ? noteState.editor
+    : undefined;
+}
+
+function markEditorSaving(editor: EditorSession, context: StoreContext): void {
+  context.set({
+    noteState: {
+      editor: { ...editor, saveStatus: "saving" },
+      status: "ready",
+    },
+  });
 }

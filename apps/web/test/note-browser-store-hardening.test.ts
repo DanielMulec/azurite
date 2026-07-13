@@ -261,14 +261,18 @@ describe("note browser store stale missing-note recovery hardening", () => {
           }),
       }),
       draftPersistence: {
-        deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraft: () => Promise.resolve({ status: "absent" }),
         deleteDraftIfSavedSnapshotMatches: () =>
-          Promise.resolve({ status: "ok" }),
+          Promise.resolve({ status: "absent" }),
         readDraft: (_clusterId, noteId) =>
           noteId === "missing.md"
             ? missingDraftLookup.promise
-            : Promise.resolve({ draft: undefined, status: "ok" }),
-        writeDraft: () => Promise.resolve({ status: "ok" }),
+            : Promise.resolve({
+                clusterId: readyClusterIdentity.clusterId,
+                noteId,
+                status: "absent",
+              }),
+        writeDraft: () => Promise.resolve({ status: "written" }),
       },
     });
     const navigation = { replaceSelectedNote: vi.fn() };
@@ -277,7 +281,11 @@ describe("note browser store stale missing-note recovery hardening", () => {
     const missingSync = syncTestRoute(store, "missing.md");
     const projectSync = syncTestRoute(store, "Projects/azurite.md");
     await projectSync;
-    missingDraftLookup.resolve({ draft: undefined, status: "ok" });
+    missingDraftLookup.resolve({
+      clusterId: readyClusterIdentity.clusterId,
+      noteId: "missing.md",
+      status: "absent",
+    });
     await missingSync;
 
     expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
@@ -294,14 +302,18 @@ describe("note browser store stale missing-note degradation hardening", () => {
     const store = createNoteBrowserStore({
       api: createApi(),
       draftPersistence: {
-        deleteDraft: () => Promise.resolve({ status: "ok" }),
+        deleteDraft: () => Promise.resolve({ status: "absent" }),
         deleteDraftIfSavedSnapshotMatches: () =>
-          Promise.resolve({ status: "ok" }),
+          Promise.resolve({ status: "absent" }),
         readDraft: (_clusterId, noteId) =>
           noteId === "missing.md"
             ? missingDraftLookup.promise
-            : Promise.resolve({ draft: undefined, status: "ok" }),
-        writeDraft: () => Promise.resolve({ status: "ok" }),
+            : Promise.resolve({
+                clusterId: readyClusterIdentity.clusterId,
+                noteId,
+                status: "absent",
+              }),
+        writeDraft: () => Promise.resolve({ status: "written" }),
       },
     });
     const navigation = { replaceSelectedNote: vi.fn() };
@@ -311,6 +323,8 @@ describe("note browser store stale missing-note degradation hardening", () => {
     const projectSync = syncTestRoute(store, "Projects/azurite.md");
     await projectSync;
     missingDraftLookup.resolve({
+      clusterId: readyClusterIdentity.clusterId,
+      noteId: "missing.md",
       reason: "database_unavailable",
       status: "unavailable",
     });

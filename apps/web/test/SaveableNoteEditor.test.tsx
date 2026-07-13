@@ -102,7 +102,7 @@ describe("SaveableNoteEditor recovery state", () => {
     renderEditor({
       editor: createEditor({
         currentMarkdown: "# Recovered draft",
-        recovery: "conflict",
+        draftDisposition: "conflict",
         saveStatus: "conflict",
       }),
       onDiscardDraftAndReloadDiskVersion,
@@ -171,7 +171,11 @@ function createEditor(patch: Partial<EditorSession> = {}): EditorSession {
   return {
     baseContentHash: "sha256-home",
     currentMarkdown: savedMarkdown,
+    draftDisposition: "none",
+    draftEpoch: 0,
+    durableSnapshotKey: undefined,
     editorMode: "wysiwyg",
+    lastSnapshotKey: undefined,
     note: {
       contentHash: "sha256-home",
       fileName: "index.md",
@@ -182,7 +186,8 @@ function createEditor(patch: Partial<EditorSession> = {}): EditorSession {
       sizeBytes: savedMarkdown.length,
       title: "Home",
     },
-    recovery: "none",
+    persistenceIssue: undefined,
+    preservedSchemaVersion: undefined,
     revision: 0,
     savedMarkdown,
     saveStatus: "idle",
