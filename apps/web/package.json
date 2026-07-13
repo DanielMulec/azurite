@@ -7,6 +7,9 @@
     "build": "vite build",
     "dev": "tsx src/dev-server.ts",
     "preview": "vite preview --host 127.0.0.1",
+    "qa:route-transition:build": "vite build --config vite.route-transition-qa.config.ts",
+    "qa:route-transition:dev": "vite --config vite.route-transition-qa.config.ts",
+    "qa:route-transition:preview": "vite preview --config vite.route-transition-qa.config.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

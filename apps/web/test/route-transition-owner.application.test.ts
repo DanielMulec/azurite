@@ -149,6 +149,31 @@ describe("route owner startup and repeated-occurrence behavior", () => {
   });
 });
 
+describe("route owner invalid-location canonicalization", () => {
+  it("removes an unsafe target while preserving pathname, diagnostics, and hash", async () => {
+    const harness = createRouteOwnerHarness({
+      entries: ["/workspace?note=..%2Fsecret.md&azurite-dev=sentry-test#focus"],
+    });
+    const executor = createTestRouteExecutor();
+    harness.owner.registerStoreExecutor(executor.executor);
+    harness.resolveCurrent();
+
+    await vi.waitFor(() => {
+      expect(executor.applyRoute).toHaveBeenCalledOnce();
+    });
+    expect(harness.navigations()).toEqual([
+      expect.objectContaining({
+        href: "/workspace?azurite-dev=sentry-test#focus",
+        replace: true,
+      }),
+    ]);
+    expect(executor.applyRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ noteId: undefined }),
+    );
+    expect(harness.entries()).toHaveLength(1);
+  });
+});
+
 async function settleInitialRoute(
   harness: RouteOwnerHarness,
   executor: ReturnType<typeof createTestRouteExecutor>,

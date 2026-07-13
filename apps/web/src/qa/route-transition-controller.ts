@@ -59,9 +59,13 @@ type ControllerRuntime = {
 export function createRouteTransitionQaController(): RouteTransitionQaController {
   const runtime = createControllerRuntime();
   return {
-    cancelHeld: () => resolveHeld(runtime, "cancel"),
+    cancelHeld: () => {
+      resolveHeld(runtime, "cancel");
+    },
     confirmRestoration: () => confirmRestoration(runtime),
-    continueHeld: () => resolveHeld(runtime, "continue"),
+    continueHeld: () => {
+      resolveHeld(runtime, "continue");
+    },
     createRouteGate: (store) =>
       createControlledGate(createBaselineRouteDraftGate(store), runtime),
     failNextRestorationConfirmation: () => {
@@ -73,10 +77,16 @@ export function createRouteTransitionQaController(): RouteTransitionQaController
       runtime.holdNext = true;
       resetEvidence(runtime);
     },
-    reset: () => resetRuntime(runtime),
+    reset: () => {
+      resetRuntime(runtime);
+    },
     subscribe: (listener) => subscribe(runtime, listener),
-    throwHeldPrepare: () => rejectHeldPrepare(runtime),
-    throwHeldSettle: () => resolveHeld(runtime, "throw_settle"),
+    throwHeldPrepare: () => {
+      rejectHeldPrepare(runtime);
+    },
+    throwHeldSettle: () => {
+      resolveHeld(runtime, "throw_settle");
+    },
   };
 }
 
@@ -87,7 +97,12 @@ function createControllerRuntime(): ControllerRuntime {
     holdNext: false,
     listeners: new Set(),
     settlements: [],
-    snapshot: createSnapshot("idle", undefined, undefined, []),
+    snapshot: createSnapshot({
+      leaseKey: undefined,
+      outgoingOwnerKey: undefined,
+      settlements: [],
+      state: "idle",
+    }),
     throwSettle: false,
   };
 }
@@ -183,12 +198,12 @@ function captureInput(
   state: RouteTransitionQaState,
   runtime: ControllerRuntime,
 ): void {
-  runtime.snapshot = createSnapshot(
+  runtime.snapshot = createSnapshot({
+    leaseKey: input.leaseKey,
+    outgoingOwnerKey: input.outgoingOwnerKey,
+    settlements: runtime.settlements,
     state,
-    input.leaseKey,
-    input.outgoingOwnerKey,
-    runtime.settlements,
-  );
+  });
   notify(runtime);
 }
 
@@ -219,20 +234,25 @@ function resetRuntime(runtime: ControllerRuntime): void {
 
 function resetEvidence(runtime: ControllerRuntime): void {
   runtime.settlements = [];
-  runtime.snapshot = createSnapshot("idle", undefined, undefined, []);
+  runtime.snapshot = createSnapshot({
+    leaseKey: undefined,
+    outgoingOwnerKey: undefined,
+    settlements: [],
+    state: "idle",
+  });
   notify(runtime);
 }
 
 function createSnapshot(
-  state: RouteTransitionQaState,
-  leaseKey: string | undefined,
-  outgoingOwnerKey: string | undefined,
-  settlements: readonly RouteGateSettlement[],
+  snapshot: RouteTransitionQaSnapshot,
 ): RouteTransitionQaSnapshot {
-  return { leaseKey, outgoingOwnerKey, settlements, state };
+  return snapshot;
 }
 
-function subscribe(runtime: ControllerRuntime, listener: () => void): () => void {
+function subscribe(
+  runtime: ControllerRuntime,
+  listener: () => void,
+): () => void {
   runtime.listeners.add(listener);
   return () => {
     runtime.listeners.delete(listener);
