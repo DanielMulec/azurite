@@ -303,6 +303,15 @@ function isEditorSaveBlocked(editor: EditorSession): boolean {
   );
 }
 
+/** Preserves conflict/saving truth when an accepted edit advances authority. */
+export function getNextAcceptedSaveStatus(
+  editor: EditorSession,
+): EditorSession["saveStatus"] {
+  return editor.saveStatus === "conflict" || editor.saveStatus === "saving"
+    ? editor.saveStatus
+    : "idle";
+}
+
 function getDraftDisposition(
   note: NoteContentWithHash,
   application: RouteDraftApplication,
@@ -321,10 +330,10 @@ function createInitialPersistenceIssue(
   sessionKey: string,
   application: RouteDraftApplication,
 ) {
-  if (
-    application.failure === undefined ||
-    application.disposition === "preserved_unknown"
-  ) {
+  if (application.failure === undefined) {
+    return undefined;
+  }
+  if (application.disposition === "preserved_unknown") {
     return undefined;
   }
   return createDraftPersistenceIssue({
@@ -334,12 +343,17 @@ function createInitialPersistenceIssue(
     noteId,
     operation: "recovery_read",
     ownerKey: sessionKey,
-    retryAction:
-      application.disposition === "recovery_read_unavailable"
-        ? "retry_browser_recovery"
-        : undefined,
+    retryAction: getInitialRecoveryRetryAction(application.disposition),
     sessionKey,
   });
+}
+
+function getInitialRecoveryRetryAction(
+  disposition: RouteDraftApplication["disposition"],
+) {
+  return disposition === "recovery_read_unavailable"
+    ? "retry_browser_recovery"
+    : undefined;
 }
 
 function toNoteSummary(note: NoteContentWithHash): NoteSummary {

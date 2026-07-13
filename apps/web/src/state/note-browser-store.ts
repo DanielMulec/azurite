@@ -169,14 +169,7 @@ function createInitialState(
     publishMarkdownChange: (command) =>
       publishMarkdownChange(command, runtime.context),
     reportHistoryUnavailable: () => {
-      set({
-        routeHistoryStatus: {
-          message:
-            "Browser history could not confirm the previous note. Retry navigation from the current page.",
-          reason: "route_history_unavailable",
-          status: "degraded",
-        },
-      });
+      reportHistoryUnavailable(set);
     },
     routeHistoryStatus: { status: "available" },
     retryBrowserRecovery: async () =>
@@ -190,25 +183,40 @@ function createInitialState(
     saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
     selectedNoteId: undefined,
     updateDraftMarkdown: (markdown) => {
-      const noteState = get().noteState;
-      if (noteState.status !== "ready") {
-        return;
-      }
-      publishMarkdownChange(
-        {
-          markdown,
-          origin: "source_input",
-          resolution: "exact_input",
-          sessionKey: noteState.editor.sessionKey,
-          trigger: "direct_input",
-        },
-        runtime.context,
-      );
+      updateDraftMarkdown(markdown, runtime.context);
     },
     updateEditorMode: (editorMode) => {
       updateEditorModeWithSnapshot(editorMode, runtime.context);
     },
   };
+}
+
+function reportHistoryUnavailable(set: StoreContext["set"]): void {
+  set({
+    routeHistoryStatus: {
+      message:
+        "Browser history could not confirm the previous note. Retry navigation from the current page.",
+      reason: "route_history_unavailable",
+      status: "degraded",
+    },
+  });
+}
+
+function updateDraftMarkdown(markdown: string, context: StoreContext): void {
+  const noteState = context.get().noteState;
+  if (noteState.status !== "ready") {
+    return;
+  }
+  publishMarkdownChange(
+    {
+      markdown,
+      origin: "source_input",
+      resolution: "exact_input",
+      sessionKey: noteState.editor.sessionKey,
+      trigger: "direct_input",
+    },
+    context,
+  );
 }
 
 function configureContext(

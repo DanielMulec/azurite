@@ -88,25 +88,33 @@ async function flushLatestFailedSaveDraft(
   sessionKey: string,
   context: StoreContext,
 ): Promise<void> {
-  while (true) {
-    const noteState = context.get().noteState;
-    if (
-      noteState.status !== "ready" ||
-      noteState.editor.sessionKey !== sessionKey
-    ) {
-      return;
-    }
-    const revision = noteState.editor.revision;
+  let revision = getSessionRevision(sessionKey, context);
+  while (revision !== undefined) {
     await flushEditorDurability("explicit_flush", context);
-    const current = context.get().noteState;
-    if (
-      current.status !== "ready" ||
-      current.editor.sessionKey !== sessionKey ||
-      current.editor.revision === revision
-    ) {
-      return;
-    }
+    revision = getNewerSessionRevision(sessionKey, revision, context);
   }
+}
+
+function getNewerSessionRevision(
+  sessionKey: string,
+  previousRevision: number,
+  context: StoreContext,
+): number | undefined {
+  const currentRevision = getSessionRevision(sessionKey, context);
+  return currentRevision === previousRevision ? undefined : currentRevision;
+}
+
+function getSessionRevision(
+  sessionKey: string,
+  context: StoreContext,
+): number | undefined {
+  const noteState = context.get().noteState;
+  if (noteState.status !== "ready") {
+    return undefined;
+  }
+  return noteState.editor.sessionKey === sessionKey
+    ? noteState.editor.revision
+    : undefined;
 }
 
 function getActiveSavePromise(

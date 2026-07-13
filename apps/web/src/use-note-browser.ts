@@ -62,12 +62,12 @@ export function useNoteBrowser(
 ): NoteBrowserState {
   const [store] = useState(createNoteBrowserStore);
   const [editorSessionGate] = useState(() => createEditorSessionGate(store));
-  useRouteRuntimeRegistration(
+  useRouteRuntimeRegistration({
+    createRouteGate,
+    editorSessionGate,
     store,
     transitionOwner,
-    editorSessionGate,
-    createRouteGate,
-  );
+  });
   useDraftLifecycleFlush(editorSessionGate);
   const state = useNoteBrowserSelectors(store);
   const selectNote = useCallback(
@@ -80,12 +80,13 @@ export function useNoteBrowser(
   return { ...state, editorSessionGate, selectNote };
 }
 
-function useRouteRuntimeRegistration(
-  store: NoteBrowserStoreApi,
-  transitionOwner: RouteTransitionOwner,
-  editorSessionGate: EditorSessionGate,
-  createRouteGate: NoteBrowserRouteGateFactory | undefined,
-): void {
+function useRouteRuntimeRegistration(input: {
+  readonly createRouteGate: NoteBrowserRouteGateFactory | undefined;
+  readonly editorSessionGate: EditorSessionGate;
+  readonly store: NoteBrowserStoreApi;
+  readonly transitionOwner: RouteTransitionOwner;
+}): void {
+  const { createRouteGate, editorSessionGate, store, transitionOwner } = input;
   useEffect(() => {
     const productionGate = editorSessionGate.routeGate;
     const gate = createRouteGate?.(store, productionGate) ?? productionGate;

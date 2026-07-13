@@ -36,11 +36,7 @@ export function stateOwnsEditor(
   editor: EditorSession,
 ): boolean {
   const current = getStateEditor(state);
-  return (
-    current?.sessionKey === editor.sessionKey &&
-    current.revision === editor.revision &&
-    current.draftEpoch === editor.draftEpoch
-  );
+  return current !== undefined && editorsShareRevision(current, editor);
 }
 
 /** Returns whether one editor still owns an exact settled snapshot. */
@@ -48,9 +44,45 @@ export function editorOwnsSnapshot(
   editor: EditorSession | undefined,
   snapshot: DraftMutationSnapshot,
 ): editor is EditorSession {
+  return editor !== undefined && editorMatchesSnapshot(editor, snapshot);
+}
+
+function editorsShareRevision(
+  current: EditorSession,
+  expected: EditorSession,
+): boolean {
   return (
-    editor?.sessionKey === snapshot.sessionKey &&
-    editor.draftEpoch === snapshot.draftEpoch &&
+    current.sessionKey === expected.sessionKey &&
+    current.revision === expected.revision &&
+    current.draftEpoch === expected.draftEpoch
+  );
+}
+
+function editorMatchesSnapshot(
+  editor: EditorSession,
+  snapshot: DraftMutationSnapshot,
+): boolean {
+  return (
+    editorMatchesSnapshotOwner(editor, snapshot) &&
+    editorMatchesSnapshotRevision(editor, snapshot)
+  );
+}
+
+function editorMatchesSnapshotOwner(
+  editor: EditorSession,
+  snapshot: DraftMutationSnapshot,
+): boolean {
+  return (
+    editor.sessionKey === snapshot.sessionKey &&
+    editor.draftEpoch === snapshot.draftEpoch
+  );
+}
+
+function editorMatchesSnapshotRevision(
+  editor: EditorSession,
+  snapshot: DraftMutationSnapshot,
+): boolean {
+  return (
     editor.revision === snapshot.revision &&
     editor.lastSnapshotKey === snapshot.snapshotKey
   );

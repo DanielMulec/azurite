@@ -4,8 +4,14 @@ import type {
 } from "../domain/markdown-authority-types.js";
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { EditorMode } from "../persistence/draft-records.js";
-import type { DraftMutationSnapshot } from "../persistence/draft-workflow-types.js";
-import { getReadyClusterId } from "./note-browser-action-utils.js";
+import type {
+  DraftMutationSnapshot,
+  SnapshotPreparationResult,
+} from "../persistence/draft-workflow-types.js";
+import {
+  getNextAcceptedSaveStatus,
+  getReadyClusterId,
+} from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 import {
@@ -24,6 +30,7 @@ import {
   createNoChangePublication,
   createRejectedPublication,
 } from "./note-browser-publication-results.js";
+import { StateApplicationTracker } from "./note-browser-state-application.js";
 
 /** Publishes exact accepted Markdown with synchronous snapshot admission. */
 export function publishMarkdownChange(
@@ -32,28 +39,33 @@ export function publishMarkdownChange(
 ): PublicationResult {
   const editor = getExactEditor(command.sessionKey, context);
   if (editor === undefined) {
-    return createRejectedPublication(command, 0, "none", "stale_session");
+    return createRejectedPublication(command, {
+      attemptedRevision: 0,
+      disposition: "none",
+      reason: "stale_session",
+    });
   }
+  return publishEditorMarkdown(command, editor, context);
+}
+
+function publishEditorMarkdown(
+  command: PublicationCommand,
+  editor: EditorSession,
+  context: StoreContext,
+): PublicationResult {
   if (editor.currentMarkdown === command.markdown) {
     return createNoChangePublication(command, editor, "authority_unchanged");
   }
   const snapshot = createAuthoritySnapshot(command.markdown, editor, context);
-  const prepared = context.draftCoordinator.prepareSnapshot({
-    isCurrent: () => isCurrentSnapshot(snapshot, context),
-    onSettled: (settlement) => {
-      applySnapshotSettlement(settlement.snapshot, settlement.result, context);
-    },
-    snapshot,
-  });
+  const prepared = prepareSnapshot(snapshot, context);
   if (prepared.status === "rejected") {
-    return createRejectedPublication(
-      command,
-      prepared.attemptedRevision,
-      editor.draftDisposition,
-      prepared.reason,
-    );
+    return createRejectedPublication(command, {
+      attemptedRevision: prepared.attemptedRevision,
+      disposition: editor.draftDisposition,
+      reason: prepared.reason,
+    });
   }
-  return applyPreparedPublication(command, editor, snapshot, context);
+  return applyPreparedPublication({ command, context, editor, snapshot });
 }
 
 /** Updates live mode and persists it only for an already-owned record. */
@@ -61,126 +73,246 @@ export function updateEditorModeWithSnapshot(
   editorMode: EditorMode,
   context: StoreContext,
 ): void {
-  const editor = getCurrentEditor(context);
-  if (editor === undefined || editor.editorMode === editorMode) {
+  const editor = getModeChangeEditor(editorMode, context);
+  if (editor === undefined) {
     return;
   }
   if (!shouldPersistDraftMode(editor.draftDisposition)) {
     patchModeOnly(editor, editorMode, context);
     return;
   }
+  persistEditorMode(editor, editorMode, context);
+}
+
+function getModeChangeEditor(
+  editorMode: EditorMode,
+  context: StoreContext,
+): EditorSession | undefined {
+  const editor = getCurrentEditor(context);
+  return editor === undefined || editor.editorMode === editorMode
+    ? undefined
+    : editor;
+}
+
+function persistEditorMode(
+  editor: EditorSession,
+  editorMode: EditorMode,
+  context: StoreContext,
+): void {
   const snapshot = createModeSnapshot(editorMode, editor, context);
-  const prepared = context.draftCoordinator.prepareSnapshot({
-    isCurrent: () => isCurrentSnapshot(snapshot, context),
-    onSettled: (settlement) => {
-      applySnapshotSettlement(settlement.snapshot, settlement.result, context);
-    },
-    snapshot,
-  });
+  const prepared = prepareSnapshot(snapshot, context);
   if (prepared.status === "rejected") {
     return;
   }
-  let didApply = false;
+  const tracker = applyPreparedModeState({
+    context,
+    editor,
+    editorMode,
+    snapshot,
+  });
+  settlePreparedSnapshot(snapshot.snapshotKey, tracker, context);
+}
+
+function applyPreparedModeState(input: {
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly editorMode: EditorMode;
+  readonly snapshot: DraftMutationSnapshot;
+}): StateApplicationTracker {
+  const tracker = new StateApplicationTracker();
   try {
-    context.set((state) => {
-      if (!stateOwnsEditor(state, editor)) {
+    input.context.set((state) => {
+      if (!stateOwnsEditor(state, input.editor)) {
         return state;
       }
-      didApply = true;
+      tracker.markApplied();
       return readyEditorPatch({
-        ...editor,
-        editorMode,
-        lastSnapshotKey: snapshot.snapshotKey,
-        persistenceIssue: getSnapshotAdmissionIssue(snapshot, editor, context),
-        revision: snapshot.revision,
+        ...input.editor,
+        editorMode: input.editorMode,
+        lastSnapshotKey: input.snapshot.snapshotKey,
+        persistenceIssue: getSnapshotAdmissionIssue(
+          input.snapshot,
+          input.editor,
+          input.context,
+        ),
+        revision: input.snapshot.revision,
       });
     });
   } catch {
-    // Zustand may throw from a subscriber after the updater already applied.
+    tracker.recordSubscriberThrow();
   }
-  if (didApply) {
-    context.draftCoordinator.commitPrepared(snapshot.snapshotKey);
-  } else {
-    context.draftCoordinator.cancelPrepared(snapshot.snapshotKey);
-  }
+  return tracker;
 }
 
 /** Retries the exact immutable snapshot named by the current issue. */
 export async function retryDraftPersistenceAction(
   context: StoreContext,
 ): Promise<void> {
-  const editor = getCurrentEditor(context);
-  const snapshotKey = editor?.persistenceIssue?.snapshotKey;
-  if (editor === undefined || snapshotKey === undefined) {
+  const target = getRetryTarget(context);
+  if (target === undefined) {
     return;
   }
+  bindReadyCluster(target.editor, context);
+  if (target.editor.lastSnapshotKey !== target.snapshotKey) {
+    return;
+  }
+  await retryTargetSnapshot(target, context);
+}
+
+type RetryTarget = {
+  readonly editor: EditorSession;
+  readonly identityBlocked: boolean;
+  readonly snapshotKey: string;
+};
+
+function getRetryTarget(context: StoreContext): RetryTarget | undefined {
+  const editor = getCurrentEditor(context);
+  return editor === undefined ? undefined : getEditorRetryTarget(editor);
+}
+
+function getEditorRetryTarget(editor: EditorSession): RetryTarget | undefined {
+  const issue = editor.persistenceIssue;
+  if (issue === undefined) {
+    return undefined;
+  }
+  if (issue.snapshotKey === undefined) {
+    return undefined;
+  }
+  return {
+    editor,
+    identityBlocked: issue.failure.source === "cluster_identity",
+    snapshotKey: issue.snapshotKey,
+  };
+}
+
+function bindReadyCluster(editor: EditorSession, context: StoreContext): void {
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
   if (clusterId !== undefined) {
     context.draftCoordinator.bindSessionCluster(editor.sessionKey, clusterId);
   }
-  if (editor.lastSnapshotKey === snapshotKey) {
-    if (editor.persistenceIssue?.failure.source === "cluster_identity") {
-      await context.draftCoordinator.flushSnapshot(snapshotKey);
-    } else {
-      await context.draftCoordinator.retrySnapshot(snapshotKey);
-    }
-  }
 }
 
-function applyPreparedPublication(
-  command: PublicationCommand,
-  editor: EditorSession,
-  snapshot: DraftMutationSnapshot,
+async function retryTargetSnapshot(
+  target: RetryTarget,
   context: StoreContext,
-): PublicationResult {
-  let didApply = false;
-  let subscriberThrew = false;
+): Promise<void> {
+  if (target.identityBlocked) {
+    await context.draftCoordinator.flushSnapshot(target.snapshotKey);
+    return;
+  }
+  await context.draftCoordinator.retrySnapshot(target.snapshotKey);
+}
+
+function applyPreparedPublication(input: {
+  readonly command: PublicationCommand;
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly snapshot: DraftMutationSnapshot;
+}): PublicationResult {
+  const tracker = applyPublicationState(input);
+  if (!tracker.didApply()) {
+    input.context.draftCoordinator.cancelPrepared(input.snapshot.snapshotKey);
+    return createRejectedPublication(input.command, {
+      attemptedRevision: input.snapshot.revision,
+      disposition: input.editor.draftDisposition,
+      reason: "state_update_failed",
+    });
+  }
+  input.context.draftCoordinator.commitPrepared(input.snapshot.snapshotKey);
+  input.context.draftCleanupRetries.delete(input.editor.sessionKey);
+  return createAcknowledgedPublication(input, tracker);
+}
+
+function applyPublicationState(input: {
+  readonly command: PublicationCommand;
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly snapshot: DraftMutationSnapshot;
+}): StateApplicationTracker {
+  const tracker = new StateApplicationTracker();
   try {
-    context.set((state) => {
-      if (!stateOwnsEditor(state, editor)) {
+    input.context.set((state) => {
+      if (!stateOwnsEditor(state, input.editor)) {
         return state;
       }
-      didApply = true;
+      tracker.markApplied();
       return readyEditorPatch({
-        ...editor,
-        currentMarkdown: command.markdown,
-        draftDisposition: snapshot.disposition,
-        lastSnapshotKey: snapshot.snapshotKey,
-        persistenceIssue: getSnapshotAdmissionIssue(snapshot, editor, context),
-        revision: snapshot.revision,
-        saveStatus: getNextSaveStatus(editor),
+        ...input.editor,
+        currentMarkdown: input.command.markdown,
+        draftDisposition: input.snapshot.disposition,
+        lastSnapshotKey: input.snapshot.snapshotKey,
+        persistenceIssue: getSnapshotAdmissionIssue(
+          input.snapshot,
+          input.editor,
+          input.context,
+        ),
+        revision: input.snapshot.revision,
+        saveStatus: getNextAcceptedSaveStatus(input.editor),
       });
     });
   } catch {
-    subscriberThrew = didApply;
+    tracker.recordSubscriberThrow();
   }
-  if (!didApply) {
-    context.draftCoordinator.cancelPrepared(snapshot.snapshotKey);
-    return createRejectedPublication(
-      command,
-      snapshot.revision,
-      editor.draftDisposition,
-      "state_update_failed",
-    );
-  }
-  context.draftCoordinator.commitPrepared(snapshot.snapshotKey);
-  context.draftCleanupRetries.delete(editor.sessionKey);
+  return tracker;
+}
+
+function createAcknowledgedPublication(
+  input: {
+    readonly command: PublicationCommand;
+    readonly context: StoreContext;
+    readonly editor: EditorSession;
+    readonly snapshot: DraftMutationSnapshot;
+  },
+  tracker: StateApplicationTracker,
+): PublicationResult {
   return {
-    completion: subscriberThrew ? "subscriber_threw_after_apply" : "normal",
-    disposition: snapshot.disposition,
-    editorMode: snapshot.editorMode,
-    markdown: snapshot.markdown,
-    origin: command.origin,
-    persistenceIssue: getExactEditor(editor.sessionKey, context)
-      ?.persistenceIssue,
-    resolution: command.resolution,
-    revision: snapshot.revision,
-    sessionKey: editor.sessionKey,
-    snapshotKey: snapshot.snapshotKey,
+    completion: tracker.getCompletion(),
+    disposition: input.snapshot.disposition,
+    editorMode: input.snapshot.editorMode,
+    markdown: input.snapshot.markdown,
+    origin: input.command.origin,
+    persistenceIssue: getCurrentPersistenceIssue(input),
+    resolution: input.command.resolution,
+    revision: input.snapshot.revision,
+    sessionKey: input.editor.sessionKey,
+    snapshotKey: input.snapshot.snapshotKey,
     stateEffect: "revision_applied",
     status: "acknowledged",
-    trigger: command.trigger,
+    trigger: input.command.trigger,
   };
+}
+
+function getCurrentPersistenceIssue(input: {
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+}) {
+  const current = getExactEditor(input.editor.sessionKey, input.context);
+  return current === undefined ? undefined : current.persistenceIssue;
+}
+
+function prepareSnapshot(
+  snapshot: DraftMutationSnapshot,
+  context: StoreContext,
+): SnapshotPreparationResult {
+  return context.draftCoordinator.prepareSnapshot({
+    isCurrent: () => isCurrentSnapshot(snapshot, context),
+    onSettled: (settlement) => {
+      applySnapshotSettlement(settlement.snapshot, settlement.result, context);
+    },
+    snapshot,
+  });
+}
+
+function settlePreparedSnapshot(
+  snapshotKey: string,
+  tracker: StateApplicationTracker,
+  context: StoreContext,
+): void {
+  if (tracker.didApply()) {
+    context.draftCoordinator.commitPrepared(snapshotKey);
+    return;
+  }
+  context.draftCoordinator.cancelPrepared(snapshotKey);
 }
 
 function createAuthoritySnapshot(
@@ -247,19 +379,19 @@ function patchModeOnly(
   );
 }
 
-function getNextSaveStatus(editor: EditorSession): EditorSession["saveStatus"] {
-  return editor.saveStatus === "conflict" || editor.saveStatus === "saving"
-    ? editor.saveStatus
-    : "idle";
-}
-
 function isCurrentSnapshot(
   snapshot: DraftMutationSnapshot,
   context: StoreContext,
 ): boolean {
   const editor = getExactEditor(snapshot.sessionKey, context);
+  return editor !== undefined && editorCanOwnSnapshot(editor, snapshot);
+}
+
+function editorCanOwnSnapshot(
+  editor: EditorSession,
+  snapshot: DraftMutationSnapshot,
+): boolean {
   return (
-    editor !== undefined &&
     editor.draftEpoch === snapshot.draftEpoch &&
     editor.revision <= snapshot.revision
   );

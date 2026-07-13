@@ -26,16 +26,21 @@ export function createNoChangePublication(
 /** Creates a typed rejected publication with no store-state effect. */
 export function createRejectedPublication(
   command: PublicationCommand,
-  attemptedRevision: number,
-  disposition: DraftDisposition,
-  reason: Extract<PublicationResult, { status: "rejected" }>["reason"],
+  input: {
+    readonly attemptedRevision: number;
+    readonly disposition: DraftDisposition;
+    readonly reason: Extract<
+      PublicationResult,
+      { status: "rejected" }
+    >["reason"];
+  },
 ): PublicationResult {
   return {
     attemptedMarkdown: command.markdown,
-    attemptedRevision,
-    disposition,
+    attemptedRevision: input.attemptedRevision,
+    disposition: input.disposition,
     origin: command.origin,
-    reason,
+    reason: input.reason,
     sessionKey: command.sessionKey,
     stateEffect: "none",
     status: "rejected",
