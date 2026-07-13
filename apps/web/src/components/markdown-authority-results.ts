@@ -3,7 +3,52 @@ import type {
   CommitResult,
   PublicationResult,
   PublicationTrigger,
+  SynchronizationResult,
 } from "../domain/markdown-authority-types.js";
+
+/** Creates a typed commit no-op without touching editor authority. */
+export function createCommitNoChange(
+  cause: CommitCause,
+  reason: "projection_unchanged" | "source_authority_current",
+  revision: number,
+  sessionKey: string,
+): CommitResult {
+  return { cause, reason, revision, sessionKey, status: "no_change" };
+}
+
+/** Creates a typed commit failure tied to one controller session. */
+export function createCommitFailure(
+  cause: CommitCause,
+  reason: "projection_read_failed" | "stale_session",
+  sessionKey: string,
+): CommitResult {
+  return { cause, reason, sessionKey, status: "failed" };
+}
+
+/** Creates a typed synchronization failure with no product-state effect. */
+export function createSynchronizationFailure(
+  cause: "creation" | "source_to_wysiwyg",
+  reason:
+    | "document_replace_failed"
+    | "editor_not_ready"
+    | "projection_read_failed"
+    | "stale_session",
+  sessionKey: string,
+): SynchronizationResult {
+  return { cause, reason, sessionKey, stateEffect: "none", status: "failed" };
+}
+
+/** Creates a same-mode synchronization no-op. */
+export function createSynchronizationNoChange(
+  sessionKey: string,
+): SynchronizationResult {
+  return {
+    cause: "same_mode",
+    sessionKey,
+    stateEffect: "none",
+    status: "no_change",
+  };
+}
 
 /** Maps one authority publication into the same-session commit contract. */
 export function toCommitResult(

@@ -14,6 +14,10 @@ import type {
   MarkdownAuthorityState,
 } from "./markdown-authority-controller-types.js";
 import {
+  createCommitFailure,
+  createCommitNoChange,
+  createSynchronizationFailure,
+  createSynchronizationNoChange,
   toCommitResult,
   toPublicationTrigger,
 } from "./markdown-authority-results.js";
@@ -80,14 +84,22 @@ export class MarkdownAuthorityController {
   /** Completes Crepe creation without publishing its serialized projection. */
   markReady(): SynchronizationResult {
     if (this.#state.lifecycle !== "creating") {
-      return this.#synchronizationFailure("creation", "stale_session");
+      return createSynchronizationFailure(
+        "creation",
+        "stale_session",
+        this.sessionKey,
+      );
     }
     let projection: string;
     try {
       projection = this.#input.readProjection();
     } catch {
       this.markFailed("The Milkdown editor projection could not be read.");
-      return this.#synchronizationFailure("creation", "projection_read_failed");
+      return createSynchronizationFailure(
+        "creation",
+        "projection_read_failed",
+        this.sessionKey,
+      );
     }
     if (
       this.#state.mode === "wysiwyg" &&
@@ -171,26 +183,40 @@ export class MarkdownAuthorityController {
   /** Commits a live rich projection before a same-session or route action. */
   commit(cause: CommitCause): CommitResult {
     if (this.#state.lifecycle === "destroyed") {
-      return this.#commitFailure(cause, "stale_session");
+      return createCommitFailure(cause, "stale_session", this.sessionKey);
     }
     if (this.#state.mode === "markdown" || this.#state.lifecycle !== "ready") {
-      return this.#commitNoChange(cause, "source_authority_current");
+      return createCommitNoChange(
+        cause,
+        "source_authority_current",
+        this.#revision,
+        this.sessionKey,
+      );
     }
     let projection: string;
     try {
       projection = this.#input.readProjection();
     } catch {
-      return this.#commitFailure(cause, "projection_read_failed");
+      return createCommitFailure(
+        cause,
+        "projection_read_failed",
+        this.sessionKey,
+      );
     }
     if (
       projection === this.#acknowledgedProjection &&
       this.#retry === undefined
     ) {
-      return this.#commitNoChange(cause, "projection_unchanged");
+      return createCommitNoChange(
+        cause,
+        "projection_unchanged",
+        this.#revision,
+        this.sessionKey,
+      );
     }
     const change = this.publishWysiwyg(projection, toPublicationTrigger(cause));
     if (change.status === "ignored") {
-      return this.#commitFailure(cause, "stale_session");
+      return createCommitFailure(cause, "stale_session", this.sessionKey);
     }
     return toCommitResult(cause, this.sessionKey, change.publication);
   }
@@ -198,7 +224,12 @@ export class MarkdownAuthorityController {
   /** Commits WYSIWYG and activates exact source only when that commit succeeds. */
   showSource(): CommitResult {
     if (this.#state.mode === "markdown") {
-      return this.#commitNoChange("mode_switch", "source_authority_current");
+      return createCommitNoChange(
+        "mode_switch",
+        "source_authority_current",
+        this.#revision,
+        this.sessionKey,
+      );
     }
     const commit = this.commit("mode_switch");
     if (commit.status === "failed") {
@@ -215,12 +246,13 @@ export class MarkdownAuthorityController {
   /** Synchronizes exact source into ready Crepe before revealing WYSIWYG. */
   showWysiwyg(): SynchronizationResult {
     if (this.#state.mode === "wysiwyg") {
-      return this.#synchronizationNoChange("same_mode");
+      return createSynchronizationNoChange(this.sessionKey);
     }
     if (this.#state.lifecycle !== "ready") {
-      return this.#synchronizationFailure(
+      return createSynchronizationFailure(
         "source_to_wysiwyg",
         "editor_not_ready",
+        this.sessionKey,
       );
     }
     this.#isSynchronizing = true;
@@ -246,9 +278,10 @@ export class MarkdownAuthorityController {
       this.#patch({
         editorError: "The rich editor could not apply the Markdown source.",
       });
-      return this.#synchronizationFailure(
+      return createSynchronizationFailure(
         "source_to_wysiwyg",
         "document_replace_failed",
+        this.sessionKey,
       );
     } finally {
       this.#isSynchronizing = false;
@@ -360,52 +393,6 @@ export class MarkdownAuthorityController {
       stateEffect: "none",
       status: "no_change",
       trigger,
-    };
-  }
-
-  #commitNoChange(
-    cause: CommitCause,
-    reason: "projection_unchanged" | "source_authority_current",
-  ): CommitResult {
-    return {
-      cause,
-      reason,
-      revision: this.#revision,
-      sessionKey: this.sessionKey,
-      status: "no_change",
-    };
-  }
-
-  #commitFailure(
-    cause: CommitCause,
-    reason: "projection_read_failed" | "stale_session",
-  ): CommitResult {
-    return { cause, reason, sessionKey: this.sessionKey, status: "failed" };
-  }
-
-  #synchronizationFailure(
-    cause: "creation" | "source_to_wysiwyg",
-    reason:
-      | "document_replace_failed"
-      | "editor_not_ready"
-      | "projection_read_failed"
-      | "stale_session",
-  ): SynchronizationResult {
-    return {
-      cause,
-      reason,
-      sessionKey: this.sessionKey,
-      stateEffect: "none",
-      status: "failed",
-    };
-  }
-
-  #synchronizationNoChange(cause: "same_mode"): SynchronizationResult {
-    return {
-      cause,
-      sessionKey: this.sessionKey,
-      stateEffect: "none",
-      status: "no_change",
     };
   }
 
