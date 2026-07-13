@@ -195,8 +195,9 @@ export class DraftPersistenceCoordinator {
   async readDraft(clusterId: string, noteId: string): Promise<DraftReadResult> {
     const key = getDraftQueueKey(clusterId, noteId);
     this.#startScheduled(key);
-    return await this.#keyedTasks.run(key, async () =>
-      await this.#persistence.readDraft(clusterId, noteId),
+    return await this.#keyedTasks.run(
+      key,
+      async () => await this.#persistence.readDraft(clusterId, noteId),
     );
   }
 
@@ -206,8 +207,10 @@ export class DraftPersistenceCoordinator {
   ): Promise<DraftRecordMutationResult> {
     const key = getDraftQueueKey(snapshot.clusterId, snapshot.noteId);
     this.#startScheduled(key);
-    return await this.#keyedTasks.run(key, async () =>
-      await this.#persistence.deleteDraftIfSavedSnapshotMatches(snapshot),
+    return await this.#keyedTasks.run(
+      key,
+      async () =>
+        await this.#persistence.deleteDraftIfSavedSnapshotMatches(snapshot),
     );
   }
 
@@ -226,8 +229,10 @@ export class DraftPersistenceCoordinator {
         slot.snapshot.draftEpoch === input.draftEpoch,
     );
     const key = getDraftQueueKey(input.clusterId, input.noteId);
-    return await this.#keyedTasks.run(key, async () =>
-      await this.#persistence.deleteDraft(input.clusterId, input.noteId),
+    return await this.#keyedTasks.run(
+      key,
+      async () =>
+        await this.#persistence.deleteDraft(input.clusterId, input.noteId),
     );
   }
 
@@ -313,7 +318,11 @@ export class DraftPersistenceCoordinator {
     }
     slot.receipt.settled = true;
     slot.receipt.resolve(result);
-    slot.onSettled({ result, snapshot: slot.snapshot });
+    try {
+      slot.onSettled({ result, snapshot: slot.snapshot });
+    } catch {
+      // Product state already owns the operation result when a subscriber throws.
+    }
     this.#receipts.delete(slot.snapshot.snapshotKey);
     if (result.status === "unavailable") {
       this.#failed.set(slot.snapshot.snapshotKey, slot);

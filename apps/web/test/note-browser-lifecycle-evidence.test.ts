@@ -22,6 +22,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   createSeededStore,
+  createTestDraft,
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
@@ -188,7 +189,12 @@ describe("truthful note route-source evidence", () => {
 
   it("marks deliberate draft discard as a fresh reload source", async () => {
     const fake = installFakeRuntime();
-    const store = createLoadedStore({ api: createApi() });
+    const drafts = createMemoryDraftPersistence([createTestDraft()]);
+    const store = createLoadedStore({
+      api: createApi(),
+      draftPersistence: drafts.persistence,
+      recovery: "draft",
+    });
 
     await store.getState().discardDraftAndReloadDiskVersion();
 

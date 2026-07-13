@@ -28,7 +28,9 @@ describe("baseline route draft gate ownership", () => {
     store.getState().updateDraftMarkdown("# First edit");
 
     const first = gate.prepare(createInput("lease-one"));
-    expect(writeDraft).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(writeDraft).toHaveBeenCalledOnce();
+    });
     store.getState().updateDraftMarkdown("# Later edit");
     const second = gate.prepare(createInput("lease-two"));
     expect(writeDraft).toHaveBeenCalledOnce();
@@ -54,9 +56,10 @@ describe("baseline route draft gate degradation", () => {
     await expect(
       createBaselineRouteDraftGate(store).prepare(createInput("lease")),
     ).resolves.toEqual({ status: "continue" });
-    expect(store.getState().draftRecoveryStatus).toMatchObject({
-      reason: "quota_exceeded",
-      status: "degraded",
+    expect(getEditor(store).persistenceIssue).toMatchObject({
+      failure: { reason: "quota_exceeded", source: "persistence" },
+      operation: "content_write",
+      retryAction: "retry_draft_persistence",
     });
   });
 
@@ -67,7 +70,10 @@ describe("baseline route draft gate degradation", () => {
       .mockResolvedValueOnce({ status: "written" });
     const store = createGateStore(writeDraft);
     const unsubscribe = store.subscribe((state) => {
-      if (state.draftRecoveryStatus.status === "degraded") {
+      if (
+        state.noteState.status === "ready" &&
+        state.noteState.editor.persistenceIssue !== undefined
+      ) {
         throw new Error("Injected subscriber throw.");
       }
     });
@@ -77,9 +83,8 @@ describe("baseline route draft gate degradation", () => {
     await expect(gate.prepare(createInput("lease-one"))).resolves.toEqual({
       status: "continue",
     });
-    expect(store.getState().draftRecoveryStatus).toMatchObject({
-      reason: "write_failed",
-      status: "degraded",
+    expect(getEditor(store).persistenceIssue).toMatchObject({
+      failure: { reason: "write_failed", source: "persistence" },
     });
     unsubscribe();
     store.getState().updateDraftMarkdown("# Retry attempt");
@@ -101,4 +106,12 @@ function createGateStore(
 
 function createInput(leaseKey: string) {
   return { cause: "note_list" as const, leaseKey, outgoingOwnerKey: "owner" };
+}
+
+function getEditor(store: ReturnType<typeof createGateStore>) {
+  const noteState = store.getState().noteState;
+  if (noteState.status !== "ready") {
+    throw new Error("Expected a ready editor.");
+  }
+  return noteState.editor;
 }

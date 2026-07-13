@@ -328,10 +328,18 @@ describe("note browser store draft write degradation", () => {
     store.getState().updateDraftMarkdown("# Home\nNo durable write");
     await store.getState().flushPendingDraft();
 
-    expect(store.getState().draftRecoveryStatus).toEqual({
-      message: "Draft recovery is degraded. Manual save still works.",
-      reason: "write_failed",
-      status: "degraded",
+    expect(getReadyEditor(store).persistenceIssue).toMatchObject({
+      failure: { reason: "write_failed", source: "persistence" },
+      operation: "content_write",
+      retryAction: "retry_draft_persistence",
     });
   });
 });
+
+function getReadyEditor(store: ReturnType<typeof createLoadedStore>) {
+  const noteState = store.getState().noteState;
+  if (noteState.status !== "ready") {
+    throw new Error("Expected a ready editor.");
+  }
+  return noteState.editor;
+}

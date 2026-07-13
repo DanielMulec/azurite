@@ -9,6 +9,7 @@ import {
   createLoadedStore,
   createMemoryDraftPersistence,
   createNote,
+  createTestDraft,
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
@@ -74,15 +75,36 @@ describe("overlapping note-list ownership", () => {
 
 describe("explicit note reload ownership", () => {
   it("creates fresh operation and request IDs for explicit reloads", async () => {
+    const drafts = createMemoryDraftPersistence([createTestDraft()]);
     const readNote = vi.fn<NoteBrowserApi["readNote"]>(() =>
       Promise.resolve({
         clusterIdentity: readyClusterIdentity,
         note: createNote("index.md", "# Home", "sha256-home"),
       }),
     );
-    const store = createLoadedStore({ api: createApi({ readNote }) });
+    const store = createLoadedStore({
+      api: createApi({ readNote }),
+      draftPersistence: drafts.persistence,
+      recovery: "draft",
+    });
 
     await store.getState().discardDraftAndReloadDiskVersion();
+    await drafts.persistence.writeDraft(createTestDraft());
+    const noteState = store.getState().noteState;
+    if (noteState.status !== "ready") {
+      throw new Error("Expected the reloaded editor.");
+    }
+    store.setState({
+      noteState: {
+        editor: {
+          ...noteState.editor,
+          draftDisposition: "recovered",
+          durableSnapshotKey: "recovered-record-2",
+          lastSnapshotKey: "recovered-record-2",
+        },
+        status: "ready",
+      },
+    });
     await store.getState().discardDraftAndReloadDiskVersion();
 
     expect(readNote).toHaveBeenCalledTimes(2);

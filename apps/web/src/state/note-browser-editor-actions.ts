@@ -78,7 +78,11 @@ export async function discardDraftAndReloadDiskVersionAction(
   const editor = noteState.editor;
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
   if (clusterId === undefined) {
-    restoreFailedEditorDiscard(editor, clusterIdentityFailure(context), context);
+    restoreFailedEditorDiscard(
+      editor,
+      clusterIdentityFailure(context),
+      context,
+    );
     return;
   }
   const result = await context.draftCoordinator.discard({
@@ -129,9 +133,34 @@ async function saveEditor(
       contentHash: response.note.contentHash,
     });
   } catch (error) {
-    await flushEditorDurability("explicit_flush", context);
+    await flushLatestFailedSaveDraft(editor.sessionKey, context);
     applySaveFailure({ context, editor, error });
     recordSaveResult(evidence, { error });
+  }
+}
+
+async function flushLatestFailedSaveDraft(
+  sessionKey: string,
+  context: StoreContext,
+): Promise<void> {
+  while (true) {
+    const noteState = context.get().noteState;
+    if (
+      noteState.status !== "ready" ||
+      noteState.editor.sessionKey !== sessionKey
+    ) {
+      return;
+    }
+    const revision = noteState.editor.revision;
+    await flushEditorDurability("explicit_flush", context);
+    const current = context.get().noteState;
+    if (
+      current.status !== "ready" ||
+      current.editor.sessionKey !== sessionKey ||
+      current.editor.revision === revision
+    ) {
+      return;
+    }
   }
 }
 
@@ -144,7 +173,11 @@ async function discardMissingNoteDraftState(
 ): Promise<void> {
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
   if (clusterId === undefined) {
-    restoreFailedMissingDiscard(noteState, clusterIdentityFailure(context), context);
+    restoreFailedMissingDiscard(
+      noteState,
+      clusterIdentityFailure(context),
+      context,
+    );
     return;
   }
   const result = await context.draftCoordinator.discard({
