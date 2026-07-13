@@ -1392,7 +1392,8 @@ Start without enabled Sentry configuration and prove:
 - Desktop and synthetic Pixel 6 Sentry QA produce the exact join evidence
   defined above.
 - The mobile Markdown newline and recovered-draft findings remain explicitly
-  unfixed and handed to 7E.
+  unfixed: Slice 7E must diagnose them, and required Slice 7F must perform the
+  resulting editor-correctness repair.
 - `packages/core` remains Sentry-free and no code file exceeds 400 lines.
 - `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and
   `git diff --check` pass.
@@ -1442,7 +1443,7 @@ Slice 7E may rely on these completed 7B truths:
   `cluster.metadata.failed` event;
 - 7E must test whether the fresh-cluster recovered-draft finding depends on
   cluster identity being created, reused, or copied. If that distinction is
-  required to explain the behavior, revise 7E or its immediate fix to introduce
+  required to explain the behavior, revise 7E or required Slice 7F to introduce
   the domain-level resolution result described in
   `docs/technical-architecture.md`; otherwise defer it to the future Cluster
   Opening And Lifecycle Foundation;
@@ -1450,8 +1451,8 @@ Slice 7E may rely on these completed 7B truths:
   instrumentation, high-frequency editor-telemetry coalescing, and
   Replay-usefulness behavior remain intentionally unimplemented;
 - the mobile Markdown newline reversion and recovered-draft observation remain
-  active diagnostic targets, followed immediately by the required
-  editor-correctness slice.
+  active Slice 7E diagnostic targets, followed immediately by required Slice 7F
+  editor-correctness repair.
 
 ## Completion Evidence
 

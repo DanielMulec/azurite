@@ -18,3 +18,7 @@ Current order after active Slice 7C:
    refresh against the completed Slice 7D implementation.
 3. Required Slice 7F editor correctness immediately after 7E; no unrelated
    capability may intervene.
+
+Slice 7F intentionally has no speculative plan file yet. Slice 7E must write it
+from completed diagnostic evidence; until then, Slice 7E's immediate handoff and
+`docs/qa/mobile-markdown-newline-reversion.md` define the committed outcome.

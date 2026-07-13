@@ -123,9 +123,10 @@ filesystem evidence.
 Sentry debug observability is a development capability, not the public telemetry
 or privacy policy for a future distributed Azurite product.
 
-After the semantic observability foundation and its mandatory editor-correctness
-follow-up are complete, Azurite may add a measured lightweight Sentry mode for
-Daniel's daily use and may keep that mode permanently enabled. A daily profile
+After the Slice 7E semantic observability foundation and its mandatory Slice 7F
+editor-correctness follow-up are complete, Azurite may add a measured
+lightweight Sentry mode for Daniel's daily use and may keep that mode
+permanently enabled. A daily profile
 must remain distinct from exhaustive full debug: it should retain useful errors,
 breadcrumbs, sampled traces, and error-triggered or modest Replay while keeping
 high-frequency editor telemetry and rich product payloads behind explicit full

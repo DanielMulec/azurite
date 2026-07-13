@@ -37,6 +37,9 @@ truth.
    using the 7A runtime, 7B correlation, 7C route owner, 7D Markdown-authority
    contract, and 7E semantic evidence to fix the mobile Markdown source-mode
    newline reversion. No unrelated feature slice may intervene.
+   Its plan file is intentionally deferred until Slice 7E evidence identifies
+   the durable cause; the Slice 7E immediate-handoff section and
+   `docs/qa/mobile-markdown-newline-reversion.md` are authoritative meanwhile.
 7. Candidate after Slice 7F: a measured editor-loading and bundle-performance
    slice using the deferred boundary in
    `docs/technical-architecture.md`. Milkdown with Crepe remains the selected

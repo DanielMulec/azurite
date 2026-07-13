@@ -20,8 +20,10 @@ They were superseded as close-out gates by this amendment and were later
 satisfied through the follow-up evidence.
 
 Slice 7A implements only the runtime delivery foundation. Slice 7B adds request
-correlation and note route evidence on top of this runtime. Slice 7E then adds
-semantic editor and persistence diagnostics.
+correlation and note route evidence on top of this runtime. Slice 7C establishes
+URL selection and history coherence, Slice 7D establishes Markdown fidelity and
+honest dirty state, Slice 7E adds semantic editor and persistence diagnostics,
+and the required Slice 7F uses that evidence to repair editor correctness.
 
 ## Product Decision
 
@@ -1022,11 +1024,11 @@ commit `f347a85` plus the final review corrections recorded in this close-out:
   source-mode newline reversion and an unexplained recovered-draft state. Those
   editor findings do not weaken the 7A runtime proof and are recorded in
   `docs/qa/mobile-markdown-newline-reversion.md` for the 7E diagnostic handoff
-  and a later editor-correctness slice.
+  and required Slice 7F editor-correctness repair.
 
-Slice 7B remains planned and unpromoted. Its phone-QA prerequisite is complete;
-7B must now be refreshed against the implemented helper/runtime contracts and
-the recorded mobile editor findings before promotion.
+Slice 7B subsequently completed and was archived on 2026-07-12. Its historical
+phone-QA prerequisite and refresh gate were satisfied before implementation;
+the recorded mobile editor findings remain ordered through Slices 7D–7F.
 
 ## Handoff To Slice 7B
 

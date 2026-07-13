@@ -398,26 +398,27 @@ The following table is a **provisional semantic coverage map**, not an approved
 implementation vocabulary. The mandatory post-7D refresh must replace names and
 attributes with the actual exported contracts before promotion.
 
-| Provisional event family | Identity available at that lifecycle | Required semantic distinction |
-| --- | --- | --- |
-| `editor.milkdown.lifecycle.*` | note ID, editor session ID, instance generation | creating, ready, failed, destroyed, destroy reason |
-| `editor.milkdown.focus_or_selection.*` | note ID, editor session ID | focus/selection summary without changing authority |
-| `editor.milkdown.transaction.observed` | note ID, editor session ID | raw transaction observation only |
-| `editor.projection.observed` | note ID, editor session ID, projection hash/length | raw serialized projection; never synonymous with accepted edit |
-| `editor.authority.publication.*` | note ID, editor session ID, origin, trigger, revision when admitted | acknowledged, no-change, rejected; state ownership and immutable snapshot admission are separate evidence fields |
-| `editor.synchronization.*` | note ID, editor session ID, synchronization cause | synchronized, no-change, failed; never dirty by itself |
-| `editor.commit.*` | note ID, editor session ID, commit cause | acknowledged, no-change, failed projection/publication |
-| `editor.mode.changed` | note ID, editor session ID | previous/next mode plus synchronization result |
-| `editor.gate.*` | outgoing note/session ID and gate cause; route intent only from Slice 7C context | continue/cancel and later Slice 7C terminal outcome without making the editor gate route owner |
-| `editor.crepe.block_menu.*` | note ID, editor session ID | opened/closed and available menu context |
-| `draft.read.*` | cluster ID, note ID, draft operation ID, route/selection operation when available; **no required editor session ID** | consistent-read start/result, presence, validation, failure reason, later-created session correlation |
-| `draft.snapshot.admission.*` | cluster ID, note ID, editor session ID, revision | admitted, coalesced/superseded, failed |
-| `draft.write.*` | cluster ID, note ID, editor session ID, revision | started, durable, superseded, failed |
-| `draft.cleanup.*` | cluster ID, note ID, editor session ID, saved/generated revision | generated-clean or saved-snapshot cleanup; succeeded, superseded, failed/cleanup-required |
-| `draft.cleanup_retry.*` | cluster ID, note ID, editor session ID, disposition | completed, superseded, failed without filesystem Save |
-| `draft.discard.*` | cluster ID, note ID, editor session ID when one exists, recovery kind | terminal barrier admitted, delete completed, superseded, failed/no reload |
-| `draft.disposition.changed` | cluster ID, note ID, editor session ID | exact previous/next disposition and cause |
-| `recovery.visible` | note ID, cluster ID, editor session ID after creation | recovered, conflict, cleanup-required, or persistence-unavailable UI truth |
+| Provisional event family               | Identity available at that lifecycle                                                                                 | Required semantic distinction                                                                                                            |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `editor.milkdown.lifecycle.*`          | note ID, editor session ID, instance generation                                                                      | creating, ready, failed, destroyed, destroy reason                                                                                       |
+| `editor.milkdown.focus_or_selection.*` | note ID, editor session ID                                                                                           | focus/selection summary without changing authority                                                                                       |
+| `editor.milkdown.transaction.observed` | note ID, editor session ID                                                                                           | raw transaction observation only                                                                                                         |
+| `editor.projection.observed`           | note ID, editor session ID, projection hash/length                                                                   | raw serialized projection; never synonymous with accepted edit                                                                           |
+| `editor.authority.publication.*`       | note ID, editor session ID, origin, trigger, revision when admitted                                                  | acknowledged, no-change, rejected; state ownership and immutable snapshot admission are separate evidence fields                         |
+| `editor.synchronization.*`             | note ID, editor session ID, synchronization cause                                                                    | synchronized, no-change, failed; never dirty by itself                                                                                   |
+| `editor.commit.*`                      | note ID, editor session ID, commit cause                                                                             | acknowledged, no-change, failed projection/publication                                                                                   |
+| `editor.mode.changed`                  | note ID, editor session ID                                                                                           | previous/next mode plus synchronization result                                                                                           |
+| `editor.gate.*`                        | gate lease, outgoing note/session ID and gate cause; route intent only on Slice 7C's separate route event            | continue/cancel, per-lease settlement status/surface effect, and shared-operation correlation without making the editor gate route owner |
+| `editor.crepe.block_menu.*`            | note ID, editor session ID                                                                                           | opened/closed and available menu context                                                                                                 |
+| `draft.read.*`                         | cluster ID, note ID, draft operation ID, route/selection operation when available; **no required editor session ID** | consistent-read start/result, presence, validation, failure reason, later-created session correlation                                    |
+| `draft.snapshot.admission.*`           | note ID, editor session ID, draft epoch, revision; cluster ID only when preparation reached a ready identity         | prepared/committed/cancelled or rejected before state mutation; subscriber-after-apply evidence                                          |
+| `draft.write.*`                        | cluster ID, note ID, editor session ID, revision                                                                     | started, durable, superseded, failed                                                                                                     |
+| `draft.durability.*`                   | cluster ID when available, note ID, editor session ID, revision, snapshot key, disposition                           | clean, durable, unavailable with exact Slice 7D reason                                                                                   |
+| `draft.cleanup.*`                      | cluster ID, note ID, editor session ID, saved/generated revision                                                     | generated-clean or saved-snapshot cleanup; succeeded, superseded, failed/cleanup-required                                                |
+| `draft.cleanup_retry.*`                | cluster ID, note ID, editor session ID, disposition                                                                  | completed, superseded, failed without filesystem Save                                                                                    |
+| `draft.discard.*`                      | cluster ID, note ID, editor session ID when one exists, recovery kind                                                | terminal barrier admitted, delete completed, superseded, failed/no reload                                                                |
+| `draft.disposition.changed`            | cluster ID, note ID, editor session ID                                                                               | exact previous/next disposition and cause                                                                                                |
+| `recovery.visible`                     | note ID, cluster ID when available, editor session ID after creation                                                 | recovered, conflict, cleanup-required, or persistence-unavailable UI truth                                                               |
 
 Slice 7E may enrich Slice 7B note load/save/conflict events with payload context
 where the volume contract allows it. It must not rename the Slice 7B events or
@@ -638,12 +639,18 @@ to `packages/core` in this slice.
 Several implementation targets are already near the 400-line hard limit. Slice
 7E must split files before adding semantic instrumentation where needed.
 
-Known pressure points:
+Pre-7C/7D planning-time pressure points, all of which must be recounted during
+the hard promotion refresh:
 
-- `apps/server/src/notes-route.ts`
-- `apps/web/src/state/note-browser-route-actions.ts`
-- `apps/web/src/state/note-browser-editor-actions.ts`
-- `apps/web/src/components/MilkdownEditor.tsx`
+- `apps/server/src/notes-route.ts`: 379 lines;
+- `apps/web/src/components/MilkdownEditor.tsx`: 382;
+- `apps/web/src/state/note-browser-route-actions.ts`: 314;
+- `apps/web/src/state/note-browser-editor-actions.ts`: 314;
+- `apps/web/src/state/note-browser-action-utils.ts`: 310;
+- `apps/web/src/observability/web-runtime-observability.ts`: 299;
+- `apps/web/src/state/note-browser-store.ts`: 271;
+- `apps/web/src/persistence/draft-database.ts`: 243; and
+- `apps/web/src/components/NoteEditorSurface.tsx`: 223.
 
 The implementation should extract focused helpers for editor instrumentation,
 draft instrumentation, state snapshots, payload bounds, coalescing, and backend
@@ -869,8 +876,12 @@ close to the 400-line hard limit.
 Implementation requirements:
 
 - Keep every code file at 400 lines or fewer.
+- Recount the post-Slice-7D tree and replace the planning-time list above in the
+  promotion diff. Allocate a named extraction for every touched file whose
+  projected change would approach the limit.
 - Extract frontend store/editor observability helpers before expanding route
-  actions, editor actions, or `MilkdownEditor.tsx`.
+  actions, editor actions, action utilities, store, draft database,
+  `NoteEditorSurface`, `web-runtime-observability`, or `MilkdownEditor`.
 - Extract backend payload enrichment helpers before expanding route handlers.
 - Preserve existing tests while adding focused tests for extracted helpers.
 
@@ -880,6 +891,28 @@ Run automated validation and then verify through Sentry UI.
 
 Required QA:
 
+- Run the full desktop/Pixel 6, Vite-development/optimized-production,
+  Sentry-disabled/full-debug eight-cell matrix through the shared Playwright
+  runbook. Enabled cells require authenticated Sentry inspection; disabled cells
+  require zero Sentry transport and identical product outcomes.
+- Apply the semantic-event and Replay inspection bullets below to enabled cells.
+  In disabled cells, repeat the same product workflows and assert zero Sentry
+  transport instead of expecting telemetry.
+- In every cell run the same scripted large-note input workload after readiness:
+  at least three two-minute trials, identical edit count/content, and the same
+  CPU/device profile. Record input-to-next-paint p50/p95, long tasks, heap delta,
+  Sentry request bytes/count, raw-projection event count, and uncoalesced product
+  result count.
+- Full debug passes responsiveness when the median of its three trial p95
+  input-to-next-paint values is no more than 20 ms higher and no more than 25%
+  above the matching disabled median, stays below 100 ms on desktop and 150 ms
+  on synthetic Pixel 6, adds no telemetry-attributable long task above 100 ms,
+  and preserves every accepted product result. If browser
+  timing support cannot measure the named metric reliably, pause and refresh the
+  metric/threshold before promotion rather than replacing it with “felt fine.”
+- Prove raw projection evidence respects the one-per-session-per-second contract
+  while accepted publication, commit, synchronization, cleanup, Discard, gate,
+  save, conflict, and failure results are not lost to coalescing.
 - Load the note from the Milkdown block-menu bug report.
 - Load a disposable note from the mobile Markdown newline QA report.
 - Confirm Sentry captures the browser session, console warnings/logs, API
@@ -911,11 +944,14 @@ Required QA:
   responsive, high-frequency raw projection observations are
   coalesced/rate-limited, accepted results remain intact, and Sentry remains
   inspectable.
-- Open the same MagicDNS URL on mobile.
-- Confirm mobile replay includes unmasked note/editor context when Sentry debug
-  mode is explicitly enabled.
+- Open the same configured origin in the synthetic Pixel 6 browser context and
+  confirm its enabled Replay is distinct and includes unmasked note/editor
+  context. A physical Android or Tailscale run remains optional supplemental
+  evidence Daniel may request.
 
 ## Negative Side-Effect Guardrails
+
+Baseline: `docs/reference/product-guardrails.md`.
 
 Slice 7E must preserve existing product behavior while adding semantic
 diagnostics.
@@ -999,9 +1035,10 @@ QA flows that must still pass:
 - Slice 7B correlation tests
 - Sentry-disabled app startup and note workflow
 - Sentry-enabled app startup and note workflow
-- desktop browser smoke test
-- mobile/Tailscale smoke test
+- full desktop/Pixel 6 development/production enabled/disabled browser matrix
 - `/opt/homebrew/bin/pnpm validate`
+- `/opt/homebrew/bin/pnpm build`
+- `git diff --check`
 
 ## Verification Plan
 
@@ -1009,6 +1046,8 @@ Run the full repository validation:
 
 ```sh
 /opt/homebrew/bin/pnpm validate
+/opt/homebrew/bin/pnpm build
+git diff --check
 ```
 
 Run targeted automated tests for:
@@ -1045,10 +1084,16 @@ Run targeted automated tests for:
 - Slice 7A runtime tests
 - Slice 7B correlation tests
 
-Run manual/browser QA:
+Run the Step 13 eight-cell manual/browser QA and responsiveness protocol; the
+following semantic checks apply within that matrix:
 
-- Start Azurite with Slice 7A Sentry env vars enabled.
-- Open the Tailscale MagicDNS URL on desktop Chrome.
+- Start Azurite with Slice 7A Sentry env vars enabled or explicitly disabled for
+  the current matrix cell.
+- Open the configured desktop or synthetic Pixel 6 origin in Vite development
+  and optimized production as required by the cell.
+- In enabled cells, perform the Sentry event, payload, and Replay assertions
+  below. In disabled cells, repeat the product workflows while asserting zero
+  Sentry transport and identical product outcomes.
 - Load the note from the Milkdown block-menu bug report.
 - Load a disposable note from the mobile Markdown newline QA report.
 - Confirm Sentry captures browser replay, API path, request ID, note operation
@@ -1059,11 +1104,12 @@ Run manual/browser QA:
 - Reproduce or attempt to reproduce the Milkdown `+` block-menu behavior.
 - Reproduce or attempt to reproduce Android Enter being reverted in Markdown
   source mode and inspect the source-input, editor lifecycle, Zustand, and Dexie
-  evidence around the reversion.
+  evidence around the reversion. Synthetic Pixel 6 emulation is the completion
+  gate but does not claim to reproduce a physical Android IME.
 - Reproduce or rule out recovered-draft state for a fresh cluster identity
   before a deliberate edit.
-- Confirm editor semantic breadcrumbs/logs are useful enough to guide the
-  follow-up fix slice.
+- Confirm editor semantic breadcrumbs/logs are useful enough to guide required
+  Slice 7F.
 - Confirm ordered draft read/admission/write/cleanup/Discard and disposition
   evidence appears in Sentry.
 - Save a disposable note and confirm save evidence includes editor session ID,
@@ -1079,12 +1125,11 @@ Run manual/browser QA:
   responsive, high-frequency raw projection observations are
   coalesced/rate-limited, accepted results remain intact, and Sentry remains
   inspectable.
-- Open the same MagicDNS URL on mobile.
-- Confirm mobile appears as a distinct Sentry web session.
-- Confirm mobile replay includes unmasked note/editor context when Sentry debug
-  mode is explicitly enabled.
-- Confirm the backend remains local-only while the frontend proxies API requests
-  for Tailscale/phone QA.
+- Confirm the synthetic Pixel 6 context appears as a distinct enabled Sentry web
+  session and its Replay includes unmasked note/editor context.
+- Confirm the backend remains local-only while the frontend proxies API
+  requests. A physical Android or Tailscale run remains optional supplemental
+  evidence Daniel may request.
 
 ## Acceptance Criteria
 
@@ -1115,28 +1160,33 @@ Run manual/browser QA:
   whole-payload path, and truncated-payload path.
 - Bounded full-payload capture, rate-limited editor updates, and cleared
   coalescing buffers keep normal editing responsive and Sentry inspectable.
-- Completion evidence records the disabled-versus-full-debug responsiveness and
-  event-volume baseline needed to evaluate a future lightweight daily mode.
+- Completion evidence satisfies the Step 13 A/B thresholds and records raw
+  measurements plus the disabled-versus-full-debug event-volume baseline needed
+  to evaluate a future lightweight daily mode.
 - Backend observability enriches route-level evidence from core outcomes/errors,
   and `packages/core` remains Sentry-free with no new observer contract.
 - Sentry-disabled Azurite preserves the completed Slice 7A through Slice 7D
   behavior exactly.
+- The eight-cell desktop/Pixel 6, development/optimized-production,
+  disabled/full-debug matrix passes with authenticated enabled evidence and zero
+  disabled transport.
 - All negative side-effect guardrails remain true.
-- `/opt/homebrew/bin/pnpm validate` passes.
+- `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and
+  `git diff --check` pass.
 - The repository is clean and pushed on `main`.
 
 ## Immediate Handoff To Slice 7F Editor Correctness
 
-Slice 7F, the first product slice after 7E, must fix the mobile Markdown source-mode
-newline reversion recorded in
+Slice 7F, the first product slice after 7E, must fix the mobile Markdown
+source-mode newline reversion recorded in
 `docs/qa/mobile-markdown-newline-reversion.md`. No unrelated feature slice
 should intervene.
 
 Slice 7F must:
 
-- use the Slice 7A runtime, Slice 7B request/note-operation correlation, and
-  Slice 7D Markdown-authority contract together with Slice 7E editor, Zustand,
-  Dexie, payload, and Replay evidence;
+- use the Slice 7A runtime, Slice 7B request/note-operation correlation, Slice
+  7C route owner/gate/outcomes, and Slice 7D Markdown-authority contract together
+  with Slice 7E editor, Zustand, Dexie, payload, and Replay evidence;
 - convert the observed state-transition evidence into a durable ownership and
   lifecycle correction rather than a mobile-keyboard special case;
 - satisfy the acceptance boundary and negative side-effect guardrails in the QA
@@ -1159,8 +1209,8 @@ loading architectures after the required correctness fix.
 
 If the evidence shows that created, reused, or copied cluster identity
 participates in the recovered-draft failure, the responsible 7E revision or
-immediate fix must establish and test the separate resolution contract before
-claiming the behavior is understood. If it does not participate, cluster
+immediate Slice 7F fix must establish and test the separate resolution contract
+before claiming the behavior is understood. If it does not participate, cluster
 lifecycle provenance remains deferred to its dedicated foundation.
 
 ## Completion Note

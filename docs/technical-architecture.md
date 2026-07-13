@@ -198,8 +198,8 @@ external or synced directories, moved folders, and the workspace-to-cluster
 terminology migration. Keep durable identity separate from resolution history;
 do not add a transient `missing` identity state to current note responses.
 
-Introduce this resolution result earlier only if Slice 7E or its immediate
-Slice 7F editor-correctness follow-up proves that created, reused, or copied cluster
+Introduce this resolution result earlier only if Slice 7E or its immediate Slice
+7F editor-correctness follow-up proves that created, reused, or copied cluster
 identity is required to explain the fresh-cluster recovered-draft behavior.
 
 The current core error taxonomy is sufficient for existing note read and manual
@@ -243,8 +243,9 @@ the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
 loading the rich editor. Slice 7B is complete. Default the loading boundary's
 delivery until after active Slice 7C route coherence, Slice 7D fidelity, Slice
-7E diagnostics, and the mandatory Slice 7F editor-correctness follow-up so those repairs and
-their QA observe the current editor lifecycle before its loading order changes.
+7E diagnostics, and the mandatory Slice 7F editor-correctness follow-up so those
+repairs and their QA observe the current editor lifecycle before its loading
+order changes.
 
 A focused future performance slice must measure development and built-preview
 cold start, time to application shell, time to editor readiness, emitted chunk
@@ -342,8 +343,9 @@ Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from
 `docs/reference/product-guardrails.md` still applies.
 
-After Slice 7E and its mandatory Slice 7F editor-correctness follow-up, a focused Daily
-Observability Operating Profile may establish three explicit modes:
+After Slice 7E and its mandatory Slice 7F editor-correctness follow-up, a
+focused Daily Observability Operating Profile may establish three explicit
+modes:
 
 - disabled, which retains the current zero-SDK-runtime baseline;
 - lightweight daily, which may remain permanently enabled for Daniel with

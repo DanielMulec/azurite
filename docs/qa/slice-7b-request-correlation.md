@@ -331,7 +331,7 @@ The Pixel 6 cells verified Android Chrome, a `412` by `839` viewport, `412` by
 `915` screen, DPR `2.625`, one touch point, coarse pointer, no hover, and zero
 horizontal overflow. WYSIWYG was the phone save path. The separate physical
 Android source-mode Enter finding remains unfixed and assigned to 7E diagnosis
-plus its required follow-up repair.
+plus required Slice 7F repair.
 
 ### Exact Closing Correlation Examples
 
