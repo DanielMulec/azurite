@@ -1,6 +1,6 @@
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
-import type { ReactElement, RefObject } from "react";
+import type { ReactElement, RefCallback } from "react";
 import { useId } from "react";
 
 import type {
@@ -13,6 +13,7 @@ import type { CrepeRuntimeFactory } from "./crepe-runtime.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
 import { useMilkdownEditorController } from "./use-milkdown-editor-controller.js";
 
+/** Immutable inputs that establish one production editor session. */
 export type MilkdownEditorProps = {
   readonly createRuntime?: CrepeRuntimeFactory;
   readonly initialDisposition: DraftDisposition;
@@ -105,61 +106,100 @@ function EditorStatus(props: {
   readonly onRetry: () => void;
 }): ReactElement | null {
   if (props.error !== undefined) {
-    return (
-      <div className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-        <p>{props.error}</p>
-        {props.hasPublicationRetry ? (
-          <button
-            className="mt-2 underline"
-            onClick={props.onRetry}
-            type="button"
-          >
-            Retry editor change
-          </button>
-        ) : null}
-      </div>
-    );
+    return <EditorError {...props} error={props.error} />;
   }
-  return props.isReady ? null : (
+  if (props.isReady) {
+    return null;
+  }
+  return (
     <p className="mb-4 text-sm text-[var(--azurite-muted)]">
       Preparing editor...
     </p>
   );
 }
 
+function EditorError(props: {
+  readonly error: string;
+  readonly hasPublicationRetry: boolean;
+  readonly onRetry: () => void;
+}): ReactElement {
+  return (
+    <div className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <p>{props.error}</p>
+      {props.hasPublicationRetry ? (
+        <button
+          className="mt-2 underline"
+          onClick={props.onRetry}
+          type="button"
+        >
+          Retry editor change
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function EditorModeBody(props: {
   readonly isSourceMode: boolean;
   readonly onSourceChange: (markdown: string) => void;
-  readonly rootRef: RefObject<HTMLDivElement | null>;
+  readonly rootRef: RefCallback<HTMLDivElement>;
   readonly sourceInputId: string;
   readonly sourceMarkdown: string;
   readonly title: string;
 }): ReactElement {
   return (
     <>
-      <div
-        aria-hidden={props.isSourceMode}
-        className={props.isSourceMode ? "hidden" : undefined}
-        data-testid="milkdown-editor-root"
-        ref={props.rootRef}
+      <EditorRoot isSourceMode={props.isSourceMode} rootRef={props.rootRef} />
+      <SourceEditor
+        isSourceMode={props.isSourceMode}
+        onSourceChange={props.onSourceChange}
+        sourceInputId={props.sourceInputId}
+        sourceMarkdown={props.sourceMarkdown}
+        title={props.title}
       />
-      {props.isSourceMode ? (
-        <div>
-          <label className="sr-only" htmlFor={props.sourceInputId}>
-            Markdown source for {props.title}
-          </label>
-          <textarea
-            className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)] outline-none focus:border-[var(--azurite-accent)]"
-            id={props.sourceInputId}
-            onChange={(event) => {
-              props.onSourceChange(event.currentTarget.value);
-            }}
-            spellCheck={false}
-            value={props.sourceMarkdown}
-          />
-        </div>
-      ) : null}
     </>
+  );
+}
+
+function EditorRoot(props: {
+  readonly isSourceMode: boolean;
+  readonly rootRef: RefCallback<HTMLDivElement>;
+}): ReactElement {
+  return (
+    <div
+      aria-hidden={props.isSourceMode}
+      className={props.isSourceMode ? "hidden" : undefined}
+      data-testid="milkdown-editor-root"
+      ref={props.rootRef}
+    />
+  );
+}
+
+function SourceEditor(props: {
+  readonly isSourceMode: boolean;
+  readonly onSourceChange: (markdown: string) => void;
+  readonly sourceInputId: string;
+  readonly sourceMarkdown: string;
+  readonly title: string;
+}): ReactElement | null {
+  if (!props.isSourceMode) {
+    return null;
+  }
+  return (
+    <div>
+      <label className="sr-only" htmlFor={props.sourceInputId}>
+        Markdown source for {props.title}
+      </label>
+      <textarea
+        className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)] outline-none focus:border-[var(--azurite-accent)]"
+        id={props.sourceInputId}
+        onChange={(event) => {
+          props.onSourceChange(event.currentTarget.value);
+        }}
+        spellCheck={false}
+        value={props.sourceMarkdown}
+      />
+    </div>
   );
 }
 

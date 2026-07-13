@@ -116,39 +116,78 @@ function SelectedNote({
       className="mx-auto max-w-3xl"
       data-note-id={editor.note.id}
     >
-      <div
-        data-testid="editor-interaction-region"
-        inert={isFrozen || undefined}
-      >
-        <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
-            {editor.note.relativePath}
-          </p>
-          <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-            {editor.note.title}
-          </h2>
-        </header>
-        <SaveableNoteEditor
-          editor={editor}
-          onDiscardDraftAndReloadDiskVersion={
-            onDiscardDraftAndReloadDiskVersion
-          }
-          onEditorModeChange={onEditorModeChange}
-          onPublishMarkdown={onPublishMarkdown}
-          onRetryBrowserRecovery={onRetryBrowserRecovery}
-          onRetryDraftCleanup={onRetryDraftCleanup}
-          onRetryDraftPersistence={onRetryDraftPersistence}
-          onSaveNote={onSaveNote}
-          sessionGate={sessionGate}
-        />
-      </div>
-      {isFrozen ? (
-        <p className="mt-4 text-sm text-[var(--azurite-muted)]" role="status">
-          {gateSnapshot.message}
-        </p>
-      ) : null}
+      <EditorInteractionRegion
+        editor={editor}
+        inert={isFrozen}
+        onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
+        onEditorModeChange={onEditorModeChange}
+        onPublishMarkdown={onPublishMarkdown}
+        onRetryBrowserRecovery={onRetryBrowserRecovery}
+        onRetryDraftCleanup={onRetryDraftCleanup}
+        onRetryDraftPersistence={onRetryDraftPersistence}
+        onSaveNote={onSaveNote}
+        sessionGate={sessionGate}
+      />
+      <FrozenStatus isFrozen={isFrozen} message={gateSnapshot.message} />
     </article>
   );
+}
+
+function EditorInteractionRegion(
+  props: Pick<
+    NoteEditorSurfaceProps,
+    | "onDiscardDraftAndReloadDiskVersion"
+    | "onEditorModeChange"
+    | "onPublishMarkdown"
+    | "onRetryBrowserRecovery"
+    | "onRetryDraftCleanup"
+    | "onRetryDraftPersistence"
+    | "onSaveNote"
+    | "sessionGate"
+  > & {
+    readonly editor: Extract<NoteViewState, { status: "ready" }>["editor"];
+    readonly inert: boolean;
+  },
+): ReactElement {
+  return (
+    <div
+      data-testid="editor-interaction-region"
+      inert={props.inert || undefined}
+    >
+      <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
+        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
+          {props.editor.note.relativePath}
+        </p>
+        <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
+          {props.editor.note.title}
+        </h2>
+      </header>
+      <SaveableNoteEditor
+        editor={props.editor}
+        onDiscardDraftAndReloadDiskVersion={
+          props.onDiscardDraftAndReloadDiskVersion
+        }
+        onEditorModeChange={props.onEditorModeChange}
+        onPublishMarkdown={props.onPublishMarkdown}
+        onRetryBrowserRecovery={props.onRetryBrowserRecovery}
+        onRetryDraftCleanup={props.onRetryDraftCleanup}
+        onRetryDraftPersistence={props.onRetryDraftPersistence}
+        onSaveNote={props.onSaveNote}
+        sessionGate={props.sessionGate}
+      />
+    </div>
+  );
+}
+
+function FrozenStatus(props: {
+  readonly isFrozen: boolean;
+  readonly message: string | undefined;
+}): ReactElement | null {
+  return props.isFrozen ? (
+    <p className="mt-4 text-sm text-[var(--azurite-muted)]" role="status">
+      {props.message}
+    </p>
+  ) : null;
 }
 
 function RouteHistoryBanner({
@@ -199,51 +238,119 @@ function MissingNoteDraft({
       className="mx-auto max-w-3xl"
       data-note-id={noteState.noteId}
     >
-      <div inert={isDiscarding || undefined}>
-        <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
-            {noteState.noteId}
-          </p>
-          <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-            {noteState.draftDisposition === "preserved_unknown"
-              ? "Newer recovery record for missing note"
-              : "Recovered draft for missing note"}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
-            {noteState.draftDisposition === "preserved_unknown"
-              ? "A newer Azurite build now owns this browser recovery record. Use a compatible build to inspect or dispose of it."
-              : "The file is no longer present on disk, but Azurite recovered the browser draft. Save is disabled until note restore or creation exists."}
-          </p>
-        </header>
-        <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
-          {noteState.draftDisposition === "recovered" ? (
-            <button
-              className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
-              onClick={() => {
-                if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
-                  setIsDiscarding(true);
-                  void onDiscardMissingDraft().finally(() => {
-                    setIsDiscarding(false);
-                  });
-                }
-              }}
-              type="button"
-            >
-              {noteState.persistenceIssue?.retryAction === "retry_discard"
-                ? "Retry discard"
-                : "Discard recovered draft"}
-            </button>
-          ) : null}
-        </div>
-        <textarea
-          className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
-          readOnly
-          spellCheck={false}
-          value={noteState.draft.markdown}
+      <div inert={toInertValue(isDiscarding)}>
+        <MissingDraftHeader noteState={noteState} />
+        <MissingDraftActions
+          noteState={noteState}
+          onDiscard={() => {
+            setIsDiscarding(true);
+            void onDiscardMissingDraft().finally(() => {
+              setIsDiscarding(false);
+            });
+          }}
         />
+        <MissingDraftSource markdown={noteState.draft.markdown} />
       </div>
-      {isDiscarding ? <p role="status">Discarding browser draft...</p> : null}
+      <DiscardingStatus isDiscarding={isDiscarding} />
     </article>
+  );
+}
+
+function toInertValue(active: boolean): true | undefined {
+  return active ? true : undefined;
+}
+
+function MissingDraftHeader({
+  noteState,
+}: {
+  readonly noteState: Extract<NoteViewState, { status: "missing-draft" }>;
+}): ReactElement {
+  const isUnknown = noteState.draftDisposition === "preserved_unknown";
+  return (
+    <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
+      <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
+        {noteState.noteId}
+      </p>
+      <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
+        {isUnknown
+          ? "Newer recovery record for missing note"
+          : "Recovered draft for missing note"}
+      </h2>
+      <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
+        {isUnknown
+          ? "A newer Azurite build now owns this browser recovery record. Use a compatible build to inspect or dispose of it."
+          : "The file is no longer present on disk, but Azurite recovered the browser draft. Save is disabled until note restore or creation exists."}
+      </p>
+    </header>
+  );
+}
+
+function MissingDraftActions(props: {
+  readonly noteState: Extract<NoteViewState, { status: "missing-draft" }>;
+  readonly onDiscard: () => void;
+}): ReactElement {
+  return (
+    <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
+      <MissingDiscardButton {...props} />
+    </div>
+  );
+}
+
+function MissingDiscardButton(props: {
+  readonly noteState: Extract<NoteViewState, { status: "missing-draft" }>;
+  readonly onDiscard: () => void;
+}): ReactElement | null {
+  if (props.noteState.draftDisposition !== "recovered") {
+    return null;
+  }
+  return (
+    <button
+      className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+      onClick={() => {
+        runConfirmedMissingDiscard(props);
+      }}
+      type="button"
+    >
+      {getMissingDiscardLabel(props.noteState)}
+    </button>
+  );
+}
+
+function runConfirmedMissingDiscard(props: {
+  readonly noteState: Extract<NoteViewState, { status: "missing-draft" }>;
+  readonly onDiscard: () => void;
+}): void {
+  if (confirmMissingDraftDiscard(props.noteState.draft.markdown)) {
+    props.onDiscard();
+  }
+}
+
+function getMissingDiscardLabel(
+  state: Extract<NoteViewState, { status: "missing-draft" }>,
+): string {
+  return state.persistenceIssue?.retryAction === "retry_discard"
+    ? "Retry discard"
+    : "Discard recovered draft";
+}
+
+function DiscardingStatus(props: {
+  readonly isDiscarding: boolean;
+}): ReactElement | null {
+  return props.isDiscarding ? (
+    <p role="status">Discarding browser draft...</p>
+  ) : null;
+}
+
+function MissingDraftSource(props: {
+  readonly markdown: string;
+}): ReactElement {
+  return (
+    <textarea
+      className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
+      readOnly
+      spellCheck={false}
+      value={props.markdown}
+    />
   );
 }
 

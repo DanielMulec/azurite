@@ -5,6 +5,7 @@ import type {
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
+import type { DraftRetryAction } from "../persistence/draft-workflow-types.js";
 import { canSaveEditor } from "../state/note-browser-action-utils.js";
 import type { EditorSession } from "../state/note-browser-types.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
@@ -36,7 +37,10 @@ export function SaveableNoteEditor({
   onSaveNote,
   sessionGate,
 }: SaveableNoteEditorProps): ReactElement {
-  const isDirty = hasDirtyMarkdown(editor);
+  const isDirty = hasMarkdownDifference(
+    editor.currentMarkdown,
+    editor.savedMarkdown,
+  );
 
   return (
     <>
@@ -90,10 +94,6 @@ function SaveToolbar({
   readonly onSave: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 }): ReactElement {
-  const showDiscard =
-    editor.draftDisposition === "recovered" ||
-    editor.draftDisposition === "conflict";
-
   return (
     <div className="mb-4 flex flex-col gap-3 border-b border-[var(--azurite-border)] pb-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -101,24 +101,11 @@ function SaveToolbar({
           {getStatusText(editor, isDirty)}
         </p>
         <div className="flex flex-wrap gap-2">
-          {showDiscard ? (
-            <button
-              className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
-              onClick={() => {
-                if (confirmDraftDiscard(editor.currentMarkdown)) {
-                  void sessionGate.runTerminalAction(
-                    editor.sessionKey,
-                    onDiscardDraftAndReloadDiskVersion,
-                  );
-                }
-              }}
-              type="button"
-            >
-              {editor.persistenceIssue?.retryAction === "retry_discard"
-                ? "Retry discard"
-                : "Discard draft and reload disk version"}
-            </button>
-          ) : null}
+          <DiscardButton
+            editor={editor}
+            onDiscard={onDiscardDraftAndReloadDiskVersion}
+            sessionGate={sessionGate}
+          />
           <DraftRetryButton
             editor={editor}
             onRetryBrowserRecovery={onRetryBrowserRecovery}
@@ -147,27 +134,106 @@ function DraftRetryButton(props: {
   readonly onRetryDraftCleanup: () => Promise<void>;
   readonly onRetryDraftPersistence: () => Promise<void>;
 }): ReactElement | null {
-  const action = props.editor.persistenceIssue?.retryAction;
-  if (action === undefined || action === "retry_discard") {
+  const control = getEditorRetryControl(props);
+  if (control === undefined) {
     return null;
   }
   return (
     <button
       className="w-fit border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
       onClick={() => {
-        if (action === "retry_browser_recovery") {
-          void props.onRetryBrowserRecovery();
-        } else if (action === "retry_draft_cleanup") {
-          void props.onRetryDraftCleanup();
-        } else {
-          void props.onRetryDraftPersistence();
-        }
+        void control.run();
       }}
       type="button"
     >
-      {retryActionLabels[action]}
+      {control.label}
     </button>
   );
+}
+
+function DiscardButton(props: {
+  readonly editor: EditorSession;
+  readonly onDiscard: () => Promise<unknown>;
+  readonly sessionGate: EditorSessionGate;
+}): ReactElement | null {
+  if (!isDiscardable(props.editor)) {
+    return null;
+  }
+  return (
+    <button
+      className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+      onClick={() => {
+        runConfirmedDiscard(props);
+      }}
+      type="button"
+    >
+      {getDiscardLabel(props.editor)}
+    </button>
+  );
+}
+
+function getDiscardLabel(editor: EditorSession): string {
+  return editor.persistenceIssue?.retryAction === "retry_discard"
+    ? "Retry discard"
+    : "Discard draft and reload disk version";
+}
+
+function getEditorRetryControl(props: {
+  readonly editor: EditorSession;
+  readonly onRetryBrowserRecovery: () => Promise<unknown>;
+  readonly onRetryDraftCleanup: () => Promise<void>;
+  readonly onRetryDraftPersistence: () => Promise<void>;
+}):
+  { readonly label: string; readonly run: () => Promise<unknown> } | undefined {
+  const action = props.editor.persistenceIssue?.retryAction;
+  return action === undefined ? undefined : getRetryControl(action, props);
+}
+
+function runConfirmedDiscard(props: {
+  readonly editor: EditorSession;
+  readonly onDiscard: () => Promise<unknown>;
+  readonly sessionGate: EditorSessionGate;
+}): void {
+  if (confirmDraftDiscard(props.editor.currentMarkdown)) {
+    void props.sessionGate.runTerminalAction(
+      props.editor.sessionKey,
+      props.onDiscard,
+    );
+  }
+}
+
+function isDiscardable(editor: EditorSession): boolean {
+  return (
+    editor.draftDisposition === "recovered" ||
+    editor.draftDisposition === "conflict"
+  );
+}
+
+function getRetryControl(
+  action: DraftRetryAction,
+  props: {
+    readonly onRetryBrowserRecovery: () => Promise<unknown>;
+    readonly onRetryDraftCleanup: () => Promise<void>;
+    readonly onRetryDraftPersistence: () => Promise<void>;
+  },
+):
+  { readonly label: string; readonly run: () => Promise<unknown> } | undefined {
+  const controls = {
+    retry_browser_recovery: {
+      label: retryActionLabels.retry_browser_recovery,
+      run: props.onRetryBrowserRecovery,
+    },
+    retry_discard: undefined,
+    retry_draft_cleanup: {
+      label: retryActionLabels.retry_draft_cleanup,
+      run: props.onRetryDraftCleanup,
+    },
+    retry_draft_persistence: {
+      label: retryActionLabels.retry_draft_persistence,
+      run: props.onRetryDraftPersistence,
+    },
+  } as const;
+  return controls[action];
 }
 
 function getStatusText(editor: EditorSession, isDirty: boolean): string {
@@ -190,10 +256,6 @@ function confirmDraftDiscard(markdown: string): boolean {
   return window.confirm(
     "Discard this recovered draft and reload the disk version?",
   );
-}
-
-function hasDirtyMarkdown(editor: EditorSession): boolean {
-  return hasMarkdownDifference(editor.currentMarkdown, editor.savedMarkdown);
 }
 
 const statusText = {

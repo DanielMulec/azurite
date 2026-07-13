@@ -1,8 +1,7 @@
-import type { RefObject } from "react";
+import type { RefCallback } from "react";
 import {
   useEffect,
   useLayoutEffect,
-  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -20,7 +19,9 @@ import {
   type CrepeRuntimeFactory,
 } from "./crepe-runtime.js";
 import { MarkdownAuthorityController } from "./markdown-authority-controller.js";
+import type { MarkdownAuthorityState } from "./markdown-authority-controller-types.js";
 
+/** Inputs that bind one React hook lifetime to one editor session. */
 export type MilkdownControllerInput = {
   readonly createRuntime?: CrepeRuntimeFactory;
   readonly initialDisposition: DraftDisposition;
@@ -35,12 +36,13 @@ export type MilkdownControllerInput = {
   readonly sessionKey: string;
 };
 
+/** Render-safe view and commands exposed to the production editor component. */
 export type MilkdownControllerView = {
   readonly editorError: string | undefined;
   readonly hasPublicationRetry: boolean;
   readonly isEditorReady: boolean;
   readonly isSourceMode: boolean;
-  readonly rootRef: RefObject<HTMLDivElement | null>;
+  readonly rootRef: RefCallback<HTMLDivElement>;
   readonly retryPublication: () => void;
   readonly showSourceMode: () => void;
   readonly showWysiwygMode: () => void;
@@ -48,138 +50,186 @@ export type MilkdownControllerView = {
   readonly updateSourceMarkdown: (markdown: string) => void;
 };
 
+type ControllerResources = {
+  readonly callbacks: EditorCallbackBridge;
+  readonly controller: MarkdownAuthorityController;
+  readonly createRuntime: CrepeRuntimeFactory;
+  readonly initialMarkdown: string;
+  readonly root: EditorRootOwner;
+  readonly runtime: CrepeRuntimeOwner;
+};
+
 /** Binds one pure authority controller to one Crepe instance and React view. */
 export function useMilkdownEditorController(
   input: MilkdownControllerInput,
 ): MilkdownControllerView {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const runtimeRef = useRef<CrepeRuntime | undefined>(undefined);
-  const initialMarkdownRef = useRef(input.initialMarkdown);
-  const runtimeFactoryRef = useRef(input.createRuntime ?? createCrepeRuntime);
-  const callbacksRef = useRef({
-    onEditorModeChange: input.onEditorModeChange,
-    onPublishMarkdown: input.onPublishMarkdown,
-  });
-  callbacksRef.current = {
-    onEditorModeChange: input.onEditorModeChange,
-    onPublishMarkdown: input.onPublishMarkdown,
-  };
-  const [controller] = useState(
-    () =>
-      new MarkdownAuthorityController({
-        initialDisposition: input.initialDisposition,
-        initialMarkdown: input.initialMarkdown,
-        initialMode: input.initialMode,
-        initialRevision: input.initialRevision,
-        onModeChange: (mode) => {
-          callbacksRef.current.onEditorModeChange(mode);
-        },
-        publish: (command) => callbacksRef.current.onPublishMarkdown(command),
-        readProjection: () => requireRuntime(runtimeRef.current).getMarkdown(),
-        replaceProjection: (markdown) => {
-          requireRuntime(runtimeRef.current).replaceMarkdown(markdown);
-        },
-        sessionKey: input.sessionKey,
-      }),
-  );
+  const [resources] = useState(() => createControllerResources(input));
+  useLayoutEffect(() => {
+    resources.callbacks.update({
+      onEditorModeChange: input.onEditorModeChange,
+      onPublishMarkdown: input.onPublishMarkdown,
+    });
+  }, [input.onEditorModeChange, input.onPublishMarkdown, resources.callbacks]);
   const state = useSyncExternalStore(
-    controller.subscribe,
-    controller.getSnapshot,
-    controller.getSnapshot,
+    resources.controller.subscribe,
+    resources.controller.getSnapshot,
+    resources.controller.getSnapshot,
   );
-
   useLayoutEffect(
-    () => input.sessionGate.registerController(controller),
-    [controller, input.sessionGate],
+    () => input.sessionGate.registerController(resources.controller),
+    [input.sessionGate, resources.controller],
   );
-  useCrepeLifecycle({
-    controller,
-    createRuntime: runtimeFactoryRef.current,
-    initialMarkdown: initialMarkdownRef.current,
-    rootRef,
-    runtimeRef,
-  });
+  useCrepeLifecycle(resources);
+  return createControllerView(resources, state);
+}
 
+function createControllerResources(
+  input: MilkdownControllerInput,
+): ControllerResources {
+  const callbacks = new EditorCallbackBridge(input);
+  const runtime = new CrepeRuntimeOwner();
+  const controller = new MarkdownAuthorityController({
+    initialDisposition: input.initialDisposition,
+    initialMarkdown: input.initialMarkdown,
+    initialMode: input.initialMode,
+    initialRevision: input.initialRevision,
+    onModeChange: callbacks.onModeChange,
+    publish: callbacks.publish,
+    readProjection: () => runtime.require().getMarkdown(),
+    replaceProjection: (markdown) => {
+      runtime.require().replaceMarkdown(markdown);
+    },
+    sessionKey: input.sessionKey,
+  });
+  return {
+    callbacks,
+    controller,
+    createRuntime: input.createRuntime ?? createCrepeRuntime,
+    initialMarkdown: input.initialMarkdown,
+    root: new EditorRootOwner(),
+    runtime,
+  };
+}
+
+function createControllerView(
+  resources: ControllerResources,
+  state: MarkdownAuthorityState,
+): MilkdownControllerView {
   return {
     editorError: state.editorError,
     hasPublicationRetry: state.hasPublicationRetry,
     isEditorReady: state.lifecycle === "ready",
     isSourceMode: state.mode === "markdown",
-    rootRef,
+    rootRef: resources.root.set,
     retryPublication: () => {
-      controller.retryPublication();
+      resources.controller.retryPublication();
     },
     showSourceMode: () => {
-      controller.showSource();
+      resources.controller.showSource();
     },
     showWysiwygMode: () => {
-      controller.showWysiwyg();
+      resources.controller.showWysiwyg();
     },
     sourceMarkdown: state.sourceMarkdown,
     updateSourceMarkdown: (markdown) => {
-      controller.publishSource(markdown);
+      resources.controller.publishSource(markdown);
     },
   };
 }
 
-function useCrepeLifecycle(input: {
-  readonly controller: MarkdownAuthorityController;
-  readonly createRuntime: CrepeRuntimeFactory;
-  readonly initialMarkdown: string;
-  readonly rootRef: RefObject<HTMLDivElement | null>;
-  readonly runtimeRef: RefObject<CrepeRuntime | undefined>;
-}): void {
+function useCrepeLifecycle(input: ControllerResources): void {
+  const { controller, createRuntime, initialMarkdown, root, runtime } = input;
   useEffect(() => {
-    const root = input.rootRef.current;
-    if (root === null) {
-      input.controller.markFailed("The editor root was not available.");
+    const rootElement = root.get();
+    if (rootElement === null) {
+      controller.markFailed("The editor root was not available.");
       return;
     }
     let active = true;
-    const runtime = input.createRuntime({
-      initialMarkdown: input.initialMarkdown,
+    const instance = createRuntime({
+      initialMarkdown,
       onMarkdownUpdated: (markdown) => {
         if (active) {
-          input.controller.publishWysiwyg(markdown);
+          controller.publishWysiwyg(markdown);
         }
       },
-      root,
+      root: rootElement,
     });
-    input.runtimeRef.current = runtime;
-    void runtime.create().then(
+    runtime.set(instance);
+    void instance.create().then(
       () => {
         if (active) {
-          input.controller.markReady();
+          controller.markReady();
         }
       },
       () => {
         if (active) {
-          input.controller.markFailed(
-            "The Milkdown editor could not be created.",
-          );
+          controller.markFailed("The Milkdown editor could not be created.");
         }
       },
     );
     return () => {
       active = false;
-      input.runtimeRef.current = undefined;
-      input.controller.destroy();
-      void runtime.destroy().catch(noop);
+      runtime.clear(instance);
+      controller.destroy();
+      void instance.destroy().catch(() => {});
     };
-  }, [
-    input.controller,
-    input.createRuntime,
-    input.initialMarkdown,
-    input.rootRef,
-    input.runtimeRef,
-  ]);
+  }, [controller, createRuntime, initialMarkdown, root, runtime]);
 }
 
-function requireRuntime(runtime: CrepeRuntime | undefined): CrepeRuntime {
-  if (runtime === undefined) {
-    throw new Error("The Crepe runtime is not ready.");
+type EditorCallbacks = Pick<
+  MilkdownControllerInput,
+  "onEditorModeChange" | "onPublishMarkdown"
+>;
+
+class EditorCallbackBridge {
+  #callbacks: EditorCallbacks;
+
+  constructor(callbacks: EditorCallbacks) {
+    this.#callbacks = callbacks;
   }
-  return runtime;
+
+  update(callbacks: EditorCallbacks): void {
+    this.#callbacks = callbacks;
+  }
+
+  onModeChange = (mode: EditorMode): void => {
+    this.#callbacks.onEditorModeChange(mode);
+  };
+
+  publish = (command: PublicationCommand): PublicationResult =>
+    this.#callbacks.onPublishMarkdown(command);
 }
 
-function noop(): void {}
+class CrepeRuntimeOwner {
+  #runtime: CrepeRuntime | undefined;
+
+  set(runtime: CrepeRuntime): void {
+    this.#runtime = runtime;
+  }
+
+  clear(runtime: CrepeRuntime): void {
+    if (this.#runtime === runtime) {
+      this.#runtime = undefined;
+    }
+  }
+
+  require(): CrepeRuntime {
+    if (this.#runtime === undefined) {
+      throw new Error("The Crepe runtime is not ready.");
+    }
+    return this.#runtime;
+  }
+}
+
+class EditorRootOwner {
+  #element: HTMLDivElement | null = null;
+
+  set: RefCallback<HTMLDivElement> = (element) => {
+    this.#element = element;
+  };
+
+  get(): HTMLDivElement | null {
+    return this.#element;
+  }
+}
