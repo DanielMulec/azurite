@@ -197,6 +197,15 @@ describe("App note switching", () => {
 
     expect(screen.queryByText("Loading note")).not.toBeInTheDocument();
     expect(screen.getByText("Mock editor for Home")).toBeInTheDocument();
+    const handoffStatus = await screen.findByRole("status");
+    expect(handoffStatus).toHaveTextContent("Opening note...");
+    expect(handoffStatus.closest("[inert]")).toBeNull();
+    const outgoingArticle = handoffStatus.closest("article");
+    expect(outgoingArticle).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByTestId("editor-interaction-region"),
+    ).toHaveAttribute("inert");
+    expect(screen.getByRole("button", { name: /Project Plan/ })).toBeEnabled();
     deferredProjectResponse.resolve({
       body: {
         clusterIdentity: readyClusterIdentity,
@@ -213,6 +222,7 @@ describe("App note switching", () => {
         screen.getByText("Mock editor for Project Plan"),
       ).toBeInTheDocument();
     });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
 

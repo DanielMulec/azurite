@@ -88,13 +88,10 @@ type ActiveLease = {
   readonly sessionKey: string;
 };
 
-type SharedPreparation = Promise<
-  | {
-      readonly commit: Exclude<CommitResult, { status: "failed" }>;
-      readonly durability: DurabilityResult;
-    }
-  | { readonly commit: Extract<CommitResult, { status: "failed" }> }
->;
+type SharedPreparation = Promise<{
+  readonly commit: Exclude<CommitResult, { status: "failed" }>;
+  readonly durability: DurabilityResult;
+}>;
 
 /** Creates one ephemeral session gate around a note-browser store. */
 export function createEditorSessionGate(
@@ -175,7 +172,7 @@ class EditorSessionGateRuntime {
   async prepare(
     input: RouteGatePrepareInput,
   ): Promise<EditorGatePreparationResult> {
-    if (input.outgoingOwnerKey === undefined || this.#hasNoEditor(input)) {
+    if (input.outgoingOwnerKey === undefined || this.#hasNoEditor()) {
       return {
         leaseKey: input.leaseKey,
         reason: "no_editor_session",
@@ -192,19 +189,23 @@ class EditorSessionGateRuntime {
         status: "cancel",
       };
     }
-    const preparation = this.#getPreparation(controller);
+    let preparation = this.#preparations.get(controller.sessionKey);
+    if (preparation === undefined) {
+      const commit = controller.commit("route_transition");
+      if (commit.status === "failed") {
+        return {
+          commit,
+          leaseKey: input.leaseKey,
+          reason: "commit_failed",
+          sessionKey: controller.sessionKey,
+          status: "cancel",
+        };
+      }
+      preparation = this.#startPreparation(controller, commit);
+      this.#preparations.set(controller.sessionKey, preparation);
+    }
     this.#activateLease(input.leaseKey, controller);
     const result = await preparation;
-    if (!("durability" in result)) {
-      this.#releaseFailedPreparation(input.leaseKey);
-      return {
-        commit: result.commit,
-        leaseKey: input.leaseKey,
-        reason: "commit_failed",
-        sessionKey: controller.sessionKey,
-        status: "cancel",
-      };
-    }
     if (result.durability.status === "unavailable") {
       return {
         commit: result.commit,
@@ -265,21 +266,20 @@ class EditorSessionGateRuntime {
     }
   }
 
-  #getPreparation(controller: EditorControllerCapability): SharedPreparation {
-    const existing = this.#preparations.get(controller.sessionKey);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const commit = controller.commit("route_transition");
-    const preparation: SharedPreparation =
-      commit.status === "failed"
-        ? Promise.resolve({ commit })
-        : this.#store
-            .getState()
-            .flushPendingDraft("route_transition")
-            .then((durability) => ({ commit, durability }));
-    this.#preparations.set(controller.sessionKey, preparation);
-    return preparation;
+  #startPreparation(
+    controller: EditorControllerCapability,
+    commit: Exclude<CommitResult, { status: "failed" }>,
+  ): SharedPreparation {
+    return this.#store
+      .getState()
+      .flushPendingDraft("route_transition")
+      .then(
+        (durability) => ({ commit, durability }),
+        () => ({
+          commit,
+          durability: unavailableQueueDurability(controller, this.#store),
+        }),
+      );
   }
 
   #activateLease(
@@ -296,30 +296,14 @@ class EditorSessionGateRuntime {
     this.#setSnapshot(controller.sessionKey, "Opening note...");
   }
 
-  #releaseFailedPreparation(leaseKey: string): void {
-    const lease = this.#leases.get(leaseKey);
-    if (lease === undefined) {
-      return;
-    }
-    this.#leases.delete(leaseKey);
-    if (!this.#hasLeaseForSession(lease.sessionKey)) {
-      this.#preparations.delete(lease.sessionKey);
-      lease.controller.setFrozen(false);
-      this.#publishSnapshot();
-    }
-  }
-
   #getCurrentController(): EditorControllerCapability | undefined {
     const owner = this.#store.getState().getRenderedOwnerKey();
     return owner === undefined ? undefined : this.#controllers.get(owner);
   }
 
-  #hasNoEditor(input: RouteGatePrepareInput): boolean {
+  #hasNoEditor(): boolean {
     const noteState = this.#store.getState().noteState;
-    return (
-      noteState.status !== "ready" ||
-      noteState.editor.sessionKey !== input.outgoingOwnerKey
-    );
+    return noteState.status !== "ready";
   }
 
   #hasLeaseForSession(sessionKey: string): boolean {
@@ -372,4 +356,27 @@ function restoreFocus(element: HTMLElement | undefined): void {
   if (element?.isConnected) {
     element.focus();
   }
+}
+
+function unavailableQueueDurability(
+  controller: EditorControllerCapability,
+  store: StoreApi<NoteBrowserStore>,
+): Extract<DurabilityResult, { status: "unavailable" }> {
+  const noteState = store.getState().noteState;
+  const editor =
+    noteState.status === "ready" &&
+    noteState.editor.sessionKey === controller.sessionKey
+      ? noteState.editor
+      : undefined;
+  return {
+    cause: "route_transition",
+    clusterId: editor?.persistenceIssue?.clusterId,
+    disposition: editor?.draftDisposition ?? "none",
+    failure: { reason: "queue_task_failed", source: "coordinator" },
+    noteId: editor?.note.id ?? "",
+    revision: editor?.revision ?? 0,
+    sessionKey: controller.sessionKey,
+    snapshotKey: editor?.lastSnapshotKey,
+    status: "unavailable",
+  };
 }
