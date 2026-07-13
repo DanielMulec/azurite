@@ -3,12 +3,12 @@
 ## Status
 
 Active as of 2026-07-13 after Slice 7C completed its narrow
-pending-predecessor cancellation correction. Slice 7D consumes the implemented
-validated action-aware history owner, typed target-free
-pre-transition gate, rendered outgoing-session identity, route-or-reload load
-authorization, exact-current revalidation, coherent no-op predicate, and typed
-terminal outcome. This slice consumes that implemented seam without becoming a
-second route owner.
+pending-predecessor cancellation correction. The post-7C adversarial review has
+refreshed this plan against the implemented route, editor, Save, cluster-identity,
+and Dexie contracts. Slice 7D consumes the validated action-aware history owner,
+typed target-free pre-transition gate, rendered outgoing-session identity,
+route-or-reload load authorization, exact-current revalidation, coherent no-op
+predicate, and typed terminal outcome without becoming a second route owner.
 
 The post-7C adversarial review assigned two additional findings to this slice
 because they are inseparable from architecture already selected here:
@@ -25,6 +25,18 @@ durable correction. The implementation and acceptance proof below now require
 post-Save route coherence and an exact retryable failed-write snapshot without
 adding temporary parallel fixes to Slice 7C.
 
+The refreshed contract also preserves three current product truths that the
+pre-7C draft did not represent completely:
+
+1. accepted edits and manual Save remain available when cluster identity or
+   browser recovery is degraded; unavailable durability blocks destructive
+   handoff, not live authority or filesystem Save;
+2. an unread recovery record and an unknown future-version record are preserved
+   states, not absence or cleanup, and current-version writes or deletes cannot
+   overwrite them; and
+3. the existing Slice 7C QA fault gate decorates the real composed editor gate
+   rather than replacing and bypassing it.
+
 The 2026-07-13 adversarial review proved that the earlier plan secretly depended
 on those route guarantees while calling route coherence a non-goal. In
 particular, the pre-7C rendered-note-only skip could return after this slice had
@@ -33,17 +45,22 @@ also could not identify which of two same-target history intents might continue
 or cancel. The scope was therefore re-selected to
 `7B -> 7C -> 7D -> 7E -> 7F`.
 
-This revision also makes five previously implicit failure boundaries explicit:
+This revision also makes seven previously implicit failure boundaries explicit:
 
 1. draft cleanup failure has a store-owned, user-actionable disposition even
    when content is clean;
-2. publication acknowledgement includes immutable draft-snapshot admission and
-   survives a subscriber throwing after Zustand mutation;
-3. draft reads, scheduled work, writes, cleanup, Save reconciliation, and
+2. recovery-read failure and preserved unknown schema have distinct,
+   non-destructive dispositions and exact adapter results;
+3. publication acknowledgement includes an immutable in-memory recovery
+   obligation and survives a subscriber throwing after Zustand mutation even
+   when that obligation is not yet cluster-addressable;
+4. draft reads, scheduled work, writes, cleanup, Save reconciliation, and
    Discard share one ordered per-note boundary;
-4. Discard is terminal for one draft-admission epoch, advances to a fresh epoch
+5. persistence issues retain exact operation, owner, revision, retry action, and
+   underlying cluster/Dexie reason instead of collapsing into a global boolean;
+6. Discard is terminal for one draft-admission epoch, advances to a fresh epoch
    on deletion failure, and reloads only after successful deletion; and
-5. Slice 7E's post-implementation diagnostics refresh is a hard promotion gate,
+7. Slice 7E's post-implementation diagnostics refresh is a hard promotion gate,
    not a wording pass.
 
 The earlier accepted decisions remain intact: bounded WYSIWYG dirty-indicator
@@ -78,12 +95,25 @@ Milkdown's internal document or serialization changes.
 
 Acknowledgement is not merely a successful Zustand mutation. Before mutating
 Zustand, the exact command synchronously prepares an inactive immutable
-draft-mutation snapshot. It then applies the exact-session revision and commits
-that prepared snapshot to scheduled persistence. If a subscriber throws after
-the updater applied, the command's local `didApply` fact commits the already
-prepared snapshot exactly once before acknowledging. Preparation failure occurs
-before state mutation, and a rejected publication always has `stateEffect:
-none`; readback repair is neither required nor sufficient.
+draft-mutation snapshot and admits it to an in-memory recovery obligation. The
+snapshot may initially have no cluster ID when durable cluster identity is
+unavailable; that is a typed persistence issue, not a publication rejection. The
+command then applies the exact-session revision and commits the prepared snapshot
+to scheduled or identity-blocked persistence. If a subscriber throws after the
+updater applied, the command's local `didApply` fact commits the already prepared
+snapshot exactly once before acknowledging. Only stale ownership, closed epoch,
+in-memory admission failure, or a state update that never applied rejects
+publication with `stateEffect: none`; readback repair is neither required nor
+sufficient.
+
+Unavailable cluster identity, an unread recovery record, a preserved unknown
+future-version record, or a failed IndexedDB mutation cannot prevent the exact
+visible edit from becoming Zustand authority. They prevent Azurite from claiming
+browser durability. The live session keeps a typed persistence issue, manual
+Save and mode switching remain usable, and destructive handoff is blocked while
+dirty live content lacks a matching durable record. A successful filesystem Save
+may make the live content safe without deleting, overwriting, or falsely
+resolving an unread or future-version browser record.
 
 Successful source-input acknowledgement updates dirty state synchronously.
 Ordinary WYSIWYG typing may publish through Milkdown's installed
@@ -110,9 +140,29 @@ unbounded background retry loop.
 Draft persistence is an ordered workflow, not write-only serialization. Reads,
 debounced snapshots that have been scheduled but not yet queued, writes,
 cleanups, successful-save reconciliation, and explicit Discard all cross one
-per-cluster/note boundary. Content equality and browser-record disposition are
-separate facts: a saved or otherwise clean session may still require explicit
-cleanup retry after IndexedDB deletion fails.
+per-cluster/note boundary. A snapshot admitted while cluster identity is
+unavailable remains session-scoped and cannot enter that keyed queue until the
+same session obtains a ready cluster ID; binding the target never recaptures
+mutable content. Content equality and browser-record disposition are separate
+facts: a saved or otherwise clean session may still require explicit cleanup
+retry after IndexedDB deletion fails, preserve an unread record, or preserve an
+unknown future-version record.
+
+A failed recovery read never becomes cleanup. Azurite preserves the record,
+shows `Retry browser recovery` while the live content is clean, and resolves the
+record only after an exact ordered retry reports absent, a valid current record,
+or a preserved unknown version. If Daniel edits before recovery can be retried,
+the edit remains live and manually saveable, current-version draft mutation stays
+blocked, and recovery retry waits until no unsaved live authority can be
+replaced. A clean session may leave an unread or unknown record untouched during
+handoff; that result means preserved, not absent or cleaned.
+
+An unknown future-version record is never returned as ordinary absence. The
+older build neither rewrites nor deletes it, including through draft writing,
+successful-save cleanup, or Discard. Azurite exposes a visible incompatible
+recovery state, retains manual Save for current live content, blocks destructive
+handoff only while that live content is dirty and non-durable, and instructs
+Daniel to use a compatible newer build to inspect or dispose of the record.
 
 After an accepted rich-editor change, Milkdown may normalize Markdown syntax as
 part of serialization; this slice does not claim token-preserving localized
@@ -138,6 +188,12 @@ browser-draft persistence, saves through the existing content-hash conflict
 contract, and preserves the intentional edit across reload after that draft or
 save has completed successfully.
 
+When browser recovery cannot be read, targeted, or safely mutated, Azurite keeps
+the exact edit authoritative and manually saveable, names the precise recovery
+problem, and blocks only destructive handoff that would lose dirty live content.
+It never calls an unread record cleanup, treats a future-version record as
+absence, or overwrites protected recovery data from an older build.
+
 ## Goals
 
 - Make pristine open, editor readiness, and mode-only switching non-mutating.
@@ -152,6 +208,9 @@ save has completed successfully.
   replacement so the outgoing surface cannot accept an unowned edit.
 - Refuse a destructive in-app handoff when dirty Markdown could not be made
   durable, while keeping the same editor session available for retry or Save.
+- Keep accepted editing and manual Save available when cluster identity, recovery
+  read, current-version draft mutation, or a future-version record prevents
+  browser durability; never make that degradation look like rejected authority.
 - Order draft reads, scheduled snapshots, writes, cleanups, explicit Discard,
   and successful-save reconciliation per cluster/note key so an older mutation
   cannot supersede a newer durability decision or a read cannot overtake pending
@@ -165,8 +224,14 @@ save has completed successfully.
 - Keep content-dirty equality on one shared comparison contract while treating
   all browser-record disposition, including cleanup failure after Save, as a
   separate store-owned product fact.
-- Make authority publication and draft-snapshot admission one acknowledged
-  operation even when Zustand listeners throw after state mutation.
+- Make authority publication and immutable in-memory draft-snapshot admission
+  one acknowledged operation even when cluster targeting is unavailable or
+  Zustand listeners throw after state mutation.
+- Distinguish absent, valid current, unread, and preserved unknown browser records
+  through exact transactional adapter outcomes, and keep retryable persistence
+  issues separate from record disposition.
+- Preserve editor-mode recovery for existing records without creating a record
+  for a pristine `none` session.
 - Make Discard terminal for one exact-owner draft epoch: cancel scheduled work,
   delete after earlier admitted mutations, reload only on success, and allocate
   a fresh epoch before restoring the same editor after failure.
@@ -193,8 +258,8 @@ save has completed successfully.
   outcomes.
 - Fixing Crepe's block `+` menu, the Android source-mode newline reversion, or
   the unexplained fresh-cluster recovered-draft observation.
-- Changing backend-unavailable copy, adding retry UI, lazy-loading the editor,
-  changing chunks, or suppressing Vite's size warning.
+- Changing backend-unavailable copy, adding general API retry UI, lazy-loading
+  the editor, changing chunks, or suppressing Vite's size warning.
 - Adding Slice 7E Sentry semantics, rich payload capture, or editor telemetry.
 - Changing the existing content-hash API, atomic filesystem write behavior,
   draft schema, or recovery ownership.
@@ -211,10 +276,10 @@ save has completed successfully.
 
 | Boundary               | Decision                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current workflow       | Read exact Markdown from disk or a consistently ordered valid recovery draft, project it into one session-owned Crepe instance, switch modes without inventing an edit, commit and admit accepted content before transitions, preserve or explicitly dispose of every session-owned browser record, and manually save through the existing conflict contract. |
+| Current workflow       | Read exact Markdown from disk or a consistently ordered valid recovery draft, preserve unread or future-version records without treating them as absence, project authority into one session-owned Crepe instance, switch modes without inventing an edit, admit accepted content before transitions, make it durable or save it manually, and explicitly dispose only of compatible session-owned records. |
 | Predictable extensions | Autosave, external file watching, diff/conflict UI, source/WYSIWYG diagnostics, future editor loading, and multi-client editing all need to distinguish authoritative content from rendered or serialized projections and flush pending editor work before ownership changes.                                                                                 |
 | Participating layers   | Milkdown/Crepe lifecycle and serialization, React editor gate registration with Slice 7C, Zustand editor session and draft disposition, Save/Discard/retry controls, scheduled and Dexie persistence work, existing note API and content-hash save contract, Vitest, and real-browser QA.                                                                     |
-| Near-term seams        | A focused Markdown-authority controller; a Slice 7C-compatible editor gate; an ordered read/mutation boundary with terminal barriers; acknowledged publication-and-admission results; one comparison helper; session/lifecycle ownership that rejects stale callbacks.                                                                                        |
+| Near-term seams        | A focused Markdown-authority controller; a Slice 7C-compatible editor gate with QA decoration; exact transactional read/mutation outcomes; an ordered boundary with identity-blocked snapshots and terminal barriers; separate record disposition and persistence issues; one comparison helper; session/lifecycle ownership that rejects stale callbacks. |
 | Exclusions             | Token-level Markdown reconciliation, automatic legacy-draft classification, new persistence formats, editor replacement, route selection behavior, block-menu behavior, mobile newline repair, observability payloads, and bundle loading can wait because none is required to stop projection-only mutations.                                                |
 
 ### Scope Re-selection Result
@@ -243,13 +308,16 @@ refcount releases or destroys the matching session without seeing an intent or
 leaving an active controller closed.
 
 The store-owned draft disposition is not a new persistence format. It represents
-whether the current session's existing Dexie record is absent, generated,
-recovered, conflicted, or known to require cleanup. The per-note coordinator
-orders the existing storage boundary and may deliberately specialize the
-existing `KeyedTaskCoordinator`; it does not replace Dexie as persistence owner.
-If implementation requires a schema migration, new route capability, or another
-durable state owner, the Scope Re-selection Triggers apply instead of silently
-expanding Slice 7D.
+whether the current note's Dexie record is absent, generated, recovered,
+conflicted, known to require cleanup, unread, or preserved as an unknown future
+version. A separate exact-session persistence issue owns operation failure and
+retry truth. The generic keyed-tail primitive moves from `packages/core` to the
+browser-safe shared package already consumed by core and web; core and the new
+web draft coordinator compose that one primitive rather than importing
+filesystem-oriented core into the browser or creating a near-copy. Dexie remains
+the durable browser owner. If implementation requires a schema migration, new
+route capability, or another durable state owner, the Scope Re-selection
+Triggers apply instead of silently expanding Slice 7D.
 
 ## Authoritative Markdown Contract
 
@@ -259,26 +327,28 @@ not create competing definitions.
 
 ### State Terms
 
-| Term                            | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor session                  | One store-owned editing lifetime identified by `sessionKey`. It owns at most one Crepe instance. Ordinary Markdown, mode, draft-disposition, and save-status rerenders remain inside that lifetime.                                                                                                                                                                                                                                                                                                                         |
-| Saved baseline                  | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Authoritative current Markdown  | Exact content Azurite currently attributes to disk, a recovered draft, acknowledged source input, or an acknowledged WYSIWYG document change. This is Zustand's `currentMarkdown`.                                                                                                                                                                                                                                                                                                                                          |
-| Content dirty                   | Whether authoritative current Markdown differs from the saved baseline after CRLF-to-LF normalization only. This fact never proves that a browser record is resolved.                                                                                                                                                                                                                                                                                                                                                       |
-| Draft disposition               | Store-owned exact-session state: `none` means no session-owned record is known; `generated_pending` means an accepted revision owns scheduled/queued/started work not yet proven durable; `generated_durable` means its exact record completed successfully; `recovered` means a loaded ordinary record awaits Save or Discard; `conflict` means an unresolved record is blocked from Save; `cleanup_required` means content may be saved/clean but a record may remain after required read/deletion/reconciliation failed. |
-| Synchronization checkpoint      | A controller-local pair: exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes.                                                                                                                                                                                                                                                                 |
-| Acknowledged WYSIWYG projection | The most recent projection whose authority publication and prepared immutable snapshot both committed. Rejected publication has no store revision effect, remains retryable, and never advances this projection.                                                                                                                                                                                                                                                                                                            |
-| Accepted content change         | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.                                                                                                                                                                                                                                                                              |
-| Publication acknowledgement     | A typed exact-session result proving the accepted Markdown and mode own one store revision and its pre-admitted immutable snapshot was committed to scheduled persistence. `no_change` and `rejected` have `stateEffect: none`; state readback alone cannot acknowledge admission.                                                                                                                                                                                                                                          |
-| Synchronization                 | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Its typed result is observable by later diagnostics but never becomes dirty by itself.                                                                                                                                                                                                                                                                                                   |
-| Draft mutation snapshot         | Immutable cluster ID, note ID, `sessionKey`, editor revision, base hash, exact Markdown, editor mode, content-dirty fact, draft disposition, and cause captured when the accepted change or disposition transition is admitted, not when a later timer fires.                                                                                                                                                                                                                                                               |
-| Scheduled snapshot              | The newest not-yet-started immutable snapshot owned by a per-note debounce/coalescing slot. It is already part of ordered persistence and cannot be bypassed by a read, Save cleanup, Discard, or handoff drain.                                                                                                                                                                                                                                                                                                            |
-| Draft persistence coordinator   | An ephemeral per-cluster/note boundary that orders prepared/committed admission, consistent reads, writes, clean-session cleanup, explicit Discard, successful-save reconciliation, drains, and terminal epoch barriers. Different notes remain independent; task rejection releases the queue; idle keys are pruned.                                                                                                                                                                                                       |
-| Handoff freeze                  | React-owned temporary state entered after the outgoing editor's live Markdown is acknowledged and before a destructive transition waits for durability. The article owns `aria-busy`; an inner interaction region is inert; visible/live status remains outside the inert subtree; the sidebar remains available for later Slice 7C intents.                                                                                                                                                                                |
-| Durability result               | A typed result tied to one session/revision snapshot: `clean` means content is clean, disposition is `none`, and no admitted record remains; `durable` means the exact snapshot is durably stored; `unavailable` carries a precise admission, identity, read, write, cleanup, or queue reason.                                                                                                                                                                                                                              |
-| Draft admission epoch           | A store/runtime generation inside one editor or missing-recovery owner. Every timer, listener, lifecycle callback, and snapshot carries it. Advancing the epoch permanently rejects stale callbacks without requiring Crepe reconstruction.                                                                                                                                                                                                                                                                                 |
-| Terminal discard barrier        | An exact-owner/epoch coordinator operation that freezes input, closes that epoch, invalidates not-yet-started work, waits behind earlier started work, and deletes the record. Success reloads/dismisses. Failure allocates a fresh epoch before restoring the same controller/view, so new edits persist while every pre-confirmation callback remains rejected.                                                                                                                                                           |
-| Legacy ambiguous draft          | A valid draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite treats it as `recovered` and preserves it until explicit Save or Discard because the unchanged schema cannot classify its origin safely.                                                                                                                                                                                                                                     |
+| Term                            | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor session                  | One store-owned editing lifetime identified by `sessionKey`. It owns at most one Crepe instance. Ordinary Markdown, mode, disposition, persistence-issue, and save-status rerenders remain inside that lifetime.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Saved baseline                  | Exact Markdown returned by the current disk read or successful save.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Authoritative current Markdown  | Exact content Azurite currently attributes to disk, a recovered draft, acknowledged source input, or an acknowledged WYSIWYG document change. This is Zustand's `currentMarkdown`, including when browser persistence is unavailable.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Content dirty                   | Whether authoritative current Markdown differs from the saved baseline after CRLF-to-LF normalization only. This fact never proves that a browser record is absent, compatible, or resolved.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Draft disposition               | Store-owned record truth: `none` proves absence; `generated_pending` owns admitted generated work not yet proven durable; `generated_durable` proves its exact current record; `recovered` awaits explicit Save or Discard; `conflict` blocks Save; `cleanup_required` means a known compatible record failed required deletion/reconciliation; `recovery_read_unavailable` means record presence/content could not be read; `preserved_unknown` means an unknown future-version record is known to exist and must remain untouched.                                                                                                                           |
+| Draft persistence issue         | Store-owned exact-owner operation failure with note, epoch, revision/snapshot when present, precise cluster/Dexie/coordinator reason, and the one permitted retry action. It is separate from disposition so healthy pending work, failed work, and browser-record truth cannot be conflated.                                                                                                                                                                                                                                                                                                                                                           |
+| Synchronization checkpoint      | A controller-local pair: exact authoritative Markdown supplied at editor creation or source-to-WYSIWYG synchronization, and Milkdown's serialized projection of that same document. It allows Undo back to that document to restore the exact source bytes.                                                                                                                                                                                                                                                                                                                                                                                           |
+| Acknowledged WYSIWYG projection | The most recent projection whose authority publication and immutable in-memory recovery obligation both committed. Rejected publication has no store revision effect, remains retryable, and never advances this projection.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Accepted content change         | Exact source textarea input, or a changed projection read from the ready, active WYSIWYG document while no Azurite-owned synchronization is in progress. It is an observable ownership classification, not a claim about psychological intent.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Publication acknowledgement     | A typed exact-session result proving the accepted Markdown and mode own one store revision and its immutable snapshot is admitted to scheduled or identity-blocked in-memory persistence. It does not falsely claim IndexedDB durability. `no_change` and `rejected` have `stateEffect: none`; state readback alone cannot acknowledge admission.                                                                                                                                                                                                                                                                                                       |
+| Synchronization                 | Editor construction, readiness, controller-owned source-to-WYSIWYG replacement, WYSIWYG-to-source display, or same-mode selection. Its typed result is observable by later diagnostics but never becomes dirty by itself.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Draft mutation snapshot         | Immutable note ID, optional ready cluster ID, `sessionKey`, editor revision, base hash, exact Markdown, editor mode, content-dirty fact, disposition, and cause captured when an accepted change or disposition transition is admitted. Missing cluster ID blocks execution but never causes later content recapture.                                                                                                                                                                                                                                                                                                                                    |
+| Scheduled snapshot              | The newest not-yet-started immutable snapshot owned by a session-scoped unbound slot or per-note debounce/coalescing slot. It is already part of ordered persistence and cannot be bypassed by a read, Save cleanup, Discard, or handoff drain.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Draft persistence coordinator   | Ephemeral infrastructure that first owns identity-blocked session snapshots, then orders consistent reads, writes, mode updates, cleanup, explicit Discard, successful-save reconciliation, drains, and terminal barriers per ready cluster/note key. Different notes remain independent; task rejection releases the queue; idle keys and unbound slots are pruned.                                                                                                                                                                                                                                                                                     |
+| Preserved handoff               | A clean session with `recovery_read_unavailable` or `preserved_unknown` may hand off without resolving or mutating the browser record because no live edit is being lost. The result is explicitly `preserved`, never `clean`, `durable`, or absent. Dirty live authority in either disposition still blocks destructive handoff until manual Save makes it clean.                                                                                                                                                                                                                                                                                       |
+| Handoff freeze                  | React-owned temporary state entered after the outgoing editor's live Markdown is acknowledged and before a destructive transition waits for durability. The article owns `aria-busy`; an inner interaction region is inert; visible/live status remains outside the inert subtree; the sidebar remains available for later Slice 7C intents.                                                                                                                                                                                                                                                                                                          |
+| Durability result               | A typed result tied to one session/revision snapshot: `clean` proves content clean and disposition `none`; `durable` proves the exact live snapshot is durably stored; `preserved` proves content clean while an unread/future record remains untouched; `unavailable` carries an exact failure and never authorizes dirty handoff.                                                                                                                                                                                                                                                                                                                         |
+| Draft admission epoch           | A store/runtime generation inside one editor or missing-recovery owner. Every timer, listener, lifecycle callback, snapshot, and issue carries it. Advancing the epoch permanently rejects stale callbacks without requiring Crepe reconstruction.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Terminal discard barrier        | An exact-owner/epoch coordinator operation for compatible `recovered` or `conflict` records that freezes input, closes the epoch, invalidates not-yet-started work, waits behind earlier started work, and deletes the record. Success reloads/dismisses. Failure allocates a fresh epoch before restoring the same controller/view. Unread and future-version records never expose this destructive action.                                                                                                                                                                                                                                                 |
+| Legacy ambiguous draft          | A valid current-version draft created before this contract whose record cannot prove whether serializer normalization or accepted editing produced it. Azurite treats it as `recovered` and preserves it until explicit Save or Discard because the unchanged schema cannot classify its origin safely.                                                                                                                                                                                                                                                                                                                                                  |
 
 ### Typed Result Contract
 
@@ -306,11 +376,89 @@ type DraftDisposition =
   | "generated_durable"
   | "recovered"
   | "conflict"
-  | "cleanup_required";
+  | "cleanup_required"
+  | "recovery_read_unavailable"
+  | "preserved_unknown";
+
+type DraftFailureDetail =
+  | {
+      source: "cluster_identity";
+      reason: ClusterIdentityUnavailableReason;
+    }
+  | {
+      source: "persistence";
+      reason: DraftPersistenceUnavailableReason;
+    }
+  | {
+      source: "coordinator";
+      reason: "snapshot_admission_failed" | "queue_task_failed";
+    }
+  | {
+      source: "record";
+      reason: "recovery_read_required" | "preserved_unknown";
+    };
+
+type DraftPersistenceOperation =
+  | "recovery_read"
+  | "content_write"
+  | "mode_write"
+  | "cleanup"
+  | "discard"
+  | "queue";
+type DraftRetryAction =
+  | "retry_browser_recovery"
+  | "retry_draft_persistence"
+  | "retry_draft_cleanup"
+  | "retry_discard";
+type DraftPersistenceIssue = {
+  ownerKey: string;
+  sessionKey: string | undefined;
+  clusterId: string | undefined;
+  noteId: string;
+  draftEpoch: number;
+  revision: number | undefined;
+  snapshotKey: string | undefined;
+  operation: DraftPersistenceOperation;
+  failure: DraftFailureDetail;
+  retryAction: DraftRetryAction | undefined;
+};
+
+type DraftReadResult =
+  | {
+      status: "absent";
+      clusterId: string;
+      noteId: string;
+    }
+  | {
+      status: "found_current";
+      draft: DraftRecord;
+    }
+  | {
+      status: "preserved_unknown";
+      clusterId: string;
+      noteId: string;
+      schemaVersion: number;
+    }
+  | {
+      status: "unavailable";
+      clusterId: string;
+      noteId: string;
+      reason: DraftPersistenceUnavailableReason;
+    };
+
+type DraftRecordMutationResult =
+  | { status: "deleted" }
+  | { status: "absent" }
+  | { status: "not_matching" }
+  | { status: "preserved_unknown"; schemaVersion: number }
+  | {
+      status: "unavailable";
+      reason: DraftPersistenceUnavailableReason;
+    };
 
 type DraftMutationSnapshot = {
   snapshotKey: string;
-  clusterId: string;
+  clusterId: string | undefined;
   noteId: string;
   sessionKey: string;
   draftEpoch: number;
@@ -322,6 +470,7 @@ type DraftMutationSnapshot = {
   disposition: DraftDisposition;
   cause:
     | "accepted_change"
+    | "mode_change"
     | "generated_clean"
     | "successful_save_cleanup"
     | "cleanup_retry"
@@ -337,10 +486,7 @@ type SnapshotPreparationResult =
       draftEpoch: number;
       attemptedRevision: number;
       clusterId: string | undefined;
-      reason:
-        | "stale_session"
-        | "cluster_identity_unavailable"
-        | "snapshot_admission_failed";
+      reason: "stale_session" | "closed_epoch" | "snapshot_admission_failed";
     };
 
 type PublicationResult =
@@ -356,6 +502,7 @@ type PublicationResult =
       editorMode: EditorMode;
       snapshotKey: string;
       disposition: DraftDisposition;
+      persistenceIssue: DraftPersistenceIssue | undefined;
       completion: "normal" | "subscriber_threw_after_apply";
     }
   | {
@@ -365,7 +512,7 @@ type PublicationResult =
       revision: number;
       origin: ChangeOrigin;
       trigger: PublicationTrigger;
-      reason: "authority_unchanged";
+      reason: "authority_unchanged" | "retry_reverted";
       disposition: DraftDisposition;
     }
   | {
@@ -379,7 +526,7 @@ type PublicationResult =
       disposition: DraftDisposition;
       reason:
         | "stale_session"
-        | "cluster_identity_unavailable"
+        | "closed_epoch"
         | "snapshot_admission_failed"
         | "state_update_failed";
     };
@@ -445,14 +592,50 @@ type CommitResult =
       publication: Extract<PublicationResult, { status: "rejected" }>;
     };
 
-type DurabilityFailureReason =
-  | "cluster_identity_unavailable"
-  | "snapshot_admission_failed"
-  | "consistent_read_failed"
-  | "draft_write_failed"
-  | "draft_cleanup_failed"
-  | "queue_task_failed"
-  | "owner_lost";
+type RecoveryReadResult =
+  | {
+      status: "resolved";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      recordStatus: "absent";
+      disposition: "none";
+    }
+  | {
+      status: "resolved";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      recordStatus: "found_current";
+      disposition: "recovered" | "conflict";
+    }
+  | {
+      status: "preserved";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      schemaVersion: number;
+      disposition: "preserved_unknown";
+    }
+  | {
+      status: "failed";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      disposition: "recovery_read_unavailable";
+      issue: DraftPersistenceIssue;
+    }
+  | {
+      status: "superseded";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      reason: "dirty_live_authority" | "owner_lost";
+    };
+
+type DurabilityFailure =
+  | DraftFailureDetail
+  | { source: "session"; reason: "owner_lost" };
 type DurabilityCause =
   "route_transition" | "visibilitychange" | "pagehide" | "explicit_flush";
 type DurabilityResult =
@@ -477,6 +660,16 @@ type DurabilityResult =
       disposition: "generated_durable" | "recovered" | "conflict";
     }
   | {
+      status: "preserved";
+      cause: DurabilityCause;
+      clusterId: string | undefined;
+      noteId: string;
+      sessionKey: string;
+      revision: number;
+      snapshotKey: undefined;
+      disposition: "recovery_read_unavailable" | "preserved_unknown";
+    }
+  | {
       status: "unavailable";
       cause: DurabilityCause;
       clusterId: string | undefined;
@@ -485,7 +678,7 @@ type DurabilityResult =
       revision: number;
       snapshotKey: string | undefined;
       disposition: DraftDisposition;
-      reason: DurabilityFailureReason;
+      failure: DurabilityFailure;
     };
 
 type CleanupCause = "generated_clean" | "successful_save" | "cleanup_retry";
@@ -498,6 +691,7 @@ type CleanupResult =
       sessionKey: string;
       revision: number;
       snapshotKey: string;
+      storageOutcome: "deleted" | "absent";
       disposition: "none";
     }
   | {
@@ -508,17 +702,29 @@ type CleanupResult =
       sessionKey: string;
       revision: number;
       snapshotKey: string;
-      reason: "newer_revision" | "owner_lost";
+      reason: "newer_revision" | "newer_record" | "owner_lost";
     }
   | {
-      status: "failed";
+      status: "preserved";
       cause: CleanupCause;
       clusterId: string;
       noteId: string;
       sessionKey: string;
       revision: number;
+      snapshotKey: string;
+      schemaVersion: number;
+      disposition: "preserved_unknown";
+    }
+  | {
+      status: "failed";
+      cause: CleanupCause;
+      clusterId: string | undefined;
+      noteId: string;
+      sessionKey: string;
+      revision: number;
       snapshotKey: string | undefined;
-      reason: DurabilityFailureReason;
+      failure: DraftFailureDetail;
+      issue: DraftPersistenceIssue;
       disposition: "cleanup_required";
     };
 
@@ -540,16 +746,25 @@ type DiscardResult =
       reason: "owner_lost";
     }
   | {
+      status: "preserved";
+      clusterId: string;
+      noteId: string;
+      ownerKey: string;
+      closedEpoch: number;
+      restoredEpoch: number;
+      schemaVersion: number;
+      disposition: "preserved_unknown";
+      surfaceEffect: "restored";
+    }
+  | {
       status: "failed";
       clusterId: string | undefined;
       noteId: string;
       ownerKey: string;
       closedEpoch: number;
       restoredEpoch: number;
-      reason:
-        | "cluster_identity_unavailable"
-        | "draft_delete_failed"
-        | "queue_task_failed";
+      failure: DraftFailureDetail;
+      issue: DraftPersistenceIssue;
       disposition: "recovered" | "conflict";
       surfaceEffect: "restored";
     };
@@ -566,7 +781,10 @@ type EditorGatePreparationResult =
       leaseKey: string;
       sessionKey: string;
       commit: Extract<CommitResult, { status: "acknowledged" | "no_change" }>;
-      durability: Extract<DurabilityResult, { status: "clean" | "durable" }>;
+      durability: Extract<
+        DurabilityResult,
+        { status: "clean" | "durable" | "preserved" }
+      >;
     }
   | {
       status: "cancel";
@@ -650,8 +868,11 @@ never decides them.
      each rich edit.
    - Compute the next exact-session revision and synchronously call
      `prepareSnapshot` before Zustand mutation. Preparation captures the command
-     input and draft epoch in an inactive coordinator slot. If identity or
-     preparation fails, return `rejected/stateEffect:none`; do not call `set`.
+     input, optional ready cluster ID, and draft epoch in an inactive coordinator
+     slot. Missing cluster identity prepares an identity-blocked slot plus typed
+     issue; it does not reject authority. Only stale session, closed epoch, or
+     in-memory snapshot-admission failure returns `rejected/stateEffect:none`
+     without calling `set`.
    - Apply the revision through one exact-session updater that records a local
      `didApply` fact before subscribers run. On stale ownership or a throw before
      the updater applies, cancel the prepared slot and return rejected with no
@@ -685,6 +906,10 @@ never decides them.
    - A projection equal to the acknowledged projection is a no-op only when no
      retryable publication exists, even if Milkdown reports a document
      transaction.
+   - If a later source value or WYSIWYG projection returns exactly to the last
+     acknowledged authority while a rejected publication is pending, cancel the
+     retry candidate and return `no_change/retry_reverted`. Do not allocate a
+     revision, admit a snapshot, or retain a stale publication error.
 
 4. **Pre-transition commit and asynchronous ownership handoff**
    - Register one React-owned editor gate with Slice 7C's route-transition owner.
@@ -754,6 +979,10 @@ never decides them.
      and settles it as `retained`/`none`; then restore focus when possible. Slice
      7C alone decides whether the attempted history action commits or returns to
      its exact predecessor.
+   - A clean `recovery_read_unavailable` or `preserved_unknown` session may return
+     `preserved` and continue because no live edit is being lost and the browser
+     record remains untouched. The same dispositions return `unavailable` while
+     live content is dirty; Daniel must manually Save before destructive handoff.
    - If another session replaces the editor while durability is pending, the old
      result may finish its own scoped persistence but cannot invalidate,
      unfreeze, or continue through the newer session.
@@ -774,15 +1003,23 @@ never decides them.
      200-millisecond listener debounce earlier.
    - Show the existing exact authoritative Markdown rather than replacing it
      with a normalized projection when the commit is a no-op.
-   - The mode change itself may update stored editor mode but must not create
-     dirty content or a recovery draft.
+   - The mode change itself never creates dirty content. For `none`,
+     `cleanup_required`, `recovery_read_unavailable`, and `preserved_unknown`,
+     update only the live session mode and do not create or rewrite a record. For
+     `generated_pending`, `generated_durable`, `recovered`, or `conflict`, admit
+     a `mode_change` snapshot through the same coordinator so the already-owned
+     compatible record recovers into the selected mode. A failed mode write
+     retains the disposition, exact snapshot, and `Retry draft persistence`
+     issue without blocking the mode switch or manual Save.
 
 6. **Source input**
    - Every textarea input value is exact accepted `source_input` content.
    - Update the visible local source value and publish it immediately. Do not
      normalize line endings or Markdown syntax at this boundary. Advance
      acknowledged authority only after the exact revision owns store state and
-     its immutable draft snapshot is admitted to scheduled persistence.
+     its immutable draft snapshot is admitted to scheduled or identity-blocked
+     in-memory persistence. Browser durability may remain unavailable; authority
+     and manual Save do not.
    - If publication fails, keep the exact local value visible, expose the editor
      failure, retain a retryable unacknowledged change, and block destructive
      actions until that same value is acknowledged. Expose the same explicit
@@ -824,65 +1061,105 @@ never decides them.
    - The new session receives its own exact authority, synchronization
      checkpoint, and acknowledged projection.
 
-9. **Dirty, draft, and save decisions**
+9. **Dirty, draft, issue, and save decisions**
    - Content dirty means authoritative current Markdown differs from the saved
      baseline after CRLF-to-LF normalization only.
    - On acknowledged dirty publication, `none`, `generated_pending`,
      `generated_durable`, or `cleanup_required` becomes `generated_pending`;
-     `recovered` and `conflict` remain unresolved under their existing kind.
-     Durable write completion changes only the matching `generated_pending` to
-     `generated_durable`.
-   - Draft disposition remains independent. Returning a `recovered` draft to
-     content equal to disk does not silently resolve or delete its browser
-     record. A failed deletion becomes `cleanup_required`; it is not collapsed
-     into `none` merely because content is clean.
-   - Clean mode changes do not write a draft. When a `generated_pending` session
-     returns clean, cancel/coalesce a not-yet-started dirty snapshot. If no write
-     started and no record was previously durable, transition directly to
-     `none` without speculative deletion. If a write started or a record is
-     `generated_durable`, wait for it and perform an ordered consistent
-     read/deletion before resolving the clean snapshot.
-   - A clean reconciliation failure becomes `cleanup_required` only when a
-     record exists or absence cannot be proven; it is not invented after a
-     purely scheduled snapshot was successfully cancelled. A destructive
-     handoff reports `clean` only in `none`.
-   - A pristine `none` session may report `clean` without cluster identity when
-     no record read, mutation, or cleanup is required. Once dirty content or a
-     known/maybe-present record requires persistence work, unavailable cluster
-     identity reports `unavailable`; it cannot be treated as clean or durable.
-   - Save remains disabled for content-clean `none` sessions, and a direct
-     programmatic Save makes no API request. A `recovered` session keeps Save
-     available even when content compares clean so explicit Save can dispose of
-     the record through the content-hash contract. `conflict` Save remains
+     `recovered` and `conflict` remain unresolved under their existing kind;
+     `recovery_read_unavailable` and `preserved_unknown` remain unchanged so the
+     protected browser-record truth cannot be forgotten. Durable write completion
+     changes only the matching `generated_pending` to `generated_durable`.
+   - Draft disposition and `DraftPersistenceIssue` remain independent. A healthy
+     scheduled/in-flight `generated_pending` snapshot has no failure issue. A
+     rejected write, blocked identity target, unread record, failed cleanup, or
+     failed Discard owns one exact issue with its operation, owner, epoch,
+     revision/snapshot, underlying reason, and permitted retry action.
+   - Missing cluster identity never rejects an edit. Admit the immutable snapshot
+     under the current session, set `generated_pending` when record truth permits,
+     retain a precise cluster-identity issue, and report dirty durability as
+     `unavailable`. `Retry draft persistence` rechecks the current same-session
+     identity and binds the original snapshot to a ready cluster/note key without
+     recapturing content. A newer accepted revision supersedes the older slot.
+   - Returning a `recovered` draft to content equal to disk does not silently
+     resolve or delete its browser record. A failed deletion of a known compatible
+     record becomes `cleanup_required`; unread or future-version records never do.
+   - When a `generated_pending` session returns clean, cancel/coalesce a
+     not-yet-started dirty snapshot. If no write started and no record was
+     previously durable, transition directly to `none` without speculative
+     deletion. If a write started or a record is `generated_durable`, wait for it
+     and perform an ordered transactional read/deletion before resolving the clean
+     snapshot.
+   - A clean reconciliation failure becomes `cleanup_required` only after a
+     compatible current-version record and intended cleanup are known. It is not
+     invented after a cancelled scheduled snapshot, failed initial read, or
+     preserved unknown record. A destructive handoff reports `clean` only in
+     `none`; clean unread/unknown state reports `preserved`.
+   - Save remains disabled for content-clean `none`, `cleanup_required`,
+     `recovery_read_unavailable`, and `preserved_unknown` sessions, and a direct
+     programmatic Save makes no API request. Dirty content remains manually
+     saveable in all four dispositions. A `recovered` session keeps Save available
+     even when content compares clean so explicit Save can dispose of its known
+     compatible record through the content-hash contract. `conflict` Save remains
      blocked.
-   - A successful filesystem Save updates the exact-session saved baseline,
-     content hash, and content-dirty fact even if subsequent browser-record
-     cleanup fails. Cleanup failure then sets `cleanup_required`, preserves the
-     known saved disk truth, shows degraded status, and exposes `Retry draft
-cleanup`; it must not lie that Save failed or leave an impossible
-     content-clean state with no available action.
+   - A successful filesystem Save always updates the exact-session saved baseline,
+     content hash, and content-dirty fact. For a known compatible record, exact
+     conditional cleanup returns `deleted`, `absent`, `not_matching`,
+     `preserved_unknown`, or `unavailable`; only a failed intended compatible
+     cleanup becomes `cleanup_required`. For unread or future-version state, Save
+     does not attempt deletion and retains the visible preserved disposition.
    - `Retry draft cleanup` orders an exact-session conditional deletion without
-     another filesystem write. It is visible only for `cleanup_required` and
-     transitions to `none` only on success. A later accepted edit supersedes the
-     clean retry snapshot and returns to `generated_pending` through normal
-     admission.
-   - Real dirty content continues through the existing draft and conflict
-     contracts, but every persistence mutation uses an immutable snapshot and
-     the per-cluster/note coordinator. Missing cluster identity or snapshot
-     admission failure produces an explicit unavailable result and cannot be
-     treated as durable.
-   - A rejected draft write retains the exact current snapshot and
-     `generated_pending` disposition as a retry obligation. Expose `Retry draft
-persistence`; retry the same snapshot through the ordered coordinator
-     without requiring another edit, and allow a newer accepted revision to
-     supersede it. Do not spin in an automatic unbounded retry loop.
+     another filesystem write. It is visible only for `cleanup_required`, changes
+     to `none` only after `deleted` or `absent`, becomes superseded after
+     `not_matching`, and becomes `preserved_unknown` without deleting after an
+     unknown-version result. A later accepted edit supersedes the clean retry
+     snapshot and returns a compatible current record to `generated_pending`.
+   - A rejected content or mode write retains the exact current snapshot and
+     disposition plus `Retry draft persistence`. Retry the same snapshot through
+     the ordered coordinator without requiring another edit; a newer accepted
+     revision or mode snapshot supersedes it. Do not spin in an automatic
+     unbounded retry loop.
    - The draft flush boundary returns a snapshot-specific durability result.
-     Destructive note/route transitions may proceed after `clean` or `durable`
-     for the exact still-active session, but not after `unavailable`. Save and
-     mode switching retain the current session and do not depend on a successful
-     draft write to avoid losing the only live copy.
+     Destructive note/route transitions may proceed after `clean`, `durable`, or
+     clean-record `preserved`, but not after `unavailable`. Save and mode switching
+     retain the current session and do not depend on successful browser
+     persistence to avoid losing the only live copy.
 
-10. **Legacy ambiguous draft compatibility**
+10. **Recovery-read failure and future-version preservation**
+    - Derive the draft key from the ready cluster identity in the exact note-read
+      response that owns the route application. Do not read through an older
+      mutable store identity before applying that response.
+    - `DraftPersistence.readDraft` returns exactly `absent`, `found_current`,
+      `preserved_unknown`, or `unavailable`. Only `absent` proves `none`.
+      `preserved_unknown` carries the observed future schema version without
+      exposing or interpreting its payload.
+    - An unavailable initial or same-note recovery read installs the disk-backed
+      editor with `recovery_read_unavailable`, a precise issue, and visible `Retry
+      browser recovery`; it never installs `cleanup_required`, deletes a record,
+      or authorizes a current-version write over the unknown key.
+    - Recovery retry may apply a result only while the exact owner remains current
+      and live content is clean. `absent` becomes `none`; `found_current` applies
+      the exact draft through normal recovered/conflict classification;
+      `preserved_unknown` becomes the visible preserved state; another failure
+      refreshes the same issue. If live content is dirty, return
+      `superseded/dirty_live_authority`, keep the edit visible, and require manual
+      Save before a later retry can replace authority.
+    - Accepted edits during `recovery_read_unavailable` or `preserved_unknown`
+      remain Zustand authority and manually saveable, but current-version draft
+      writes stay blocked so neither an unread record nor a future-version record
+      is overwritten. Dirty destructive handoff is unavailable; after successful
+      manual Save makes the live content clean, handoff may return `preserved`
+      while leaving the browser record untouched.
+    - An older build never exposes Discard for `preserved_unknown`, never deletes
+      it during Save cleanup, and never rewrites it through content or mode
+      persistence. Show concise guidance that a compatible newer Azurite build is
+      required to inspect or dispose of that recovery record.
+    - Conditional and direct mutations return `deleted`, `absent`,
+      `not_matching`, `preserved_unknown`, or `unavailable` from one Dexie
+      transaction. Store state may not infer deletion from generic success or a
+      separate pre-read.
+
+11. **Legacy ambiguous draft compatibility**
     - Do not automatically delete, canonicalize, or semantically classify a
       valid pre-7D draft whose origin cannot be proven by its existing schema.
     - Recover it through the existing draft/conflict UI and preserve its exact
@@ -913,13 +1190,19 @@ persistence`; retry the same snapshot through the ordered coordinator
     - Completion evidence must distinguish prevention of new projection-only
       drafts from preservation of already stored ambiguous drafts.
 
-11. **Ordered draft persistence ownership**
-    - `prepareSnapshot` is synchronous: it validates cluster/session/epoch,
-      stores one inactive immutable slot, and either returns `prepared` or has no
-      side effect. `commitPrepared` and `cancelPrepared` are synchronous,
-      idempotent, non-persistence operations. A prepared slot is not executable
-      until committed, but consistent reads/drains recognize and wait for the
+12. **Ordered draft persistence ownership**
+    - `prepareSnapshot` is synchronous: it validates session/epoch, captures the
+      ready cluster ID when available, stores one inactive immutable slot, and
+      either returns `prepared` or has no side effect. Unavailable identity creates
+      a valid unbound slot, not rejection. `commitPrepared` and `cancelPrepared`
+      are synchronous, idempotent, non-persistence operations. A prepared slot is
+      not executable until committed, but reads/drains recognize and wait for the
       publication command to commit/cancel it.
+    - A committed unbound slot remains owned by its exact session and reports an
+      identity issue. When the same session later observes a ready cluster ID,
+      bind the original immutable snapshot to that cluster/note queue after
+      owner/epoch/revision revalidation. Never reconstruct its Markdown, mode, or
+      base hash from mutable store state.
     - Every draft lookup uses a consistent-read operation for the cluster/note
       key. It first admits or drains any scheduled snapshot and waits behind
       earlier mutations, so same-note reopen cannot observe absence before a
@@ -931,14 +1214,16 @@ persistence`; retry the same snapshot through the ordered coordinator
     - Every scheduled callback carries `ownerKey` and `draftEpoch`. A closed
       epoch is terminal. Discard failure opens exactly the next epoch; it never
       reopens or reuses the closed one.
-    - Order `readDraft`, `writeDraft`, generated-clean deletion, cleanup retry,
-      explicit Discard, durability drain, and
-      `deleteDraftIfSavedSnapshotMatches` per cluster/note key. Different notes
-      remain independent.
-    - Use or deliberately specialize the existing core `KeyedTaskCoordinator`.
-      Document why specialization is necessary for scheduled slots, consistent
-      reads, cancellation, or terminal barriers instead of creating a parallel
-      generic keyed queue.
+    - Order exact-outcome `readDraft`, content and mode writes, generated-clean
+      deletion, cleanup retry, explicit Discard, durability drain, and successful
+      Save conditional cleanup per cluster/note key. Different notes remain
+      independent.
+    - Move the generic `KeyedTaskCoordinator` from `packages/core` to a
+      browser-safe `packages/shared` module and update core's existing writer to
+      consume it. Compose that primitive inside a focused web draft coordinator
+      for unbound slots, coalescing, consistent reads, cancellation, and terminal
+      barriers. Do not add `@azurite/core` to the web app, import across package
+      source paths, or create a parallel generic queue.
     - Convert every task rejection into the caller's typed failure result while
       releasing the tail in `finally`. One failed task cannot poison later work,
       and the key plus scheduled slot are pruned when no work or session owner
@@ -946,10 +1231,11 @@ persistence`; retry the same snapshot through the ordered coordinator
     - An older mutation may finish and report its own result, but exact-session
       revalidation prevents it from applying disposition, degraded status, or a
       durability decision to a newer session.
-    - Successful-save cleanup remains conditional on the exact saved snapshot.
-      A newer admitted draft survives and uses the new saved baseline. A failed
-      exact cleanup applies `cleanup_required` only if that saved session/revision
-      still owns the note.
+    - Successful-save cleanup remains conditional on the exact saved snapshot and
+      consumes the adapter's exact mutation outcome. A newer/mismatching admitted
+      draft survives and uses the new saved baseline; an unknown future record is
+      preserved; a failed intended compatible cleanup applies `cleanup_required`
+      only if that saved session/revision still owns the note.
     - The coordinator is ephemeral runtime infrastructure. Do not add queue IDs,
       controller capabilities, or scheduling internals to the version-one draft
       record.
@@ -983,9 +1269,15 @@ not an assumed generic editor callback:
   scheduled-before-transaction work, consistent reads, terminal cancellation, or
   exact-session result ownership.
 - `packages/core/src/keyed-task-coordinator.ts` already supplies per-key tail
-  serialization, rejection-safe release, and idle-key pruning. Extend or wrap it
-  for scheduled snapshots and terminal barriers rather than duplicating its
-  generic guarantees.
+  serialization, rejection-safe release, and idle-key pruning, but `@azurite/web`
+  does not depend on `@azurite/core` and core's only public entry also exports
+  filesystem behavior. Move this browser-safe primitive to `@azurite/shared`,
+  update core's writer to consume it, and compose it in the web-specific draft
+  coordinator rather than importing core or duplicating the generic guarantees.
+- The current draft adapter returns generic `ok` for deleted, absent,
+  mismatching, and preserved-unknown conditional mutation outcomes, and returns a
+  preserved future-version record as ordinary absence. Slice 7D must enrich that
+  boundary transactionally before store disposition can be honest.
 - The existing memory persistence adapter settles mutations synchronously, so it
   cannot prove delayed ordering without the controllable adapter required by
   this slice.
@@ -1033,7 +1325,7 @@ Implementation requirements:
 - Treat post-7C line counts as an implementation constraint across the workflow,
   not only in Milkdown: `note-browser-store.ts` is 396 lines,
   `note-browser-read-actions.ts` 384, `MilkdownEditor.tsx` 382,
-  `route-transition-owner.ts` 355, `route-intent-execution.ts` 334,
+  `route-transition-owner.ts` 350, `route-intent-execution.ts` 336,
   `note-browser-editor-actions.ts` 316, `note-browser-action-utils.ts` 315,
   `note-browser-route-actions.ts` and `route-intent-admission.ts` 281 each,
   `route-history-admission.ts` 276, and the acceptance-only
@@ -1057,9 +1349,10 @@ Implementation requirements:
   the exact `sessionKey`, resulting revision, Markdown accepted by Zustand, and
   committed immutable snapshot identity, or an exact rejection. Implement the
   synchronous prepare -> exact updater/`didApply` -> commit/cancel protocol.
-  Preparation failure cannot mutate state; a subscriber throw after application
-  commits the already prepared slot once; exact store readback is not the
-  decision boundary.
+  Missing cluster identity prepares an unbound slot and exact issue rather than
+  rejection. A true preparation failure cannot mutate state; a subscriber throw
+  after application commits the already prepared slot once; exact store readback
+  is not the decision boundary.
 - Represent synchronization and commit success/failure as typed results rather
   than inferring them from callback counts or thrown side effects.
 - Expose a narrow controller capability that can synchronously commit the
@@ -1073,6 +1366,9 @@ Implementation requirements:
 - Expose a narrow explicit retry capability and visible editor failure action for
   the current unacknowledged publication. Do not require another Milkdown
   callback or unrelated user edit to retain it.
+- When visible content returns to the acknowledged authority, cancel an existing
+  retry candidate as `no_change/retry_reverted`; do not create a revision or keep
+  a stale editor error merely because an earlier publication failed.
 - Implement the authoritative transitions above as named, independently
   testable operations. Do not scatter boolean suppression flags across React
   callbacks without a single state owner.
@@ -1124,6 +1420,10 @@ Implementation requirements:
   Register it with the implemented Slice 7C transition owner. Do not put Crepe
   instances, callbacks, refs, route targets, or other runtime objects in
   Zustand, Dexie, or serializable snapshots.
+- Refactor the route QA extension point from replacement to decoration. Compose
+  the production baseline/editor gate first, then allow the acceptance-only
+  controller to wrap that real gate for hold/cancel/throw controls. Prove the QA
+  path still executes production commit, durability, freeze, and settlement.
 - Route note selection, URL-driven replacement, and Back/Forward through Slice
   7C's exact target-free `prepare`/`settle` lease contract. Route manual Save and
   WYSIWYG-to-source through the same controller commit operation without
@@ -1149,16 +1449,21 @@ Implementation requirements:
   superseded lease cannot unfreeze another; a coherent no-op creates no lease;
   `retained`, `none`, `replaced`, and `replaced_by_error` have the exact effects
   in Required Transition 4.
+- Consume each settlement lease before or in a non-throwing `finally` around
+  optional diagnostics. Slice 7C intentionally contains settlement exceptions,
+  so no thrown QA or diagnostic callback may strand a session frozen or retain a
+  refcount.
 - Change the pending-draft flush boundary to accept an immutable snapshot and
-  return snapshot-specific `clean`, `durable`, or `unavailable`. An unavailable
-  required write or clean-session cleanup cancels selection/history
-  synchronization and unfreezes the same editor session.
+  return snapshot-specific `clean`, `durable`, `preserved`, or `unavailable`.
+  `preserved` is valid only for clean unread/future-version state whose record is
+  untouched. An unavailable dirty write or required compatible cleanup cancels
+  selection/history synchronization and unfreezes the same editor session.
 - Return only `continue` or `cancel` plus exact-session failure information to
   Slice 7C. Do not push, replace, compare, retain, block, or restore history in
   this slice.
 - Refactor successful same-session save reconciliation so it updates the saved
-  baseline, hash, note metadata, draft disposition, and status in place. It must retain
-  `sessionKey`, editor mode, current Markdown, revision ownership, Crepe,
+  baseline, hash, note metadata, draft disposition, and status in place. It must
+  retain `sessionKey`, editor mode, current Markdown, revision ownership, Crepe,
   checkpoint, selection, and Undo history rather than calling a fresh-session
   constructor.
 - Make transition ownership exact: an old controller cannot delay, cancel, or
@@ -1189,28 +1494,54 @@ Implementation requirements:
   alternative in `EditorSession`.
 - Replace the ambiguous recovered-record boolean/union usage with the exact
   `Draft disposition` variants from the authoritative contract. Keep it separate
-  from equality and preserve `recovered`, `conflict`, and `cleanup_required`
-  records even when content compares clean.
-- Ensure editor-mode-only updates do not imply dirty content and do not create a
-  draft record for a `none` pristine note.
-- Keep `canSaveEditor` as the defensive API boundary: content-clean `none` and
-  `cleanup_required` sessions never call the filesystem Save API, even if UI
-  invokes it directly. A `recovered` record remains explicitly saveable;
-  `conflict` remains blocked; `cleanup_required` exposes its separate retry.
-- Extend or intentionally specialize `KeyedTaskCoordinator` into a focused
-  per-cluster/note draft-persistence coordinator. Route consistent reads,
-  scheduled snapshot admission, writes, clean-session deletion, cleanup retry,
-  explicit Discard, durability drain, and successful-save exact-snapshot cleanup
-  through it while different notes remain independent.
+  from equality and `DraftPersistenceIssue`. Preserve `recovered`, `conflict`,
+  `cleanup_required`, `recovery_read_unavailable`, and `preserved_unknown` even
+  when content compares clean.
+- Replace the draft adapter's generic read and mutation success with the exact
+  transactional outcomes in the authoritative contract. A future-version record
+  must never collapse to absence, and conditional cleanup must distinguish
+  deleted, absent, mismatching, preserved unknown, and unavailable.
+- Pass the ready cluster ID from the exact `ReadNoteResponse` into the consistent
+  recovery read before the terminal route mutation. Do not have that read consult
+  an older store identity. Apply the response identity, read disposition, editor,
+  and committed route view together after exact-current revalidation.
+- Implement `Retry browser recovery` for clean
+  `recovery_read_unavailable` sessions. Block it as
+  `superseded/dirty_live_authority` while unsaved live edits exist; preserve those
+  edits and manual Save rather than replacing them with a late recovered draft.
+- Treat `preserved_unknown` as visible incompatible recovery truth. Do not expose
+  Discard or issue current-version content/mode writes or cleanup against it.
+- Ensure mode-only updates follow Required Transition 5: no record for `none`;
+  coordinated mode persistence for generated/recovered/conflict records; live-only
+  mode for cleanup, unread, or future-version state; exact retry issue on a failed
+  compatible mode write.
+- Keep `canSaveEditor` as the defensive API boundary: content-clean `none`,
+  `cleanup_required`, `recovery_read_unavailable`, and `preserved_unknown` never
+  call the filesystem Save API even if UI invokes it directly; dirty content in
+  those dispositions remains manually saveable. A `recovered` record remains
+  explicitly saveable; `conflict` remains blocked; cleanup and recovery-read
+  issues expose their distinct actions.
+- Move the generic keyed task coordinator from `packages/core` to an exported,
+  browser-safe `packages/shared` module and update the core writer to consume it.
+  Compose it into a focused web draft-persistence coordinator for unbound slots,
+  consistent reads, scheduled snapshots, content/mode writes, clean-session
+  deletion, cleanup retry, explicit Discard, durability drain, and successful-Save
+  cleanup. Add no `@azurite/core` web dependency or cross-package source import.
 - Prepare the immutable snapshot in an inactive coordinator slot before the
   exact Zustand updater, then commit/cancel it from the updater's local
-  `didApply` result. A later debounce callback may start/coalesce committed work
-  but cannot capture mutable editor state or represent admission.
+  `didApply` result. A missing cluster ID owns a committed unbound slot and exact
+  issue; later identity repair binds that same snapshot after revalidation. A
+  debounce callback may start/coalesce committed work but cannot capture mutable
+  editor state or represent admission.
 - Track store-owned per-session draft disposition from consistent load,
   admission, and completed mutations. Distinguish `generated_pending` from
   `generated_durable`. A pristine or cancelled-before-start clean session with
   no owned record returns `clean` without speculative deletion; started/durable
   work must be drained and its record absence proven before returning `clean`.
+- Track one store-owned persistence issue separately with exact owner, epoch,
+  operation, revision/snapshot, underlying reason, and retry action. Clear or
+  supersede it only through matching success, a newer revision, Save/Discard
+  disposition, or owner replacement; never let an old issue degrade a new note.
 - Capture mutation input before the first await and revalidate `sessionKey` plus
   revision before applying session-visible results. Do not let a late mutation
   degrade, clean, close, or unblock a newer session.
@@ -1221,14 +1552,18 @@ Implementation requirements:
   and content hash, set `cleanup_required`, and expose `Retry draft cleanup`.
   Prove retry success removes the record without another API `PUT` and a newer
   edit supersedes the stale retry.
+- On successful Save from `recovery_read_unavailable` or `preserved_unknown`,
+  update the saved disk truth but do not call browser deletion. Keep the record
+  disposition visible and allow clean handoff as `preserved`.
 - Remove the current successful-Save fresh-session reconstruction. Update the
   existing exact session in place and prove its unchanged owner keeps the
   committed route view coherent; a same-target click after Save must allocate no
   route lease and issue no note GET.
 - On draft-write rejection, retain the immutable current snapshot plus
-  `generated_pending` disposition and expose `Retry draft persistence`. Route
-  the retry through the same per-note coordinator, require no intervening edit,
-  and let a newer admitted revision supersede the failed snapshot.
+  its applicable disposition and exact issue, and expose `Retry draft
+  persistence`. Route the retry through the same coordinator, require no
+  intervening edit, preserve the underlying failure reason, and let a newer
+  admitted revision or mode change supersede the failed snapshot.
 - Preserve the existing Slice 7B single-flight, edit-during-save,
   session-ownership, conflict, failed-save, and exact-draft-cleanup behavior
   after its prerequisite repairs.
@@ -1239,7 +1574,10 @@ Implementation requirements:
   cancel scheduled work before ordered deletion, block all old-epoch callbacks,
   and reload only after success. On failure allocate the next epoch before
   restoring the untouched same editor/view so later edits remain durable. Keep
-  actions absent for pristine sessions and expose cleanup retry separately.
+  actions absent for pristine, unread, and future-version sessions and expose
+  recovery-read and cleanup retry separately. If an unknown future record appears
+  transactionally during Discard, preserve it, advance the epoch, restore the
+  surface, and do not reload.
 
 ### 6. Add Layered Regression Coverage
 
@@ -1270,17 +1608,24 @@ Implementation requirements:
     through the visible retry action without duplicating the revision;
   - snapshot preparation failure leaves Zustand revision/Markdown/disposition
     unchanged, returns `rejected/stateEffect:none`, and remains retryable;
+  - missing cluster identity prepares and acknowledges an unbound immutable
+    snapshot, advances exact Zustand authority, exposes a persistence issue, and
+    leaves manual Save usable without claiming durability;
   - a publication whose exact updater applied before a subscriber throws commits
     its pre-admitted snapshot exactly once and is neither revised nor scheduled
     twice;
   - a nested subscriber publication gives each applied revision its own prepared
     snapshot without using current Markdown readback to infer the older result;
+  - source and WYSIWYG content returning to acknowledged authority cancels a
+    rejected retry candidate as `no_change/retry_reverted` without a revision,
+    snapshot, or stale error;
   - delayed old-session work cannot replace a new session.
 - Extend `MilkdownEditor` component tests with a controllable Crepe mock whose
   create promise and `markdownUpdated` callback can be resolved independently.
-- Prove same-session rerenders after Markdown, mode, draft, recovery, and
-  save-status changes retain one Crepe instance and preserve its checkpoint and
-  Undo history; a new `sessionKey` creates exactly one replacement instance.
+- Prove same-session rerenders after Markdown, mode, disposition, persistence
+  issue, recovery, and save-status changes retain one Crepe instance and preserve
+  its checkpoint and Undo history; a new `sessionKey` creates exactly one
+  replacement instance.
 - Prove successful same-session Save settlement retains `sessionKey`, source or
   WYSIWYG mode, the same Crepe instance, selection, checkpoint, and Undo history.
 - After that Save, click the already-selected note and prove the Slice 7C
@@ -1301,7 +1646,9 @@ Implementation requirements:
   and live status outside that region, disabled pointer/keyboard/touch/IME input,
   interactive note-list navigation, and no automatic focus theft after success.
 - Run the implemented Slice 7C `A -> B -> A` and repeated-same-target cases with
-  the editor gate registered. Prove overlapping intents may reuse one session
+  the real editor gate registered and the acceptance controller decorating it.
+  Prove the QA hold/cancel/throw controls do not bypass production commit,
+  durability, freeze, or settlement; overlapping intents may reuse one session
   operation but own distinct leases; B's `superseded/none` settlement cannot
   unfreeze while A's current lease remains. Slice 7C still starts/skips the
   correct action and reports distinct outcomes.
@@ -1309,12 +1656,15 @@ Implementation requirements:
   Back/Forward, including missing cluster identity. Prove the gate returns
   `cancel`; the Slice 7C owner performs exact-current history handling; the same
   editor and Undo history are unfrozen; prior focus is restored when possible;
-  dirty content retains Save; and clean `cleanup_required` content exposes Retry
-  cleanup instead of an unusable Save action.
+  the edit is acknowledged into Zustand; dirty content retains working manual
+  Save; a successful Save permits clean handoff without pretending a draft was
+  durable; and clean `cleanup_required` content exposes Retry cleanup instead of
+  an unusable Save action.
 - Feed every settlement surface effect (`retained`, `none`, `replaced`, and
   `replaced_by_error`) back with its lease and prove only that lease/session is
   released or destroyed. Prove `coherent_noop` allocates no lease and never
-  freezes.
+  freezes. Throw during decorated settlement and prove lease removal/refcount
+  release still occurs exactly once before the exception is contained.
 - Settle a pre-existing note read while the durability result is pending and
   prove the old result can finish its scoped persistence but cannot close,
   unfreeze, roll back, or continue through the replacement session.
@@ -1336,9 +1686,17 @@ Implementation requirements:
   Discard/already-started-write, same-note reopen, and different-note
   independence. The memory adapter must be delayable rather than resolving every
   mutation synchronously.
+- Add unbound-snapshot tests that admit content without cluster identity, repair
+  identity in the same session, bind the original immutable content/mode/base
+  hash to the ready cluster/note key, reject old-session repair, and prune an
+  abandoned unbound slot.
+- Move the generic keyed-coordinator tests with the primitive into
+  `packages/shared`; keep core writer serialization tests and add web composition
+  tests for scheduled slots, cancellation, terminal barriers, and idle pruning.
 - Reject read, write, cleanup, and Discard tasks in turn. Prove each caller gets
-  the exact typed failure, later same-key work still runs, scheduled slots cannot
-  resurrect stale work, and idle coordinator entries return to zero.
+  the exact typed issue with underlying cluster/Dexie/coordinator reason, later
+  same-key work still runs, scheduled slots cannot resurrect stale work, and
+  idle coordinator entries return to zero.
 - For write rejection specifically, prove the exact failed snapshot remains
   retryable and visible as `generated_pending`; invoke `Retry draft persistence`
   without another edit and prove the same revision becomes durable. Repeat with
@@ -1346,10 +1704,22 @@ Implementation requirements:
 - Prove a pristine clean session performs no speculative draft deletion, while a
   session that durably wrote and then reverted completes its ordered deletion
   before destructive handoff reports `clean`.
+- Extend Dexie adapter tests so reads distinguish absent, valid current,
+  preserved unknown, and unavailable; conditional/direct mutations distinguish
+  deleted, absent, not matching, preserved unknown, and unavailable in one
+  transaction. Seed a future-version record and prove read, content edit, mode
+  change, Save cleanup, retry, and attempted Discard never overwrite or delete
+  its raw value.
 - Extend note-browser store tests to prove:
   - pristine load plus editor readiness creates no draft;
-  - mode-only changes leave no draft after flush;
+  - mode-only changes leave no draft after flush for `none`, update the existing
+    compatible record for generated/recovered/conflict dispositions, and remain
+    live-only for cleanup/unread/future-version dispositions;
   - a content-clean `none` programmatic Save makes zero API calls;
+  - unavailable cluster identity still accepts exact edits, marks them dirty,
+    exposes the precise issue, blocks destructive handoff, and completes manual
+    Save through one API call; later identity repair cannot recapture newer store
+    content into an older snapshot;
   - a real source or WYSIWYG accepted change schedules one recoverable draft;
   - reload does not report recovery from projection-only normalization;
   - an existing deliberate recovered draft retains its exact Markdown and
@@ -1361,6 +1731,16 @@ Implementation requirements:
     disposition succeeds, while pristine sessions expose neither action;
   - successful Save plus failed draft cleanup retains saved disk truth, enters
     `cleanup_required`, and successful retry deletes without another `PUT`;
+  - an initial recovery-read failure enters `recovery_read_unavailable`, performs
+    no deletion or current-version write, exposes Retry browser recovery while
+    clean, and resolves absent/current/future/unavailable outcomes exactly;
+  - a recovery retry attempted after a live edit returns
+    `superseded/dirty_live_authority`, preserves the exact edit and manual Save,
+    and cannot replace it with late recovered content;
+  - a clean unread or future-version session may hand off as `preserved`, while a
+    dirty one cancels handoff until manual Save succeeds;
+  - successful Save in unread/future-version state updates disk truth without
+    calling browser cleanup or falsely changing disposition to `none`;
   - ordinary/conflict/missing-note Discard cancels scheduled work, deletes before
     reload, and cannot be resurrected by a late callback;
   - failed Discard deletion performs no reload and restores the same exact
@@ -1370,6 +1750,9 @@ Implementation requirements:
   - retry after failed Discard closes the fresh epoch and succeeds without
     resurrecting old work; failed missing-note Discard keeps the missing-draft
     view and advances its owner epoch without reloading;
+  - a future-version result discovered transactionally during Discard preserves
+    the raw record, restores the surface under a fresh epoch, and exposes no
+    destructive older-build action;
   - conflict discard reloads exact disk Markdown and stays clean;
   - save, edit-during-save, failure, conflict, navigation, and same-note reopen
     ownership remain correct.
@@ -1383,6 +1766,11 @@ Implementation requirements:
   excluded from normal application builds, add no runtime dependency or
   product-visible fault switch, and run through both a Vite development server
   and an optimized test-harness build.
+- Add explicit web and root `qa:markdown-fidelity:dev`, `build`, and `preview`
+  scripts plus a root `qa:markdown-fidelity:assert-product-excluded` check.
+  Automated verification must build the harness, then rebuild the ordinary
+  product and assert from its manifest/output that the harness entry, global
+  controller marker, and fault controls are absent.
 - Use fake timers only to drive the known debounce/draft scheduling in tests;
   production logic must not use timing guesses for authority.
 
@@ -1392,21 +1780,26 @@ Implementation requirements:
 
 - Update `docs/technical-architecture.md` so the Markdown rendering section
   names exact Markdown authority, acknowledged WYSIWYG projection, ordered
-  browser-draft read/mutation ownership, draft disposition, terminal Discard,
-  cleanup retry, and the real-edit serialization boundary.
+  browser-draft read/mutation ownership, identity-blocked admission, exact
+  adapter outcomes, record disposition versus persistence issue, preserved
+  unread/future-version state, terminal Discard, cleanup retry, and the real-edit
+  serialization boundary. Record the shared generic keyed-tail primitive and
+  web-specific coordinator composition in their actual package boundaries.
 - Update this slice with concise completion evidence rather than duplicating
   full browser logs.
 - Add a focused QA record under `docs/qa/` containing fixture names, before/after
   hashes, browser results, IndexedDB proof, and any observed WYSIWYG
   normalization after an accepted edit.
 - Record prevention of new projection-only drafts separately from preservation
-  and explicit disposition of seeded legacy ambiguous drafts.
+  and explicit disposition of seeded legacy ambiguous drafts, failed recovery
+  reads, and unknown future-version records.
 - Record the implemented typed accepted-change, synchronization, commit, and
-  publication/admission, durability, cleanup, Discard, and route-gate result
-  shapes as the input for Slice 7E's required promotion refresh. Slice 7E must
-  distinguish raw projection observation from accepted authority change and
-  must not require an editor session ID before draft read and editor-session
-  creation complete.
+  publication/admission, recovery-read, persistence-issue, durability, cleanup,
+  Discard, and route-gate result shapes as the input for Slice 7E's required
+  promotion refresh. Slice 7E must distinguish raw projection observation from
+  accepted authority change, preserve underlying cluster/Dexie reasons, and not
+  require an editor session ID before draft read and editor-session creation
+  complete.
 - Update the production QA record's P1 disposition only after all acceptance
   criteria pass.
 - Preserve the completed Slice 7C route contract/evidence and keep block-menu,
@@ -1438,6 +1831,10 @@ or QA proves any of these:
 - Consistent draft reads, terminal Discard, or cleanup retry requires a draft
   schema migration or persistent mutation log rather than ephemeral ordering
   around the current schema.
+- Preserving an unread record while live content changes requires simultaneous
+  editable versions, merge UI, or another durable record instead of the
+  clean-only retry and manual-Save boundary defined here. Do not silently add a
+  second unsaved-content owner.
 - Snapshot preparation/commit cannot remain synchronous and infallible after
   preparation without introducing a persistent journal or allowing rejected
   publication to mutate authority.
@@ -1473,6 +1870,15 @@ Baseline: `docs/reference/product-guardrails.md`.
   focus after failure when possible.
 - A failed required draft mutation must not destroy or supersede the only live
   copy; the same session, Crepe instance, and Undo history remain available.
+- Missing cluster identity, failed recovery reads, unknown future records, and
+  IndexedDB failures must not reject accepted authority or disable manual Save;
+  they block only unsupported browser mutation and dirty destructive handoff.
+- An unavailable recovery read must not become absence or `cleanup_required`,
+  and its retry must not replace dirty live authority.
+- An unknown future-version record must not be overwritten or deleted by read,
+  content/mode persistence, Save cleanup, retry, or Discard in this older build.
+- Generic persistence success must not be interpreted as proof of deletion;
+  disposition changes consume exact transactional outcomes.
 - An older draft mutation must not overwrite newer recovery truth, delete a
   newer draft, degrade a newer session, or authorize destruction of a different
   snapshot.
@@ -1502,6 +1908,12 @@ Baseline: `docs/reference/product-guardrails.md`.
   rejected task must not poison later work or leak an idle coordinator key.
 - A failed draft write must not consume its exact retryable snapshot, require a
   dummy edit to retry, or let an older retry overwrite a newer revision.
+- A failed persistence issue must not lose its exact operation, owner,
+  revision/snapshot, retry action, or underlying cluster/Dexie/coordinator
+  reason, and must not remain visible after a matching success or supersession.
+- A mode-only change must not create a pristine record, lose the selected mode
+  from an existing compatible record, overwrite protected recovery truth, or
+  become content dirty.
 - Successful disk Save followed by failed browser cleanup must not be reported as
   failed disk Save, clean `none`, or an actionless clean recovery state.
 - Valid legacy ambiguous drafts must not be deleted or rewritten by projection
@@ -1519,6 +1931,8 @@ Baseline: `docs/reference/product-guardrails.md`.
   runtime state, not a second product-state owner in Zustand or Dexie.
 - The editor gate must not become a second route-target owner, mutate URLs,
   repair history, suppress Slice 7C intents, or erase existing Slice 7B evidence.
+- The Slice 7C QA controller must not replace or bypass the production editor
+  gate, and a contained settlement exception must not strand a freeze lease.
 - Discarding a conflict must restore exact disk Markdown and remain clean until
   the next real edit.
 - Existing safe URL, filesystem boundary, Sentry-disabled, request-correlation,
@@ -1536,23 +1950,32 @@ production build:
 
 ```sh
 /opt/homebrew/bin/pnpm --filter @azurite/web test
+/opt/homebrew/bin/pnpm qa:markdown-fidelity:build
 /opt/homebrew/bin/pnpm validate
 /opt/homebrew/bin/pnpm build
+/opt/homebrew/bin/pnpm qa:markdown-fidelity:assert-product-excluded
 git diff --check
 ```
 
 The final test evidence must name the new fixture/controller/component/store
-cases and confirm the Slice 7B save-integrity regression tests still pass.
+cases, confirm the Slice 7B save-integrity regression tests still pass, and show
+that the ordinary rebuilt product contains no lifecycle-harness entry, global
+controller marker, or fault control.
 
 ### Real-Browser Desktop QA
 
 Use a disposable cluster and the available Codex Playwright skill or browser
 plugin; do not add Playwright as a repository dependency merely for this QA.
 Follow `docs/runbooks/playwright-acceptance.md` for the shared runtime, device,
-state-owner, evidence, and cleanup procedure. Run the full desktop/Pixel 6,
-development/optimized-production, Sentry-disabled/Sentry-enabled eight-cell
-matrix. Sentry does not own the product result; both configurations must produce
-the same authority, persistence, routing, and disk truth:
+state-owner, evidence, and cleanup procedure. Run the four-cell desktop/Pixel 6
+and development/optimized-production product matrix with Sentry disabled. Add
+one optimized desktop Sentry-enabled diagnostic cell to confirm the exercise
+introduces no uncaught fault; 7D neither changes nor relies on Sentry, so it does
+not duplicate every product cell along that conditional dimension. Run core
+authority, Save, route, and fidelity scenarios in all four product cells;
+storage/queue fault injection may run in optimized desktop, with the
+interaction-sensitive freeze/restore variants repeated in optimized Pixel 6.
+The QA record must list each scenario's selected cells before execution:
 
 1. Record every fixture file's byte length, SHA-256 hash, and exact content.
 2. Open each note in WYSIWYG and wait beyond editor readiness and the listener's
@@ -1566,7 +1989,6 @@ the same authority, persistence, routing, and disk truth:
    and hash remain exact rather than requiring a DOM textarea to retain CRLF.
 5. Reload and confirm no recovered-draft state.
 6. Invoke the store save action defensively and confirm no `PUT` request occurs.
-7. Confirm every disk byte length and SHA-256 hash is unchanged.
 8. Under a throttled cold start, switch to source while the visible preparing
    state is still present when that window is observable, make one source edit,
    attempt WYSIWYG activation before readiness, and confirm the edit becomes
@@ -1578,7 +2000,9 @@ the same authority, persistence, routing, and disk truth:
    promise pending and repeat the pre-ready activation attempt deterministically;
    then reject creation and confirm exact source remains editable, WYSIWYG stays
    unavailable, failure is visible, and no content callback/draft is invented.
-   Run this harness through Vite development and its optimized harness build.
+   Run this harness through Vite development and its optimized harness build,
+   rebuild the ordinary app, and prove its output excludes the harness entry and
+   fault marker.
 10. Make one deliberate WYSIWYG edit and switch immediately to Markdown; confirm
     the edit is present, dirty, and saveable, then observe the exact ordered
     draft mutation complete before claiming it is recoverable and durable.
@@ -1609,13 +2033,18 @@ the same authority, persistence, routing, and disk truth:
     the Slice 7C owner handles only the exact current intent, the same editor and
     Undo history become interactive again, prior focus is restored when
     possible, and the exact dirty-Save or clean-cleanup-retry action is visible.
-15. Run the Slice 7C repeated-same-target race through the gate and force each
-    terminal outcome. Confirm no coherent no-op, stale intent, cancellation, or
-    failed load strands the temporarily rendered controller frozen or closed.
-16. Trigger same-session parent rerenders through mode, draft disposition, and
-    save-status changes; confirm one Crepe DOM tree remains, Undo still reaches
-    the checkpoint, and no duplicate listener publishes. Component tests own the
-    exact instance-count assertion.
+    Separately make cluster identity unavailable, edit, prove Zustand becomes
+    dirty while draft durability is unavailable, complete manual Save, and prove
+    clean handoff can continue without a claimed draft write.
+15. Run the Slice 7C repeated-same-target race through the acceptance decorator
+    around the real editor gate and force each terminal outcome plus thrown
+    settlement. Confirm production commit/freeze/durability still runs and no
+    coherent no-op, stale intent, cancellation, failed load, or contained throw
+    strands the rendered controller frozen or closed.
+16. Trigger same-session parent rerenders through mode, draft disposition,
+    persistence issue, and save-status changes; confirm one Crepe DOM tree
+    remains, Undo still reaches the checkpoint, and no duplicate listener
+    publishes. Component tests own the exact instance-count assertion.
 17. Create an external-write conflict, discard the recovered draft, and confirm
     exact disk Markdown stays clean after editor readiness and mode switching.
     Repeat with deletion forced to fail: confirm no reload occurs and the exact
@@ -1632,7 +2061,9 @@ the same authority, persistence, routing, and disk truth:
     mode switching.
 21. Seed an ordinary recovered draft that compares clean, edit another recovered
     draft back to its saved baseline, and confirm each record plus Save and
-    Discard remain until explicit disposition.
+    Discard remain until explicit disposition. Switch mode in generated,
+    recovered, and conflict sessions, reload, and prove the compatible record
+    retains the selected mode without treating that mode change as content dirty.
 22. Save a dirty or recovered note while forcing exact browser cleanup to fail.
     Confirm disk bytes/hash and saved baseline advance, disposition becomes
     `cleanup_required`, Retry cleanup makes no second `PUT`, and successful retry
@@ -1647,13 +2078,22 @@ the same authority, persistence, routing, and disk truth:
     Force one draft write to fail, invoke the visible retry without another edit,
     and prove the same exact snapshot becomes durable; then prove a newer edit
     supersedes the failed snapshot before retry.
-25. Wait through readiness and delayed configured-plugin activity without input;
+25. Force initial recovery read to fail. Confirm the disk-backed editor remains
+    usable with `recovery_read_unavailable`, no delete/write occurs, and Retry
+    browser recovery resolves absent/current/future/failure exactly while clean.
+    Edit before retry and prove retry cannot replace the live edit; manual Save
+    remains available and successful Save leaves the unread record untouched.
+26. Seed an unknown future-version record. Confirm Azurite reports preserved
+    incompatible recovery rather than absence, exposes no Discard, never rewrites
+    it through mode/content/Save cleanup, blocks dirty handoff until manual Save,
+    and leaves the raw IndexedDB value byte-for-byte equivalent afterward.
+27. Wait through readiness and delayed configured-plugin activity without input;
     confirm no post-ready non-authoritative document change becomes accepted
     content.
-26. Confirm the normal console has no new errors or warnings in every matrix
-    cell. With Sentry enabled, inspect authenticated telemetry only to prove the
-    product exercise introduced no uncaught fault; with Sentry disabled, prove
-    there is no Sentry transport and behavior remains identical.
+28. Confirm the normal console has no new errors or warnings in every product
+    cell. In the selected Sentry-enabled diagnostic cell, inspect authenticated
+    telemetry only to prove the exercise introduced no uncaught fault; in every
+    Sentry-disabled product cell, prove there is no Sentry transport.
 
 ### Synthetic Mobile QA
 
@@ -1677,6 +2117,11 @@ scale, touch input, mobile user agent, and a CPU-throttled cold start:
 - make a WYSIWYG edit and immediately switch mode, select another note, use
   Back/Forward, and confirm supported in-app transitions retain the edit;
 - observe an exact draft as durable before reload and confirm it recovers;
+- make cluster identity unavailable, edit through touch input, confirm authority
+  and manual Save remain usable while dirty navigation is blocked, then Save and
+  confirm handoff succeeds without a false durability claim;
+- repeat clean recovery-read failure retry and preserved future-version status,
+  confirming protected records expose no destructive touch action;
 - repeat failed cleanup retry and failed Discard restoration with touch controls;
   and
 - inspect touch interaction, console output, network requests, and IndexedDB.
@@ -1712,7 +2157,8 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
 - Accepted publication is acknowledged exactly once; failed publication remains
   visible and retryable and cannot authorize destruction or mutate another
   session. Acknowledgement proves both exact store revision and immutable
-  snapshot admission, including after a subscriber throws.
+  in-memory snapshot admission, including after a subscriber throws or when the
+  snapshot remains identity-blocked; it does not falsely claim Dexie durability.
 - Required Transitions 4 and 8 preserve one Crepe instance, selection,
   checkpoint, and Undo history through same-session rerenders and successful
   Save. The unchanged rendered owner keeps the committed route view coherent,
@@ -1722,16 +2168,28 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
 - The editor gate owns no route targets, intent identity, or history handling. It
   consumes Slice 7C's gate/outcome seam, restores the exact outgoing session for
   every non-applied outcome, and never strands a controller closed or frozen.
-- Required Transitions 9–11 use one CRLF/LF-only content comparison plus separate
-  draft disposition and ordered per-note read/mutation ownership. Deferred tests
-  prove that scheduled work, reads, writes, cleanup, Save, and Discard cannot
-  supersede newer recovery truth and failed tasks do not poison or leak a key.
-- Content-clean `none` and `cleanup_required` sessions cannot call filesystem
-  Save programmatically. `cleanup_required` has an exact retry action; successful
-  disk Save remains truthful if cleanup fails. Every
-  valid ordinary recovered draft remains explicitly saveable and discardable
-  until disposition, including after comparison to or editing back to disk;
-  conflicts retain their existing blocked-Save behavior.
+  The Slice 7C QA controller decorates this production gate instead of replacing
+  it, and contained settlement failure cannot retain a lease.
+- Required Transitions 9–12 use one CRLF/LF-only content comparison plus separate
+  record disposition, exact persistence issue, unbound admission, and ordered
+  per-note read/mutation ownership. Deferred tests prove that scheduled work,
+  reads, writes, cleanup, Save, and Discard cannot supersede newer recovery truth
+  and failed tasks do not poison or leak a key or unbound slot.
+- Content-clean `none`, `cleanup_required`, `recovery_read_unavailable`, and
+  `preserved_unknown` sessions cannot call filesystem Save programmatically;
+  dirty content in those dispositions remains manually saveable.
+  `cleanup_required` and clean read failure have distinct exact retry actions;
+  successful disk Save remains truthful if cleanup/read/future-state persists.
+  Every valid ordinary recovered draft remains explicitly saveable and
+  discardable until disposition, including after comparison to or editing back
+  to disk; conflicts retain their existing blocked-Save behavior.
+- Exact adapter outcomes prove absence, compatible current records, mismatching
+  records, unavailable reads/mutations, and preserved unknown schemas. Recovery
+  retry never replaces dirty live authority, and current-version content, mode,
+  cleanup, or Discard work never overwrites or deletes a future-version record.
+- Mode-only changes create no pristine record, persist the selected mode for an
+  already-owned compatible record, remain live-only for protected dispositions,
+  and never become content dirty.
 - Confirmed Discard is terminal for one owner epoch. It reloads or dismisses
   missing-note recovery only after deletion succeeds, cannot be resurrected by
   closed-epoch work, and restores the same editor with a fresh persistence epoch
@@ -1741,28 +2199,34 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
   Browser lifecycle flush attempts are not reported as durable without observed
   IndexedDB completion.
 - A failed draft write retains the exact immutable retry obligation and a visible
-  retry action. The same snapshot can become durable without another edit, a
-  newer revision supersedes it safely, and no unbounded automatic retry loop is
-  introduced.
+  issue with its underlying reason. The same snapshot can become durable without
+  another edit, a newer revision or mode snapshot supersedes it safely, missing
+  identity can later bind it without recapturing content, and no unbounded
+  automatic retry loop is introduced.
 - Typed accepted-change, publication/admission, synchronization, commit,
-  durability, cleanup, Discard, and editor-gate results expose session and cause
-  truth for Slice 7E without adding Sentry behavior or making diagnostics a
-  state owner.
+  recovery-read, persistence-issue, durability, cleanup, Discard, and editor-gate
+  results expose session, operation, and underlying cause truth for Slice 7E
+  without adding Sentry behavior or making diagnostics a state owner.
 - Architecture and QA evidence record exact authority, acknowledged projection,
-  ordered draft ownership, legacy disposition, same-session Save, and the honest
-  post-WYSIWYG serialization limitation. Unrelated findings remain separately
-  tracked.
-- The desktop/Pixel 6, development/optimized-production,
-  Sentry-disabled/Sentry-enabled matrix passes without claiming the Android
-  input bug or requiring physical-phone evidence.
-- `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`,
-  `git diff --check`, clean `main`, and synchronization with `origin/main` pass.
+  ordered draft ownership, precise adapter outcomes, unread/future preservation,
+  shared generic coordinator placement, legacy disposition, same-session Save,
+  and the honest post-WYSIWYG serialization limitation. Unrelated findings remain
+  separately tracked.
+- The four-cell desktop/Pixel 6 and development/optimized-production product
+  matrix plus the selected optimized desktop Sentry diagnostic cell pass without
+  claiming the Android input bug or requiring physical-phone evidence.
+- `/opt/homebrew/bin/pnpm qa:markdown-fidelity:build`,
+  `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, the ordinary
+  product harness-exclusion assertion, `git diff --check`, clean `main`, and
+  synchronization with `origin/main` pass.
 
 ## Open Questions
 
 None for planning. The product decision, source-of-truth boundary, bounded
 WYSIWYG dirty-state latency, completed-draft reload guarantee, real-edit
-limitation, implementation sequence, scope exclusions, and completion proof are
-explicit. Literal pre-debounce dirty indication and unload-warning UX remain
-evidence-gated future hardening rather than unresolved 7D decisions. New
-contradictory runtime evidence must use the scope re-selection triggers above.
+limitation, identity-blocked admission, recovery-read retry, future-schema
+preservation, mode persistence, implementation sequence, scope exclusions, and
+completion proof are explicit. Literal pre-debounce dirty indication and
+unload-warning UX remain evidence-gated future hardening rather than unresolved
+7D decisions. New contradictory runtime evidence must use the scope re-selection
+triggers above.
