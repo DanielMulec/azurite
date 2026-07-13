@@ -6,10 +6,10 @@ import type { PublicationResult } from "../src/domain/markdown-authority-types.j
 import { crlfMarkdownFixture } from "./markdown-fidelity-cases.js";
 
 const fixtureNames = [
-  "hyphen-lists.md",
-  "mixed-dialect.md",
-  "whitespace-choices.md",
-  "long-mixed-note.md",
+  "hyphen-lists.markdown-fixture",
+  "mixed-dialect.markdown-fixture",
+  "whitespace-choices.markdown-fixture",
+  "long-mixed-note.markdown-fixture",
 ] as const;
 
 describe("sanitized Markdown fidelity fixtures", () => {
@@ -21,7 +21,7 @@ describe("sanitized Markdown fidelity fixtures", () => {
   });
 
   it("keeps the long mixed-format reproduction at 7,933 characters", () => {
-    const markdown = readFixture("long-mixed-note.md");
+    const markdown = readFixture("long-mixed-note.markdown-fixture");
 
     expect(markdown).toHaveLength(7_933);
     expect(markdown).toContain("| Field | Value |");
@@ -38,7 +38,7 @@ describe("sanitized Markdown fidelity fixtures", () => {
 
 describe("fixture-driven authority checkpoint", () => {
   it("retains exact hyphen source when setup projection uses asterisks", () => {
-    const exact = readFixture("hyphen-lists.md");
+    const exact = readFixture("hyphen-lists.markdown-fixture");
     const projection = exact.replaceAll(/^([ \t]*)-/gm, "$1*");
     const publish = vi.fn((): PublicationResult => {
       throw new Error("Setup synchronization must not publish.");
