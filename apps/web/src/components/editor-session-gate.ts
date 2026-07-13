@@ -199,7 +199,7 @@ class EditorSessionGateRuntime {
     const preparation = this.#getPreparation(controller);
     this.#activateLease(input.leaseKey, controller);
     const result = await preparation;
-    if (result.commit.status === "failed") {
+    if (!("durability" in result)) {
       this.#releaseFailedPreparation(input.leaseKey);
       return {
         commit: result.commit,
@@ -365,7 +365,8 @@ function mapRouteResult(result: EditorGatePreparationResult): RouteGateResult {
 }
 
 function getFocusedElement(): HTMLElement | undefined {
-  return typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+  return typeof document !== "undefined" &&
+    document.activeElement instanceof HTMLElement
     ? document.activeElement
     : undefined;
 }

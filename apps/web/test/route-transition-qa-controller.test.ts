@@ -18,7 +18,10 @@ describe("route transition QA controller holds", () => {
     },
   ])("records one exact lease and resolves $state", async (input) => {
     const controller = createRouteTransitionQaController();
-    const gate = controller.createRouteGate(createLoadedStore());
+    const gate = controller.createRouteGate(
+      createLoadedStore(),
+      createContinueGate(),
+    );
     controller.holdNext();
 
     const prepared = gate.prepare(createInput());
@@ -41,7 +44,10 @@ describe("route transition QA controller holds", () => {
 describe("route transition QA controller faults", () => {
   it("throws prepare only after the held lease is observable", async () => {
     const controller = createRouteTransitionQaController();
-    const gate = controller.createRouteGate(createLoadedStore());
+    const gate = controller.createRouteGate(
+      createLoadedStore(),
+      createContinueGate(),
+    );
     controller.holdNext();
 
     const prepared = gate.prepare(createInput());
@@ -54,7 +60,10 @@ describe("route transition QA controller faults", () => {
 
   it("throws settlement after allowing the chosen route outcome", async () => {
     const controller = createRouteTransitionQaController();
-    const gate = controller.createRouteGate(createLoadedStore());
+    const gate = controller.createRouteGate(
+      createLoadedStore(),
+      createContinueGate(),
+    );
     controller.holdNext();
 
     const prepared = gate.prepare(createInput());
@@ -73,7 +82,10 @@ describe("route transition QA controller faults", () => {
 
   it("fails exactly one traversal restoration confirmation", async () => {
     const controller = createRouteTransitionQaController();
-    const gate = controller.createRouteGate(createLoadedStore());
+    const gate = controller.createRouteGate(
+      createLoadedStore(),
+      createContinueGate(),
+    );
     controller.failNextRestorationConfirmation();
 
     await expect(gate.prepare(createInput())).resolves.toEqual({
@@ -107,5 +119,12 @@ function createSettlement(): Parameters<RouteTransitionGate["settle"]>[0] {
     leaseKey: "qa-lease",
     surfaceEffect: "replaced",
     terminalStatus: "applied",
+  };
+}
+
+function createContinueGate(): RouteTransitionGate {
+  return {
+    prepare: () => ({ status: "continue" }),
+    settle: () => {},
   };
 }

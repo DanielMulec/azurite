@@ -4,7 +4,6 @@ import type {
   RouteGateSettlement,
   RouteTransitionGate,
 } from "../routing/route-transition-types.js";
-import { createBaselineRouteDraftGate } from "../state/baseline-route-draft-gate.js";
 import type { NoteBrowserRouteGateFactory } from "../use-note-browser.js";
 
 /** Ephemeral states exposed by the dedicated Slice 7C acceptance entry. */
@@ -66,8 +65,8 @@ export function createRouteTransitionQaController(): RouteTransitionQaController
     continueHeld: () => {
       resolveHeld(runtime, "continue");
     },
-    createRouteGate: (store) =>
-      createControlledGate(createBaselineRouteDraftGate(store), runtime),
+    createRouteGate: (_store, productionGate) =>
+      createControlledGate(productionGate, runtime),
     failNextRestorationConfirmation: () => {
       runtime.failRestoration = true;
       updateState(runtime, "fail_restore_confirmation");
@@ -113,8 +112,10 @@ function createControlledGate(
 ): RouteTransitionGate {
   return {
     prepare: async (input) => {
-      await baseline.prepare(input);
-      return await prepareControlledGate(input, runtime);
+      const production = await baseline.prepare(input);
+      return production.status === "cancel"
+        ? production
+        : await prepareControlledGate(input, runtime);
     },
     settle: async (settlement) => {
       await baseline.settle(settlement);

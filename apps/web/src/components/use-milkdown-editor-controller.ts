@@ -53,7 +53,7 @@ export function useMilkdownEditorController(
   input: MilkdownControllerInput,
 ): MilkdownControllerView {
   const rootRef = useRef<HTMLDivElement>(null);
-  const runtimeRef = useRef<CrepeRuntime>();
+  const runtimeRef = useRef<CrepeRuntime | undefined>(undefined);
   const callbacksRef = useRef({
     onEditorModeChange: input.onEditorModeChange,
     onPublishMarkdown: input.onPublishMarkdown,

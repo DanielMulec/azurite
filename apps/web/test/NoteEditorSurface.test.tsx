@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NoteEditorSurface } from "../src/components/NoteEditorSurface.js";
 import type { NoteViewState } from "../src/state/note-browser-types.js";
+import {
+  createAcknowledgingPublisher,
+  createTestEditorSessionGate,
+} from "./editor-session-gate-test-helpers.js";
 
 afterEach(() => {
   cleanup();
@@ -96,9 +100,10 @@ function renderSurface(
       onDiscardDraftAndReloadDiskVersion={() => Promise.resolve()}
       onDiscardMissingDraft={getDiscardMissingDraftAction(options)}
       onEditorModeChange={() => {}}
-      onMarkdownChange={() => {}}
+      onPublishMarkdown={createAcknowledgingPublisher()}
       onSaveNote={() => Promise.resolve()}
       routeHistoryStatus={{ status: "available" }}
+      sessionGate={createTestEditorSessionGate()}
     />,
   );
 }

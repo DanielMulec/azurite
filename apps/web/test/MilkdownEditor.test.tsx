@@ -11,6 +11,10 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MilkdownEditor } from "../src/components/MilkdownEditor.js";
+import {
+  createAcknowledgingPublisher,
+  createTestEditorSessionGate,
+} from "./editor-session-gate-test-helpers.js";
 
 type MockFunction = ReturnType<typeof vi.fn>;
 type MockCrepeInstance = {
@@ -78,9 +82,14 @@ describe("MilkdownEditor lifecycle", () => {
   it("creates and destroys a Crepe editor with the selected markdown", async () => {
     const { unmount } = render(
       <MilkdownEditor
+        initialDisposition="none"
         initialMarkdown="# Home"
         initialMode="wysiwyg"
-        noteId="index.md"
+        initialRevision={0}
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={createAcknowledgingPublisher()}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="index.md:1"
         title="Home"
       />,
     );
@@ -98,9 +107,14 @@ describe("MilkdownEditor lifecycle", () => {
   it("recreates the editor when the selected note changes", async () => {
     const { rerender } = render(
       <MilkdownEditor
+        initialDisposition="none"
         initialMarkdown="# Home"
         initialMode="wysiwyg"
-        noteId="index.md"
+        initialRevision={0}
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={createAcknowledgingPublisher()}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="index.md:1"
         title="Home"
       />,
     );
@@ -110,9 +124,14 @@ describe("MilkdownEditor lifecycle", () => {
     });
     rerender(
       <MilkdownEditor
+        initialDisposition="none"
         initialMarkdown="# Project"
         initialMode="wysiwyg"
-        noteId="Projects/azurite.md"
+        initialRevision={0}
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={createAcknowledgingPublisher()}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="Projects/azurite.md:1"
         title="Project"
       />,
     );
@@ -133,9 +152,14 @@ describe("MilkdownEditor source mode", () => {
 
     render(
       <MilkdownEditor
+        initialDisposition="none"
         initialMarkdown="# Home"
         initialMode="wysiwyg"
-        noteId="index.md"
+        initialRevision={0}
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={createAcknowledgingPublisher()}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="index.md:1"
         title="Home"
       />,
     );

@@ -5,26 +5,37 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SaveableNoteEditor } from "../src/components/SaveableNoteEditor.js";
+import type { PublicationCommand } from "../src/domain/markdown-authority-types.js";
 import type { EditorSession } from "../src/state/note-browser-types.js";
+import {
+  createAcknowledgingPublisher,
+  createTestEditorSessionGate,
+} from "./editor-session-gate-test-helpers.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
     initialMarkdown,
     initialMode,
     onEditorModeChange,
-    onMarkdownChange,
+    onPublishMarkdown,
   }: {
     readonly initialMarkdown: string;
     readonly initialMode: "markdown" | "wysiwyg";
     readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
-    readonly onMarkdownChange?: (markdown: string) => void;
+    readonly onPublishMarkdown?: (command: PublicationCommand) => unknown;
   }) => (
     <div data-testid="milkdown-editor">
       <p>Mode: {initialMode}</p>
       <pre>{initialMarkdown}</pre>
       <button
         onClick={() => {
-          onMarkdownChange?.(`${initialMarkdown}\nDraft edit`);
+          onPublishMarkdown?.({
+            markdown: `${initialMarkdown}\nDraft edit`,
+            origin: "source_input",
+            resolution: "exact_input",
+            sessionKey: "test-session",
+            trigger: "direct_input",
+          });
         }}
         type="button"
       >
@@ -131,8 +142,9 @@ function renderEditor(options: RenderEditorOptions = {}): void {
       editor={getEditor(options)}
       onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
       onEditorModeChange={getEditorModeAction(options)}
-      onMarkdownChange={getMarkdownAction(options)}
+      onPublishMarkdown={getPublisher(options)}
       onSaveNote={getSaveAction(options)}
+      sessionGate={createTestEditorSessionGate()}
     />,
   );
 }
@@ -159,6 +171,15 @@ function getMarkdownAction(
   options: RenderEditorOptions,
 ): (markdown: string) => void {
   return options.onMarkdownChange ?? (() => {});
+}
+
+function getPublisher(options: RenderEditorOptions) {
+  const acknowledge = createAcknowledgingPublisher();
+  const onMarkdownChange = getMarkdownAction(options);
+  return (command: PublicationCommand) => {
+    onMarkdownChange(command.markdown);
+    return acknowledge(command);
+  };
 }
 
 function getSaveAction(options: RenderEditorOptions): () => Promise<void> {
