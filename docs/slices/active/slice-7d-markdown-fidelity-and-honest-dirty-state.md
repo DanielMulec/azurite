@@ -613,6 +613,7 @@ type RecoveryReadResult =
       ownerKey: string;
       recordStatus: "absent" | "invalid_deleted";
       disposition: "none";
+      issue: DraftPersistenceIssue | undefined;
     }
   | {
       status: "resolved";
@@ -632,7 +633,7 @@ type RecoveryReadResult =
     }
   | {
       status: "failed";
-      clusterId: string;
+      clusterId: string | undefined;
       noteId: string;
       ownerKey: string;
       disposition: "recovery_read_unavailable";
@@ -640,7 +641,7 @@ type RecoveryReadResult =
     }
   | {
       status: "superseded";
-      clusterId: string;
+      clusterId: string | undefined;
       noteId: string;
       ownerKey: string;
       reason: "dirty_live_authority" | "owner_lost";
@@ -1089,10 +1090,12 @@ never decides them.
      revision/snapshot, underlying reason, and permitted retry action.
    - Missing cluster identity never rejects an edit. Admit the immutable snapshot
      under the current session, set `generated_pending` when record truth permits,
-     retain a precise cluster-identity issue, and report dirty durability as
-     `unavailable`. `Retry draft persistence` rechecks the current same-session
-     identity and binds the original snapshot to a ready cluster/note key without
-     recapturing content. A newer accepted revision supersedes the older slot.
+     otherwise retain the protected disposition, and report dirty durability as
+     `unavailable`. Later identity repair may bind the original snapshot without
+     recapturing content only when absence/compatible current-version ownership is
+     already proven. `recovery_read_unavailable` and `preserved_unknown` never
+     authorize that write; dirty content in those states remains manually
+     saveable. A newer accepted revision or successful Save supersedes the slot.
    - Returning a `recovered` draft to content equal to disk does not silently
      resolve or delete its browser record. A failed deletion of a known compatible
      record becomes `cleanup_required`; unread or future-version records never do.
@@ -1119,7 +1122,9 @@ never decides them.
      conditional cleanup returns `deleted`, `absent`, `not_matching`,
      `preserved_unknown`, or `unavailable`; only a failed intended compatible
      cleanup becomes `cleanup_required`. For unread or future-version state, Save
-     does not attempt deletion and retains the visible preserved disposition.
+     does not attempt deletion, cancels every pending content/mode snapshot for
+     the saved revision so later identity/read repair cannot write a stale draft,
+     and retains the visible preserved disposition.
    - `Retry draft cleanup` orders an exact-session conditional deletion without
      another filesystem write. It is visible only for `cleanup_required`, changes
      to `none` only after `deleted`, `absent`, or `invalid_deleted`, becomes
@@ -1141,7 +1146,10 @@ never decides them.
 10. **Recovery-read failure and future-version preservation**
     - Derive the draft key from the ready cluster identity in the exact note-read
       response that owns the route application. Do not read through an older
-      mutable store identity before applying that response.
+      mutable store identity before applying that response. If that response has
+      unavailable identity, do not call Dexie; install
+      `recovery_read_unavailable` with the exact cluster reason and allow a later
+      same-owner retry to use repaired identity.
     - `DraftPersistence.readDraft` returns exactly `absent`, `invalid_deleted`,
       `found_current`, `preserved_unknown`, or `unavailable`. `absent` and the
       existing-policy `invalid_deleted/validation_failed` result prove no record
@@ -1150,9 +1158,9 @@ never decides them.
       observed future schema version without exposing or interpreting its
       payload.
     - An unavailable initial or same-note recovery read installs the disk-backed
-      editor with `recovery_read_unavailable`, a precise issue, and visible `Retry
-browser recovery`; it never installs `cleanup_required`, deletes a record,
-      or authorizes a current-version write over the unknown key.
+      editor with `recovery_read_unavailable`, a precise issue, and visible
+      `Retry browser recovery`; it never installs `cleanup_required`, deletes a
+      record, or authorizes a current-version write over the unknown key.
     - Recovery retry may apply a result only while the exact owner remains current
       and live content is clean. `absent` or `invalid_deleted` becomes `none`
       while retaining any validation issue; `found_current` applies the exact
@@ -1164,9 +1172,12 @@ browser recovery`; it never installs `cleanup_required`, deletes a record,
     - Accepted edits during `recovery_read_unavailable` or `preserved_unknown`
       remain Zustand authority and manually saveable, but current-version draft
       writes stay blocked so neither an unread record nor a future-version record
-      is overwritten. Dirty destructive handoff is unavailable; after successful
-      manual Save makes the live content clean, handoff may return `preserved`
-      while leaving the browser record untouched.
+      is overwritten. While unread live content is dirty, remove the actionable
+      recovery retry from the issue and render manual-Save guidance; a defensive
+      retry call returns `superseded/dirty_live_authority`. Dirty destructive
+      handoff is unavailable. After successful manual Save makes the live content
+      clean, restore the read retry when applicable and allow handoff to return
+      `preserved` while leaving the browser record untouched.
     - An older build never exposes Discard for `preserved_unknown`, never deletes
       it during Save cleanup, and never rewrites it through content or mode
       persistence. Show concise guidance that a compatible newer Azurite build is
@@ -1218,8 +1229,10 @@ browser recovery`; it never installs `cleanup_required`, deletes a record,
     - A committed unbound slot remains owned by its exact session and reports an
       identity issue. When the same session later observes a ready cluster ID,
       bind the original immutable snapshot to that cluster/note queue after
-      owner/epoch/revision revalidation. Never reconstruct its Markdown, mode, or
-      base hash from mutable store state.
+      owner/epoch/revision revalidation only when disposition proves that a
+      current-version write is safe. Unread or future-version record truth keeps
+      the slot blocked until Save, cancellation, or supersession. Never
+      reconstruct its Markdown, mode, or base hash from mutable store state.
     - Every draft lookup uses a consistent-read operation for the cluster/note
       key. It first admits or drains any scheduled snapshot and waits behind
       earlier mutations, so same-note reopen cannot observe absence before a
@@ -1527,6 +1540,8 @@ Implementation requirements:
   `recovery_read_unavailable` sessions. Block it as
   `superseded/dirty_live_authority` while unsaved live edits exist; preserve those
   edits and manual Save rather than replacing them with a late recovered draft.
+  Remove the actionable retry from the dirty issue and restore it only after the
+  session is clean and still owns the unread record state.
 - Treat `preserved_unknown` as visible incompatible recovery truth. Do not expose
   Discard or issue current-version content/mode writes or cleanup against it.
 - Ensure mode-only updates follow Required Transition 5: no record for `none`;
@@ -1548,9 +1563,11 @@ Implementation requirements:
 - Prepare the immutable snapshot in an inactive coordinator slot before the
   exact Zustand updater, then commit/cancel it from the updater's local
   `didApply` result. A missing cluster ID owns a committed unbound slot and exact
-  issue; later identity repair binds that same snapshot after revalidation. A
-  debounce callback may start/coalesce committed work but cannot capture mutable
-  editor state or represent admission.
+  issue; later identity repair binds that same snapshot only after
+  owner/revision revalidation and proof that current-version mutation is safe.
+  Protected unread/future state never authorizes the write, and successful Save
+  cancels the saved revision. A debounce callback may start/coalesce committed
+  work but cannot capture mutable editor state or represent admission.
 - Track store-owned per-session draft disposition from consistent load,
   admission, and completed mutations. Distinguish `generated_pending` from
   `generated_durable`. A pristine or cancelled-before-start clean session with
@@ -1571,15 +1588,17 @@ Implementation requirements:
   Prove retry success removes the record without another API `PUT` and a newer
   edit supersedes the stale retry.
 - On successful Save from `recovery_read_unavailable` or `preserved_unknown`,
-  update the saved disk truth but do not call browser deletion. Keep the record
-  disposition visible and allow clean handoff as `preserved`.
+  update the saved disk truth, cancel the saved revision's blocked content/mode
+  snapshots, and do not call browser deletion. Keep the record disposition
+  visible and allow clean handoff as `preserved`; later identity/read repair
+  cannot resurrect the saved edit as a draft.
 - Remove the current successful-Save fresh-session reconstruction. Update the
   existing exact session in place and prove its unchanged owner keeps the
   committed route view coherent; a same-target click after Save must allocate no
   route lease and issue no note GET.
-- On draft-write rejection, retain the immutable current snapshot plus
-  its applicable disposition and exact issue, and expose `Retry draft
-persistence`. Route the retry through the same coordinator, require no
+- On draft-write rejection, retain the immutable current snapshot plus its
+  applicable disposition and exact issue, and expose `Retry draft persistence`.
+  Route the retry through the same coordinator, require no
   intervening edit, preserve the underlying failure reason, and let a newer
   admitted revision or mode change supersede the failed snapshot.
 - Preserve the existing Slice 7B single-flight, edit-during-save,
@@ -1704,10 +1723,11 @@ Implementation requirements:
   Discard/already-started-write, same-note reopen, and different-note
   independence. The memory adapter must be delayable rather than resolving every
   mutation synchronously.
-- Add unbound-snapshot tests that admit content without cluster identity, repair
-  identity in the same session, bind the original immutable content/mode/base
-  hash to the ready cluster/note key, reject old-session repair, and prune an
-  abandoned unbound slot.
+- Add unbound-snapshot tests that admit content without cluster identity, bind
+  the original immutable content/mode/base hash after same-session identity
+  repair only when compatible record truth permits, keep unread/future state
+  blocked, cancel the saved revision after manual Save, reject old-session repair,
+  and prune an abandoned unbound slot.
 - Move the generic keyed-coordinator tests with the primitive into
   `packages/shared`; keep core writer serialization tests and add web composition
   tests for scheduled slots, cancellation, terminal barriers, and idle pruning.
@@ -1761,7 +1781,8 @@ Implementation requirements:
   - a clean unread or future-version session may hand off as `preserved`, while a
     dirty one cancels handoff until manual Save succeeds;
   - successful Save in unread/future-version state updates disk truth without
-    calling browser cleanup or falsely changing disposition to `none`;
+    calling browser cleanup or falsely changing disposition to `none`, and
+    cancels the saved revision so later repair cannot write a stale draft;
   - ordinary/conflict/missing-note Discard cancels scheduled work, deletes before
     reload, and cannot be resurrected by a late callback;
   - failed Discard deletion performs no reload and restores the same exact
