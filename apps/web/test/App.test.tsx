@@ -202,9 +202,9 @@ describe("App note switching", () => {
     expect(handoffStatus.closest("[inert]")).toBeNull();
     const outgoingArticle = handoffStatus.closest("article");
     expect(outgoingArticle).toHaveAttribute("aria-busy", "true");
-    expect(
-      screen.getByTestId("editor-interaction-region"),
-    ).toHaveAttribute("inert");
+    expect(screen.getByTestId("editor-interaction-region")).toHaveAttribute(
+      "inert",
+    );
     expect(screen.getByRole("button", { name: /Project Plan/ })).toBeEnabled();
     deferredProjectResponse.resolve({
       body: {

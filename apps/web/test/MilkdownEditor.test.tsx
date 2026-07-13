@@ -11,6 +11,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MilkdownEditor } from "../src/components/MilkdownEditor.js";
+import type { CrepeRuntimeFactory } from "../src/components/crepe-runtime.js";
 import {
   createAcknowledgingPublisher,
   createTestEditorSessionGate,
@@ -80,6 +81,7 @@ afterEach(() => {
 
 describe("MilkdownEditor lifecycle", () => {
   it("creates and destroys a Crepe editor with the selected markdown", async () => {
+    const publish = vi.fn(createAcknowledgingPublisher());
     const { unmount } = render(
       <MilkdownEditor
         initialDisposition="none"
@@ -88,7 +90,7 @@ describe("MilkdownEditor lifecycle", () => {
         initialRevision={0}
         noteId="index.md"
         onEditorModeChange={() => {}}
-        onPublishMarkdown={createAcknowledgingPublisher()}
+        onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
         sessionKey="index.md:1"
         title="Home"
@@ -99,6 +101,7 @@ describe("MilkdownEditor lifecycle", () => {
       expect(crepeInstances[0]?.create).toHaveBeenCalled();
     });
     expect(crepeInstances[0]?.config.defaultValue).toBe("# Home");
+    expect(publish).not.toHaveBeenCalled();
 
     unmount();
 
@@ -144,6 +147,128 @@ describe("MilkdownEditor lifecycle", () => {
     });
     expect(crepeInstances[0]?.destroy).toHaveBeenCalled();
     expect(crepeInstances[1]?.config.defaultValue).toBe("# Project");
+  });
+
+  it("retains one Crepe instance across same-session product rerenders", async () => {
+    const gate = createTestEditorSessionGate();
+    const publish = createAcknowledgingPublisher();
+    const { rerender } = render(
+      <MilkdownEditor
+        initialDisposition="none"
+        initialMarkdown="# Home"
+        initialMode="wysiwyg"
+        initialRevision={0}
+        noteId="index.md"
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={publish}
+        sessionGate={gate}
+        sessionKey="index.md:stable"
+        title="Home"
+      />,
+    );
+    await waitFor(() => {
+      expect(crepeInstances).toHaveLength(1);
+    });
+
+    rerender(
+      <MilkdownEditor
+        initialDisposition="generated_durable"
+        initialMarkdown="# Same live document"
+        initialMode="wysiwyg"
+        initialRevision={4}
+        noteId="index.md"
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={publish}
+        sessionGate={gate}
+        sessionKey="index.md:stable"
+        title="Home"
+      />,
+    );
+
+    expect(crepeInstances).toHaveLength(1);
+    expect(crepeInstances[0]?.destroy).not.toHaveBeenCalled();
+  });
+});
+
+describe("MilkdownEditor controllable creation", () => {
+  it("keeps exact source editable while create is pending", async () => {
+    const create = createDeferred<void>();
+    let markdown = "# Stale construction";
+    const replaceMarkdown = vi.fn((next: string) => {
+      markdown = next;
+    });
+    const createRuntime = vi.fn<CrepeRuntimeFactory>(() => ({
+      create: () => create.promise,
+      destroy: () => Promise.resolve(),
+      getMarkdown: () => markdown,
+      replaceMarkdown,
+    }));
+    const publish = vi.fn(createAcknowledgingPublisher());
+
+    render(
+      <MilkdownEditor
+        createRuntime={createRuntime}
+        initialDisposition="none"
+        initialMarkdown="# Exact source"
+        initialMode="markdown"
+        initialRevision={0}
+        noteId="index.md"
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={publish}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="pending-session"
+        title="Home"
+      />,
+    );
+    const source = screen.getByLabelText("Markdown source for Home");
+    fireEvent.change(source, { target: { value: "# Pre-ready edit" } });
+
+    expect(source).toHaveValue("# Pre-ready edit");
+    expect(screen.getByRole("button", { name: "WYSIWYG" })).toBeDisabled();
+    expect(publish).toHaveBeenCalledOnce();
+    create.resolve(undefined);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "WYSIWYG" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "WYSIWYG" }));
+
+    expect(replaceMarkdown).toHaveBeenCalledWith("# Pre-ready edit");
+    expect(publish).toHaveBeenCalledOnce();
+  });
+
+  it("keeps exact source visible when Crepe creation rejects", async () => {
+    const createRuntime = vi.fn<CrepeRuntimeFactory>(() => ({
+      create: () => Promise.reject(new Error("Injected create failure.")),
+      destroy: () => Promise.resolve(),
+      getMarkdown: () => "# Stale",
+      replaceMarkdown: () => {},
+    }));
+    const publish = vi.fn(createAcknowledgingPublisher());
+
+    render(
+      <MilkdownEditor
+        createRuntime={createRuntime}
+        initialDisposition="none"
+        initialMarkdown="# Exact survives"
+        initialMode="wysiwyg"
+        initialRevision={0}
+        noteId="index.md"
+        onEditorModeChange={() => {}}
+        onPublishMarkdown={publish}
+        sessionGate={createTestEditorSessionGate()}
+        sessionKey="failed-session"
+        title="Home"
+      />,
+    );
+
+    expect(
+      await screen.findByText("The Milkdown editor could not be created."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Markdown source for Home")).toHaveValue(
+      "# Exact survives",
+    );
+    expect(screen.getByRole("button", { name: "WYSIWYG" })).toBeDisabled();
+    expect(publish).not.toHaveBeenCalled();
   });
 });
 
@@ -195,6 +320,16 @@ function setFirstCrepeMarkdown(markdown: string): void {
   }
 
   firstCrepe.markdown = markdown;
+}
+
+function createDeferred<Value>() {
+  let resolvePromise: (value: Value) => void = () => {};
+  let rejectPromise: (reason?: unknown) => void = () => {};
+  const promise = new Promise<Value>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, reject: rejectPromise, resolve: resolvePromise };
 }
 
 type MockCrepeConfig = {

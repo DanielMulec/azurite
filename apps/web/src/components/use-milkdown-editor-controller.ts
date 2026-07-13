@@ -54,6 +54,10 @@ export function useMilkdownEditorController(
 ): MilkdownControllerView {
   const rootRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<CrepeRuntime | undefined>(undefined);
+  const initialMarkdownRef = useRef(input.initialMarkdown);
+  const runtimeFactoryRef = useRef(
+    input.createRuntime ?? createCrepeRuntime,
+  );
   const callbacksRef = useRef({
     onEditorModeChange: input.onEditorModeChange,
     onPublishMarkdown: input.onPublishMarkdown,
@@ -92,8 +96,8 @@ export function useMilkdownEditorController(
   );
   useCrepeLifecycle({
     controller,
-    createRuntime: input.createRuntime ?? createCrepeRuntime,
-    initialMarkdown: input.initialMarkdown,
+    createRuntime: runtimeFactoryRef.current,
+    initialMarkdown: initialMarkdownRef.current,
     rootRef,
     runtimeRef,
   });
