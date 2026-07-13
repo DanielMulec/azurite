@@ -2,9 +2,9 @@
 
 ## Status
 
-Planned as of 2026-07-13 while Slice 7C completes its narrow
-pending-predecessor cancellation correction. Slice 7D otherwise consumes the
-implemented validated action-aware history owner, typed target-free
+Active as of 2026-07-13 after Slice 7C completed its narrow
+pending-predecessor cancellation correction. Slice 7D consumes the implemented
+validated action-aware history owner, typed target-free
 pre-transition gate, rendered outgoing-session identity, route-or-reload load
 authorization, exact-current revalidation, coherent no-op predicate, and typed
 terminal outcome. This slice consumes that implemented seam without becoming a

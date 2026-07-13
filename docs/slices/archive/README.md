@@ -18,7 +18,9 @@ same-note write ordering, and desktop/Pixel 6 acceptance across both builds and
 Sentry modes. Its detailed implementation and dashboard evidence is in
 `docs/qa/slice-7b-request-correlation.md`.
 
-Slice 7C was removed from the archive on 2026-07-13 for its narrow
-pending-predecessor cancellation correction. Its original desktop/Pixel 6 and
-fault-harness evidence plus the adversarial finding dispositions remain in
+Slice 7C establishes the validated action-aware route owner, exact browser
+history cancellation, route-or-reload authorization, and target-free gate. Its
+narrow pending-predecessor correction completed on 2026-07-13 in implementation
+commit `8831867b1de57ffa67fc89d529ba6d2aff777923`; the exact regression and
+development/optimized desktop/Pixel 6 evidence are in
 `docs/qa/slice-7c-url-selection-and-history-coherence.md`.

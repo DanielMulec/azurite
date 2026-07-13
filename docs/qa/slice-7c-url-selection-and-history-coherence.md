@@ -3,21 +3,131 @@
 ## Status
 
 - Original completion decision: **Passed on 2026-07-13**.
-- Current decision: **Reopened on 2026-07-13 for the pending-predecessor
+- Reopened decision: **Reopened on 2026-07-13 for the pending-predecessor
   cancellation correction**.
+- Current decision: **Correction passed and Slice 7C completed on
+  2026-07-13**.
 - QA date and timezone: 2026-07-13, Europe/Vienna.
-- Browser-tested implementation commit:
+- Original browser-tested implementation commit:
   `250f14501caf34c7f7acb5974da1079dc6f64cc6`.
+- Correction browser-tested implementation commit:
+  `8831867b1de57ffa67fc89d529ba6d2aff777923`.
 - Scope: validated route-intent ownership, exact browser-history cancellation,
   selected/rendered/committed-view coherence, route-or-reload authorization,
   target-free gate lifecycle, the acceptance-only fault harness, and preserved
   Slice 7B correlation/save/recovery guarantees.
 - Authoritative contract:
-  `docs/slices/active/slice-7c-url-selection-and-history-coherence.md`.
+  `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`.
 
 This document is the authoritative implementation and review evidence for Slice
-7C. The original green matrix remains valid for the scenarios it selected, but
-the later adversarial evidence below supersedes its completion decision.
+7C. The original green matrix remains valid for the scenarios it selected. The
+later adversarial evidence superseded that decision until the correction below
+passed.
+
+## Pending-Predecessor Correction Completion
+
+Implementation commit `8831867b1de57ffa67fc89d529ba6d2aff777923`
+centralizes Zustand route-intent activation at the existing admitted-execution
+boundary. Application start, route-intent registration, and late executor
+registration no longer activate a candidate before its gate continues and its
+exact location is confirmed. The acceptance-only Cancel control now returns the
+reviewed `prerequisite_unavailable` reason.
+
+The exact production-store regression first failed on the reviewed baseline:
+A's response settled, but `noteState.status` remained `loading`. After the
+correction it proves that B settles `cancelled/entry_not_committed`, creates no
+entry or read, and A's original response commits the ready A route view with the
+same selected note and history occurrence.
+
+### Correction Run Ownership
+
+| Item                  | Recorded value                                                                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Implementation commit | `8831867b1de57ffa67fc89d529ba6d2aff777923`                                                                                                                                                                       |
+| Operating system      | macOS `26.5.1` build `25F80`, Apple Silicon                                                                                                                                                                      |
+| Node / pnpm           | Node `v26.0.0`; pnpm `11.7.0`                                                                                                                                                                                    |
+| Playwright / browser  | Codex Playwright wrapper `0.1.17`; Google Chrome `150.0.7871.114`                                                                                                                                                |
+| `QA_RUN_ID`           | `slice-7c-correction-20260713T180044Z-de68e9e`                                                                                                                                                                   |
+| `QA_ROOT`             | `/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T/azurite-slice-7c-correction-20260713T180044Z-de68e9e.qKpdz3`                                                                                                   |
+| `ARTIFACT_ROOT`       | `/Users/danielmulec/Projekte/azurite/output/playwright/slice-7c-correction-20260713T180044Z-de68e9e`                                                                                                             |
+| Origins               | Harness development `http://127.0.0.1:5174`; harness preview `http://127.0.0.1:4174`; both proxied to loopback Fastify at `127.0.0.1:3000`                                                                       |
+| Sentry                | Explicitly disabled in server, Vite development, optimized build, and preview. Sentry permutations were not selected because the correction changes no observability boundary.                                   |
+| Fault boundary        | Playwright delayed A's request for 30 seconds before Fastify ran, then continued the unmodified request. The existing acceptance-only gate held and cancelled B. No response body, status, or header was mocked. |
+
+Every selected cell owned a separate disposable cluster and runtime:
+
+| Cell                | Cluster ID                             | Server / frontend PID | Browser session                                                       |
+| ------------------- | -------------------------------------- | --------------------- | --------------------------------------------------------------------- |
+| Development desktop | `9a98cf37-469d-4596-9f7e-8382421c18b7` | `74190` / `74324`     | `slice-7c-correction-20260713T180044Z-de68e9e-dev-desktop-retry3`     |
+| Development Pixel 6 | `44843263-029c-44d9-b876-c49ef2862db1` | `76064` / `76198`     | `slice-7c-correction-20260713T180044Z-de68e9e-dev-pixel`              |
+| Preview desktop     | `b21f0209-c256-496e-a682-a786da2761d2` | `78347` / `78481`     | `slice-7c-correction-20260713T180044Z-de68e9e-preview-desktop-retry2` |
+| Preview Pixel 6     | `73a8418f-8734-480a-a073-312128184a65` | `79419` / `79521`     | `slice-7c-correction-20260713T180044Z-de68e9e-preview-pixel`          |
+
+### Correction Four-Cell Matrix
+
+All four selected cells passed the same contract:
+
+1. A's real content request remained pending while the URL and
+   `aria-current` item named A and the article showed `Loading note`.
+2. Holding a transition to B produced one gate lease with no rendered outgoing
+   owner because A had not rendered yet. The URL, selected/current item, history
+   key, index, and length remained A's; only A's pending content request existed.
+3. Cancel settled that lease once with `terminalStatus: cancelled` and
+   `surfaceEffect: retained`. B issued no content request and created no history
+   entry.
+4. A's original unmodified response then rendered its unique sentinel. URL,
+   article `data-note-id`, `aria-current`, history key/index/length, and the
+   committed product state agreed on A.
+5. A subsequent ordinary B action issued exactly one B read, pushed one entry,
+   and settled URL, article, and `aria-current` on B. Reset returned the harness
+   to `idle`.
+
+| Cell                | A occurrence before / after cancel | Requests before recovery | Normal recovery                        | Console                                             |
+| ------------------- | ---------------------------------- | ------------------------ | -------------------------------------- | --------------------------------------------------- |
+| Development desktop | key `c7k7k`, index `0`, length `2` | one A read; zero B reads | B at index `1`, length `3`; one B read | Existing Vue feature-flag warning only; zero errors |
+| Development Pixel 6 | key `voww4`, index `0`, length `2` | one A read; zero B reads | B at index `1`, length `3`; one B read | Existing Vue feature-flag warning only; zero errors |
+| Preview desktop     | key `5h3tr`, index `0`, length `2` | one A read; zero B reads | B at index `1`, length `3`; one B read | Zero warnings and errors                            |
+| Preview Pixel 6     | key `grnfd`, index `0`, length `2` | one A read; zero B reads | B at index `1`, length `3`; one B read | Zero warnings and errors                            |
+
+The two Pixel 6 cells reported a `412` by `839` CSS viewport, `412` by `915`
+CSS screen, device scale factor `2.625`, touch support, coarse pointer, no hover,
+and no horizontal overflow before or after cancellation. Hold, B, Cancel,
+recovery B, and Reset used real Playwright `tap()` actions.
+
+No clean selected cell emitted a Sentry envelope or made a `PUT`. All note
+responses came through the frontend proxy from the real loopback Fastify and
+disposable filesystem cluster.
+
+### Correction Attempts And Disposition
+
+| ID        | First attempt                                                                                                                          | Disposition                                                                                                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7C-C-QA-1 | The first development-desktop delay used runner-global `setTimeout`, which is unavailable inside the Playwright CLI callback.          | Runner setup error; the owned session was closed. The clean retry used `page.waitForTimeout` and did not mock the response.                                                             |
+| 7C-C-QA-2 | A 12-second delay expired before headed-browser startup and semantic interactions completed, so A was ready before B reached the gate. | Coverage-selection miss, not a product failure; the clean retry used a 30-second window and captured B holding while A was still loading.                                               |
+| 7C-C-QA-3 | The first preview bundle inherited enabled local Sentry configuration because disabled values were supplied only when preview started. | Invalid matrix dimension; the session and runtimes were closed, the optimized harness was rebuilt with Sentry disabled at build time, and both preview cells reran with zero envelopes. |
+
+### Correction Automated Verification
+
+The exact focused web run passed all `181` web tests. Full repository validation
+passed with `336` tests: `56` shared, `43` core, `181` web, and `56` server.
+The ordinary build, explicitly disabled optimized harness build, ordinary-bundle
+harness exclusion check, and `git diff --check` also passed. The first full
+validation attempt stopped on Prettier for the new regression; the second
+reached strict lint and required splitting its oversized `describe` callback.
+No lint rule, ignore, configuration, or validation boundary changed. The next
+complete validation passed from the beginning.
+
+### Correction Cleanup Ledger
+
+| Owned resource                                                                                                       | Result                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Seven named sessions, including the two discarded development-desktop attempts and discarded preview-desktop attempt | Closed; final Playwright list reported no browsers              |
+| Four selected Fastify runtimes, four selected Vite/preview runtimes, and discarded-attempt runtimes                  | Gracefully stopped; ports `3000`, `5174`, and `4174` are free   |
+| Four disposable clusters beneath `QA_ROOT`                                                                           | Exact owned root deleted after this record was written          |
+| Correction `ARTIFACT_ROOT`                                                                                           | Exact owned artifact root deleted after this record was written |
+
+Correction decision: **PASS**. `7C-AR-1` is resolved without annexing
+`7C-AR-2` through `7C-AR-5`; their owners below remain unchanged.
 
 ## Post-Completion Adversarial Review
 
@@ -26,13 +136,13 @@ A read-only adversarial review at clean synchronized commit
 existing 335 tests, full validation, ordinary build, QA build, bundle-exclusion
 check, and diff integrity remained green.
 
-| ID      | Finding and evidence                                                                                                                                                                                                                                                                        | Scope disposition                                                                                                                           |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7C-AR-1 | Cancelling B while A's real route read is pending invalidates A before gate admission. B cancels without an entry, but A's response is stale and the article remains permanently loading. Confirmed in rendered desktop development, Pixel 6 development, and Pixel 6 optimized production. | Reopen Slice 7C narrowly. Delay store intent activation until gate continuation so cancellation preserves A's authorization and completion. |
-| 7C-AR-2 | `navigate()` rejection after its history echo leaves URL/history on B while selection, article, and committed view retain A. Deterministically reproduced through the production router adapter; real-router reachability was not established.                                              | Planned Route Failure Resilience slice after Slice 7F and at least one visible Cluster workflow.                                            |
-| 7C-AR-3 | Successful real Fastify Save creates a new live editor owner without refreshing the committed route view; clicking the already-selected note issues another GET and replaces the editor instead of settling `coherent_noop`.                                                                | Planned Slice 7D same-session Save owns the correction and its zero-I/O post-Save acceptance proof.                                         |
-| 7C-AR-4 | With malformed `..%2Fsecret.md` search and the real backend stopped, the notes-list request fails, zero note reads occur, and the unsafe search remains instead of canonicalizing.                                                                                                          | Planned Route Failure Resilience slice. The zero-read security boundary remains current product truth.                                      |
-| 7C-AR-5 | Browser-level IndexedDB failure produces one failed draft write and degradation, but no retry without another edit because the baseline retry flag is cleared.                                                                                                                              | Planned Slice 7D ordered persistence owns an immutable retry obligation and visible retry without requiring another edit.                   |
+| ID      | Finding and evidence                                                                                                                                                                                                                                                                        | Scope disposition                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 7C-AR-1 | Cancelling B while A's real route read is pending invalidates A before gate admission. B cancels without an entry, but A's response is stale and the article remains permanently loading. Confirmed in rendered desktop development, Pixel 6 development, and Pixel 6 optimized production. | Resolved in implementation commit `8831867b1de57ffa67fc89d529ba6d2aff777923` and the correction matrix above.            |
+| 7C-AR-2 | `navigate()` rejection after its history echo leaves URL/history on B while selection, article, and committed view retain A. Deterministically reproduced through the production router adapter; real-router reachability was not established.                                              | Planned Route Failure Resilience slice after Slice 7F and at least one visible Cluster workflow.                         |
+| 7C-AR-3 | Successful real Fastify Save creates a new live editor owner without refreshing the committed route view; clicking the already-selected note issues another GET and replaces the editor instead of settling `coherent_noop`.                                                                | Active Slice 7D same-session Save owns the correction and its zero-I/O post-Save acceptance proof.                       |
+| 7C-AR-4 | With malformed `..%2Fsecret.md` search and the real backend stopped, the notes-list request fails, zero note reads occur, and the unsafe search remains instead of canonicalizing.                                                                                                          | Planned Route Failure Resilience slice. The zero-read security boundary remains current product truth.                   |
+| 7C-AR-5 | Browser-level IndexedDB failure produces one failed draft write and degradation, but no retry without another edit because the baseline retry flag is cleared.                                                                                                                              | Active Slice 7D ordered persistence owns an immutable retry obligation and visible retry without requiring another edit. |
 
 No new finding appeared during the targeted browser pass. All owned browser
 sessions, disposable content, QA processes, and ports were cleaned up; the
@@ -191,8 +301,8 @@ silently replaced by the closing green matrix:
 
 That statement described the original completion run only. The later
 post-completion review above found `7C-AR-1` through `7C-AR-5` and now owns their
-authoritative dispositions. `7C-AR-1` reopens this slice; the other four have
-stable owners outside the narrow correction.
+authoritative dispositions. `7C-AR-1` was resolved by the correction above; the
+other four retain stable owners outside Slice 7C.
 
 ## Automated Verification
 
@@ -254,6 +364,7 @@ No authenticated Chrome clone or Daniel-owned browser profile was used.
 - [x] Owned QA cleanup is complete and fixed ports are free.
 - [x] The repository is clean on `main` and synchronized with `origin/main`.
 
-Historical decision: **Passed for the selected original matrix**. Superseded by
-the post-completion adversarial review until `7C-AR-1` passes its correction
-boundary and proportional four-cell browser verification.
+Historical decision: **Passed for the selected original matrix**. The
+post-completion adversarial review temporarily superseded that decision;
+`7C-AR-1` now passes its correction boundary and proportional four-cell browser
+verification, so the current Slice 7C decision is **PASS**.

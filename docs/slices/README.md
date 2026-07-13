@@ -22,20 +22,21 @@ truth.
    classified as pre-existing, and the final eight-cell Playwright plus
    authenticated Sentry matrix passed on 2026-07-12. Exact evidence lives in
    `docs/qa/slice-7b-request-correlation.md`.
-3. Active correction: Slice 7C, URL selection and history coherence. Its
-   original implementation passed the full browser and fault-harness matrix on
-   2026-07-13, then adversarial review proved that cancelling B while A's read is
-   pending can strand A in loading. The active correction is deliberately
-   limited to preserving that predecessor through cancellation. Its plan is
-   `docs/slices/active/slice-7c-url-selection-and-history-coherence.md`; exact
-   evidence and finding dispositions are in
+3. Completed: Slice 7C, URL selection and history coherence. Its original
+   implementation passed the full browser and fault-harness matrix on
+   2026-07-13. A later adversarial review reopened one correction; implementation
+   commit `8831867b1de57ffa67fc89d529ba6d2aff777923` now preserves a pending
+   predecessor through candidate cancellation, and the proportional four-cell
+   desktop/Pixel 6 matrix passed. Its archived plan is
+   `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`; exact
+   evidence and the other finding dispositions are in
    `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
-4. Planned next: Slice 7D, Markdown fidelity and honest dirty state. It consumes
+4. Active: Slice 7D, Markdown fidelity and honest dirty state. It consumes
    the corrected Slice 7C gate, preserves exact Markdown authority, orders
    browser-draft persistence, makes cleanup and Discard failure explicit,
    preserves post-Save route coherence, and retains failed-write retry
    obligations. Its plan is
-   `docs/slices/planned/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+   `docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
 5. Planned: Slice 7E, semantic editor and persistence diagnostics. It has a hard
    post-7D refresh gate before promotion. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.

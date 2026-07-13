@@ -2,31 +2,37 @@
 
 ## Status
 
-Reopened on 2026-07-13 for one narrow corrective outcome: a cancelled candidate
-must not strand its still-loading predecessor. The original implementation and
-browser matrix passed, but a later adversarial review proved that application
-navigation activates the candidate in Zustand before gate admission finishes.
-That activation invalidates the predecessor's pending read even when the gate
-then cancels the candidate.
+Completed on 2026-07-13. The original implementation passed its full browser
+matrix, then a later adversarial review reopened one narrow correction: a
+cancelled candidate could strand its still-loading predecessor because store
+intent activation occurred before gate admission finished.
+
+Implementation commit `8831867b1de57ffa67fc89d529ba6d2aff777923` removed
+candidate activation from application start, route-intent registration, and
+late executor registration. The store now activates an intent only after gate
+continuation and exact-location confirmation. The exact regression was red on
+the reviewed baseline and green after the correction; all four selected
+development/optimized desktop/Pixel 6 browser cells passed with Sentry disabled.
 
 Findings discovered by the same review have been reselected deliberately:
 
 - successful-Save committed-owner coherence and failed draft-write retry
-  ownership move into planned Slice 7D, whose same-session Save and ordered
+  ownership move into active Slice 7D, whose same-session Save and ordered
   persistence architecture complete those workflows;
 - post-echo router-promise rejection and malformed-target canonicalization while
   the note list is unavailable move into the separate planned Route Failure
   Resilience slice after visible Cluster product progress; and
 - no other adversarial finding is part of this reopened correction.
 
-The original implementation evidence and the adversarial reproduction record
-are in
+The original implementation evidence, adversarial reproduction, correction
+matrix, and cleanup record are in
 `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
 
 The sequence is deliberately re-selected to `7B -> 7C -> 7D -> 7E -> 7F`:
 
-- this reopened slice repairs cancellation while the predecessor is loading;
-- planned Slice 7D then consumes the corrected gate for Markdown authority and draft
+- completed Slice 7C preserves a still-loading predecessor through candidate
+  cancellation;
+- active Slice 7D consumes the corrected gate for Markdown authority and draft
   durability;
 - Slice 7E is refreshed after the implemented Slice 7D contracts exist; and
 - Slice 7F performs the diagnosed editor-correctness repair immediately after
@@ -36,7 +42,7 @@ Slice 7B QA classified this capability from a pre-existing race first introduced
 with the Slice 6 navigation foundation. The authoritative reproduction is in
 `docs/qa/slice-7b-request-correlation.md`.
 
-### Reopened Correction Boundary
+### Correction Boundary
 
 Fix the cancellation finding as a narrow Slice 7C correction because Slice 7D
 will actively exercise that path. Add its exact regression test and run
@@ -67,6 +73,9 @@ The correction is complete only when all of the following are true:
    `/opt/homebrew/bin/pnpm qa:route-transition:build`, ordinary-bundle harness
    exclusion, and `git diff --check` pass; QA resources are cleaned up; and the
    complete repository state is clean and pushed to `origin/main`.
+
+All eight correction conditions passed. The exact evidence is recorded under
+`Pending-Predecessor Correction Completion` in the Slice 7C QA record.
 
 ## Product Decision
 
@@ -869,10 +878,10 @@ history, Discard, IndexedDB-unavailable, backend-down, and empty-cluster cases.
 
 The authoritative commands, exact browser evidence, later adversarial finding
 dispositions, and cleanup ledger live in
-`docs/qa/slice-7c-url-selection-and-history-coherence.md`. This evidence remains
-valid for the scenarios it exercised, but the later pending-predecessor
-cancellation reproduction reopened the slice and supersedes its original
-completion decision until the correction boundary above passes.
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`. The later
+pending-predecessor cancellation reproduction reopened the slice, and
+implementation commit `8831867b1de57ffa67fc89d529ba6d2aff777923` plus the
+proportional four-cell correction matrix closed it.
 
 ## Open Questions
 

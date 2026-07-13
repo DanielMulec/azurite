@@ -1,14 +1,14 @@
 # Active Product Slice
 
-Slice 7C, URL Selection And History Coherence, is the single active product
-slice. It was reopened on 2026-07-13 for one narrow correction after adversarial
-review proved that cancelling a candidate can invalidate and permanently strand
-its still-loading predecessor.
+Slice 7D, Markdown Fidelity And Honest Dirty State, is the single active product
+slice. Slice 7C's pending-predecessor cancellation correction completed on
+2026-07-13, so 7D now consumes the corrected target-free route gate for exact
+Markdown authority, editor handoff, ordered draft persistence, post-Save route
+coherence, and explicit failed-write retry.
 
-The correction delays store intent activation until gate continuation, adds the
-exact pending-predecessor regression, and runs proportional desktop/Pixel 6
-development/production acceptance without a Sentry dimension. Findings assigned
-to Slice 7D and Route Failure Resilience are explicitly outside this correction.
+The Route Failure Resilience outcomes from the Slice 7C adversarial review
+remain deliberately deferred until after Slice 7F and visible Cluster product
+progress.
 
 If more than one file here claims `Proposed` or `Active` status, stop and resolve
 the ownership conflict before implementation. Supporting architecture should be
