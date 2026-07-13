@@ -108,8 +108,8 @@ describe("explicit note reload ownership", () => {
     await store.getState().discardDraftAndReloadDiskVersion();
 
     expect(readNote).toHaveBeenCalledTimes(2);
-    expect(readNote.mock.calls[0]?.[1]).not.toEqual(
-      readNote.mock.calls[1]?.[1],
+    expect(requireMockCall(readNote.mock.calls, 0)[1]).not.toEqual(
+      requireMockCall(readNote.mock.calls, 1)[1],
     );
   });
 });

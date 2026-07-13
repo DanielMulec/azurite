@@ -46,13 +46,13 @@ describe("editor session route gate", () => {
     releaseWrite.resolve(undefined);
     await expect(first).resolves.toEqual({ status: "continue" });
     await expect(second).resolves.toEqual({ status: "continue" });
-    gate.routeGate.settle({
+    await gate.routeGate.settle({
       leaseKey: "lease-one",
       surfaceEffect: "none",
       terminalStatus: "superseded",
     });
     expect(gate.isSessionFrozen(getSessionKey(store))).toBe(true);
-    gate.routeGate.settle({
+    await gate.routeGate.settle({
       leaseKey: "lease-two",
       surfaceEffect: "retained",
       terminalStatus: "cancelled",
@@ -64,7 +64,9 @@ describe("editor session route gate", () => {
       message: undefined,
     });
   });
+});
 
+describe("editor session durability cancellation", () => {
   it("cancels unavailable durability and restores the retained controller", async () => {
     const memory = createMemoryDraftPersistence();
     const store = createLoadedStore({
@@ -85,7 +87,7 @@ describe("editor session route gate", () => {
       reason: "prerequisite_unavailable",
       status: "cancel",
     });
-    gate.routeGate.settle({
+    await gate.routeGate.settle({
       leaseKey: "lease",
       surfaceEffect: "retained",
       terminalStatus: "cancelled",
@@ -94,7 +96,9 @@ describe("editor session route gate", () => {
     expect(controller.setFrozen).toHaveBeenLastCalledWith(false);
     expect(getEditor(store).currentMarkdown).toBe("# Not durable");
   });
+});
 
+describe("editor session commit failure", () => {
   it("does not freeze when commit fails", async () => {
     const store = createLoadedStore();
     const gate = createEditorSessionGate(store);
@@ -115,7 +119,9 @@ describe("editor session route gate", () => {
     expect(controller.setFrozen).not.toHaveBeenCalled();
     expect(gate.getSnapshot().frozenSessionKey).toBeUndefined();
   });
+});
 
+describe("editor session owner absence", () => {
   it("distinguishes no editor from a lost ready-session controller", async () => {
     const emptyStore = createSeededStore();
     const emptyGate = createEditorSessionGate(emptyStore);

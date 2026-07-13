@@ -38,7 +38,9 @@ describe("ordered draft persistence", () => {
     expect(coordinator.activeKeyCount).toBe(0);
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
+});
 
+describe("draft snapshot coalescing", () => {
   it("coalesces a not-yet-started older snapshot without writing it", async () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi.fn(memory.persistence.writeDraft);
@@ -71,7 +73,9 @@ describe("ordered draft persistence", () => {
     });
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
+});
 
+describe("failed draft retry", () => {
   it("retains and retries the same immutable failed write", async () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi
@@ -107,7 +111,9 @@ describe("ordered draft persistence", () => {
     );
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
+});
 
+describe("unbound draft binding", () => {
   it("binds original unbound content after identity repair", async () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi.fn(memory.persistence.writeDraft);
@@ -168,7 +174,9 @@ describe("terminal and independent draft work", () => {
     expect(deleteDraft).toHaveBeenCalledOnce();
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
+});
 
+describe("started Discard ordering", () => {
   it("orders Discard after an already-started write", async () => {
     const releaseWrite = createDeferred<undefined>();
     const writeStarted = createDeferred<undefined>();
@@ -207,7 +215,9 @@ describe("terminal and independent draft work", () => {
     expect(calls).toEqual(["write-start", "write-end", "delete"]);
     expect(coordinator.activeKeyCount).toBe(0);
   });
+});
 
+describe("draft note independence", () => {
   it("allows another note to complete while one note is blocked", async () => {
     const releaseFirst = createDeferred<undefined>();
     const firstStarted = createDeferred<undefined>();
@@ -242,7 +252,9 @@ describe("terminal and independent draft work", () => {
     await firstFlush;
     expect(coordinator.activeKeyCount).toBe(0);
   });
+});
 
+describe("draft queue recovery", () => {
   it("converts a rejected read and releases the key for later work", async () => {
     const memory = createMemoryPersistence();
     const readDraft = vi

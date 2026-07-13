@@ -201,22 +201,24 @@ type HarnessOptions = {
 };
 
 function createHarness(options: HarnessOptions = {}) {
-  let projection = options.projection ?? options.initialMarkdown ?? "# Exact";
+  const initialMarkdown = getHarnessInitialMarkdown(options);
+  let projection = getHarnessProjection(options, initialMarkdown);
   let throwRead = false;
   let revision = 0;
   const commands: PublicationCommand[] = [];
   const modes: string[] = [];
+  const publishResult = getHarnessPublisher(options);
   const publish = vi.fn((command: PublicationCommand) => {
     revision += 1;
     commands.push(command);
-    return (options.publishResult ?? acknowledged)(command, revision);
+    return publishResult(command, revision);
   });
   const replaceProjection = vi.fn((markdown: string) => {
     projection = markdown;
   });
   const controller = new MarkdownAuthorityController({
     initialDisposition: "none",
-    initialMarkdown: options.initialMarkdown ?? "# Exact",
+    initialMarkdown,
     initialMode: "wysiwyg",
     initialRevision: 0,
     onModeChange: (mode) => {
@@ -245,6 +247,23 @@ function createHarness(options: HarnessOptions = {}) {
       projection = markdown;
     },
   };
+}
+
+function getHarnessInitialMarkdown(options: HarnessOptions): string {
+  return options.initialMarkdown ?? "# Exact";
+}
+
+function getHarnessProjection(
+  options: HarnessOptions,
+  initialMarkdown: string,
+): string {
+  return options.projection ?? initialMarkdown;
+}
+
+function getHarnessPublisher(
+  options: HarnessOptions,
+): NonNullable<HarnessOptions["publishResult"]> {
+  return options.publishResult ?? acknowledged;
 }
 
 function acknowledged(
