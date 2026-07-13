@@ -159,7 +159,7 @@ function getHeldResult(
   state: "cancel" | "continue" | "throw_settle",
 ): RouteGateResult {
   return state === "cancel"
-    ? { reason: "prerequisite_failed", status: "cancel" }
+    ? { reason: "prerequisite_unavailable", status: "cancel" }
     : { status: "continue" };
 }
 

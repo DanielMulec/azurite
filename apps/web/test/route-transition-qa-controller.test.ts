@@ -13,7 +13,7 @@ describe("route transition QA controller holds", () => {
     },
     {
       action: "cancelHeld" as const,
-      expected: { reason: "prerequisite_failed", status: "cancel" },
+      expected: { reason: "prerequisite_unavailable", status: "cancel" },
       state: "cancel",
     },
   ])("records one exact lease and resolves $state", async (input) => {

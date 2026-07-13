@@ -15,7 +15,6 @@ import {
   type RouteTransitionRouterAdapter,
   type RouteTransitionRuntime,
 } from "./route-transition-runtime.js";
-import { activateRouteIntentSafely } from "./route-store-executor.js";
 import type {
   RouteGateCause,
   RouteTransitionOutcome,
@@ -40,10 +39,6 @@ export function startApplicationNavigation(
   const pending = createPendingApplication(input, dependencies.runtime);
   dependencies.runtime.pendingApplications.set(pending.token, pending);
   dependencies.runtime.currentIntentKey = pending.intentKey;
-  const executor = dependencies.runtime.storeRegistry.get();
-  if (executor !== undefined) {
-    activateRouteIntentSafely(executor, pending.intentKey);
-  }
   startRouterNavigation(
     pending,
     {

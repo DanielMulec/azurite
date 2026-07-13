@@ -121,6 +121,8 @@ async function completeAfterExecutorWait(
     );
     return true;
   }
+  // Activation invalidates a predecessor load, so it belongs only after the
+  // gate and exact-location confirmation have admitted this intent.
   if (!activateRouteIntentSafely(executor, input.intent.intentKey)) {
     await completeRouteIntent(
       {

@@ -16,7 +16,6 @@ import {
   registerLocationConfirmation,
 } from "./route-location-confirmation.js";
 import {
-  activateRouteIntentSafely,
   createRouteStoreExecutorRegistry,
   type RouteStoreExecutor,
 } from "./route-store-executor.js";
@@ -347,9 +346,5 @@ function registerStoreExecutor(
   executor: RouteStoreExecutor,
   runtime: RouteTransitionRuntime,
 ): () => void {
-  const unregister = runtime.storeRegistry.register(executor);
-  if (runtime.currentIntentKey !== undefined) {
-    activateRouteIntentSafely(executor, runtime.currentIntentKey);
-  }
-  return unregister;
+  return runtime.storeRegistry.register(executor);
 }

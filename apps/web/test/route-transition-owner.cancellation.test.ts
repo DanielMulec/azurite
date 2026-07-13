@@ -4,12 +4,85 @@ import type {
   RouteGateResult,
   RouteTransitionGate,
 } from "../src/routing/route-transition-types.js";
+import { createNoteBrowserRouteExecutor } from "../src/state/note-browser-store.js";
+import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
+import {
+  createApi,
+  createDeferred as createStoreDeferred,
+  createNote,
+  createSeededStore,
+  readyClusterIdentity,
+} from "./note-browser-store-test-helpers.js";
 import {
   createDeferred,
   createRouteOwnerHarness,
   type RouteOwnerHarness,
 } from "./route-transition-owner-test-helpers.js";
 import { createTestRouteExecutor } from "./route-store-executor-test-helper.js";
+
+describe("route owner pending-predecessor cancellation", () => {
+  it("preserves a pending predecessor read when the candidate gate cancels", async () => {
+    const aRead = createStoreDeferred<ReturnType<NoteBrowserApi["readNote"]>>();
+    const readNote = vi
+      .fn<NoteBrowserApi["readNote"]>()
+      .mockImplementation(() => aRead.promise);
+    const store = createSeededStore({ api: createApi({ readNote }) });
+    const harness = createRouteOwnerHarness({ entries: ["/?note=index.md"] });
+    harness.owner.registerStoreExecutor(createNoteBrowserRouteExecutor(store));
+    harness.resolveCurrent();
+    await vi.waitFor(() => {
+      expect(readNote).toHaveBeenCalledOnce();
+    });
+
+    const decision = createDeferred<RouteGateResult>();
+    const prepare = vi.fn<RouteTransitionGate["prepare"]>(
+      () => decision.promise,
+    );
+    harness.owner.registerGate({ prepare, settle: vi.fn() });
+    const candidate = harness.owner.selectNote("Projects/azurite.md");
+    await vi.waitFor(() => {
+      expect(prepare).toHaveBeenCalledOnce();
+    });
+
+    expect(store.getState()).toMatchObject({
+      noteState: { status: "loading" },
+      selectedNoteId: "index.md",
+    });
+    expect(readNote).toHaveBeenCalledOnce();
+    decision.resolve({
+      reason: "prerequisite_unavailable",
+      status: "cancel",
+    });
+    await expect(candidate).resolves.toMatchObject({
+      historyEffect: "entry_not_committed",
+      noteId: "Projects/azurite.md",
+      reason: "prerequisite_unavailable",
+      status: "cancelled",
+    });
+
+    aRead.resolve({
+      clusterIdentity: readyClusterIdentity,
+      note: createNote("index.md", "# Current A", "sha256-current-a"),
+    });
+    await vi.waitFor(() => {
+      expect(store.getState().noteState.status).toBe("ready");
+    });
+    expect(harness.current().href).toBe("/?note=index.md");
+    expect(harness.entries()).toHaveLength(1);
+    expect(readNote).toHaveBeenCalledOnce();
+    expect(store.getState()).toMatchObject({
+      committedRouteView: { noteId: "index.md", view: "ready" },
+      noteState: {
+        editor: {
+          currentMarkdown: "# Current A",
+          note: { id: "index.md" },
+        },
+        status: "ready",
+      },
+      selectedNoteId: "index.md",
+    });
+  });
+});
 
 describe("route owner application cancellation", () => {
   it("cancels a push before it creates an entry or starts a read", async () => {
