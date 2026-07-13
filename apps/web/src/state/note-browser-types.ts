@@ -37,9 +37,11 @@ export type NoteViewState =
   | { readonly status: "missing"; readonly noteId: string }
   | {
       readonly draft: MissingNoteDraft;
+      readonly draftEpoch: number;
       readonly noteId: string;
+      readonly persistenceIssue: DraftPersistenceIssue | undefined;
       readonly renderedOwnerKey: string;
-      readonly status: "missing-draft";
+  readonly status: "missing-draft";
     }
   | { readonly editor: EditorSession; readonly status: "ready" };
 

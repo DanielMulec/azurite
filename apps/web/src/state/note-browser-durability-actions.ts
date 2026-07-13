@@ -22,7 +22,7 @@ export async function flushEditorDurability(
     editor.currentMarkdown,
     editor.savedMarkdown,
   );
-  const immediate = getImmediateDurability(editor, dirty, cause);
+  const immediate = getImmediateDurability(editor, dirty, cause, context);
   if (immediate !== undefined) {
     return immediate;
   }
@@ -42,12 +42,20 @@ function getImmediateDurability(
   editor: EditorSession,
   dirty: boolean,
   cause: DurabilityCause,
+  context: StoreContext,
 ): DurabilityResult | undefined {
   if (!dirty && editor.draftDisposition === "none") {
     return cleanDurability(editor, cause);
   }
   if (!dirty && isPreservedDisposition(editor.draftDisposition)) {
     return preservedDurability(editor, cause);
+  }
+  if (
+    (editor.draftDisposition === "recovered" ||
+      editor.draftDisposition === "conflict") &&
+    editor.durableSnapshotKey !== undefined
+  ) {
+    return durableResult(editor, cause, context);
   }
   if (
     editor.draftDisposition === "cleanup_required" ||

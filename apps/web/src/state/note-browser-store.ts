@@ -9,7 +9,7 @@ import {
   createDraftPersistence,
   type DraftPersistence,
 } from "../persistence/draft-database.js";
-import type { EditorMode } from "../persistence/draft-records.js";
+import { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
 import type { RouteStoreExecutor } from "../routing/route-store-executor.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import {
@@ -17,10 +17,14 @@ import {
   discardDraftAndReloadDiskVersionAction,
   discardMissingDraftAction,
   ensureNotesAction,
-  persistCurrentDraft,
   saveSelectedNoteAction,
-  updateCurrentEditor,
 } from "./note-browser-actions.js";
+import {
+  publishMarkdownChange,
+  retryDraftPersistenceAction,
+  updateEditorModeWithSnapshot,
+} from "./note-browser-authority-actions.js";
+import { flushEditorDurability } from "./note-browser-durability-actions.js";
 import type {
   ActiveNoteLoad,
   ActiveNoteSave,
@@ -45,7 +49,6 @@ type NoteBrowserStoreOptions = {
 };
 
 type NoteBrowserRuntime = {
-  activeDraftFlush: Promise<void> | undefined;
   activeNoteLoad: ActiveNoteLoad | undefined;
   readonly activeNoteSaves: Map<string, ActiveNoteSave>;
   activeNotesLoad: ActiveNotesLoad | undefined;
@@ -53,12 +56,11 @@ type NoteBrowserRuntime = {
   readonly context: StoreContext;
   currentRouteIntentKey: string | undefined;
   readonly draftPersistence: DraftPersistence;
-  readonly draftWriteDelayMs: number;
+  readonly draftCoordinator: DraftPersistenceCoordinator;
   editorSessionVersion: number;
-  hasPendingDraftWrite: boolean;
   noteRequestSequence: number;
   notesRequestSequence: number;
-  pendingDraftTimer: ReturnType<typeof setTimeout> | undefined;
+  snapshotVersion: number;
   readonly routeRollback: RouteApplicationRollback;
 };
 
@@ -96,21 +98,23 @@ export function createNoteBrowserRouteExecutor(
 export type { NoteBrowserStore } from "./note-browser-contracts.js";
 
 function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
+  const draftPersistence = getDraftPersistence(options);
   return {
-    activeDraftFlush: undefined,
     activeNoteLoad: undefined,
     activeNoteSaves: new Map(),
     activeNotesLoad: undefined,
     api: getApi(options),
     context: {} as StoreContext,
     currentRouteIntentKey: undefined,
-    draftPersistence: getDraftPersistence(options),
-    draftWriteDelayMs: getDraftWriteDelayMs(options),
+    draftCoordinator: new DraftPersistenceCoordinator({
+      delayMs: getDraftWriteDelayMs(options),
+      persistence: draftPersistence,
+    }),
+    draftPersistence,
     editorSessionVersion: 0,
-    hasPendingDraftWrite: false,
     noteRequestSequence: 0,
     notesRequestSequence: 0,
-    pendingDraftTimer: undefined,
+    snapshotVersion: 0,
     routeRollback: createRouteApplicationRollback(),
   };
 }
@@ -151,7 +155,7 @@ function createInitialState(
     draftRecoveryStatus: { status: "available" },
     ensureNotes: () => ensureNotesAction(runtime.context),
     flushPendingDraft: async () => {
-      await flushPendingDraft(runtime);
+      await flushEditorDurability("explicit_flush", runtime.context);
     },
     getCoherentView: (occurrence, noteId) =>
       getCoherentRouteView(
@@ -161,6 +165,8 @@ function createInitialState(
     getRenderedOwnerKey: () => getRenderedOwnerKey(get()),
     noteState: { status: "idle" },
     notesState: { status: "idle" },
+    publishMarkdownChange: (command) =>
+      publishMarkdownChange(command, runtime.context),
     reportHistoryUnavailable: () => {
       set({
         routeHistoryStatus: {
@@ -172,13 +178,31 @@ function createInitialState(
       });
     },
     routeHistoryStatus: { status: "available" },
+    retryBrowserRecovery: async () => {},
+    retryDraftCleanup: async () => {},
+    retryDraftPersistence: async () => {
+      await retryDraftPersistenceAction(runtime.context);
+    },
     saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
     selectedNoteId: undefined,
     updateDraftMarkdown: (markdown) => {
-      updateDraftMarkdown(markdown, runtime);
+      const noteState = get().noteState;
+      if (noteState.status !== "ready") {
+        return;
+      }
+      publishMarkdownChange(
+        {
+          markdown,
+          origin: "source_input",
+          resolution: "exact_input",
+          sessionKey: noteState.editor.sessionKey,
+          trigger: "direct_input",
+        },
+        runtime.context,
+      );
     },
     updateEditorMode: (editorMode) => {
-      updateEditorMode(editorMode, runtime);
+      updateEditorModeWithSnapshot(editorMode, runtime.context);
     },
   };
 }
@@ -207,6 +231,7 @@ function configureContext(
       }
     },
     draftPersistence: runtime.draftPersistence,
+    draftCoordinator: runtime.draftCoordinator,
     get,
     getActiveNoteLoad: () => runtime.activeNoteLoad,
     getActiveNoteSave: (noteId: string) => runtime.activeNoteSaves.get(noteId),
@@ -222,6 +247,8 @@ function configureContext(
       requestSequence === runtime.notesRequestSequence,
     nextEditorSessionKey: (noteId: string, contentHash: string) =>
       nextEditorSessionKey(noteId, contentHash, runtime),
+    nextSnapshotKey: (sessionKey: string, revision: number) =>
+      nextSnapshotKey(sessionKey, revision, runtime),
     nextNoteRequestSequence: () => incrementNoteRequestSequence(runtime),
     nextNotesRequestSequence: () => incrementNotesRequestSequence(runtime),
     set,
@@ -289,73 +316,6 @@ function isCurrentAuthorization(
   );
 }
 
-async function flushPendingDraft(runtime: NoteBrowserRuntime): Promise<void> {
-  if (runtime.activeDraftFlush !== undefined) {
-    await runtime.activeDraftFlush;
-    ensurePendingDraftSchedule(runtime);
-    return;
-  }
-  clearPendingDraftTimer(runtime);
-  await startPendingDraftFlush(runtime);
-  ensurePendingDraftSchedule(runtime);
-}
-
-async function startPendingDraftFlush(
-  runtime: NoteBrowserRuntime,
-): Promise<void> {
-  if (!runtime.hasPendingDraftWrite) {
-    return;
-  }
-  runtime.hasPendingDraftWrite = false;
-  const promise = persistCurrentDraft(runtime.context).then(() => undefined);
-  runtime.activeDraftFlush = promise;
-  try {
-    await promise;
-  } finally {
-    clearActiveDraftFlush(promise, runtime);
-  }
-}
-
-function clearActiveDraftFlush(
-  promise: Promise<void>,
-  runtime: NoteBrowserRuntime,
-): void {
-  if (runtime.activeDraftFlush === promise) {
-    runtime.activeDraftFlush = undefined;
-  }
-}
-
-function scheduleDraftWrite(runtime: NoteBrowserRuntime): void {
-  runtime.hasPendingDraftWrite = true;
-  clearPendingDraftTimer(runtime);
-  runtime.pendingDraftTimer = setTimeout(() => {
-    runtime.pendingDraftTimer = undefined;
-    void flushPendingDraft(runtime);
-  }, runtime.draftWriteDelayMs);
-}
-
-function ensurePendingDraftSchedule(runtime: NoteBrowserRuntime): void {
-  if (runtime.hasPendingDraftWrite && runtime.pendingDraftTimer === undefined) {
-    scheduleDraftWrite(runtime);
-  }
-}
-
-function updateDraftMarkdown(
-  markdown: string,
-  runtime: NoteBrowserRuntime,
-): void {
-  updateCurrentEditor({ currentMarkdown: markdown }, runtime.context);
-  scheduleDraftWrite(runtime);
-}
-
-function updateEditorMode(
-  editorMode: EditorMode,
-  runtime: NoteBrowserRuntime,
-): void {
-  updateCurrentEditor({ editorMode }, runtime.context);
-  scheduleDraftWrite(runtime);
-}
-
 function activateRouteIntent(
   intentKey: string,
   runtime: NoteBrowserRuntime,
@@ -369,13 +329,6 @@ function activateRouteIntent(
   }
 }
 
-function clearPendingDraftTimer(runtime: NoteBrowserRuntime): void {
-  if (runtime.pendingDraftTimer !== undefined) {
-    clearTimeout(runtime.pendingDraftTimer);
-    runtime.pendingDraftTimer = undefined;
-  }
-}
-
 function nextEditorSessionKey(
   noteId: string,
   contentHash: string,
@@ -383,6 +336,15 @@ function nextEditorSessionKey(
 ): string {
   runtime.editorSessionVersion += 1;
   return `${noteId}:${contentHash}:${String(runtime.editorSessionVersion)}`;
+}
+
+function nextSnapshotKey(
+  sessionKey: string,
+  revision: number,
+  runtime: NoteBrowserRuntime,
+): string {
+  runtime.snapshotVersion += 1;
+  return `${sessionKey}:revision:${String(revision)}:snapshot:${String(runtime.snapshotVersion)}`;
 }
 
 function incrementNoteRequestSequence(runtime: NoteBrowserRuntime): number {

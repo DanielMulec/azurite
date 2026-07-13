@@ -65,15 +65,17 @@ export function createEditorSession(
   const draft = draftApplication.draft;
   const draftDisposition = getDraftDisposition(note, draftApplication);
   const sessionKey = context.nextEditorSessionKey(note.id, note.contentHash);
+  const recoveredSnapshotKey =
+    draft === undefined ? undefined : `${sessionKey}:recovered-record`;
 
   return {
     baseContentHash: getBaseContentHash(note, draft),
     currentMarkdown: getCurrentMarkdown(note, draft),
     draftDisposition,
     draftEpoch: 0,
-    durableSnapshotKey: undefined,
+    durableSnapshotKey: recoveredSnapshotKey,
     editorMode: getEditorMode(draft),
-    lastSnapshotKey: undefined,
+    lastSnapshotKey: recoveredSnapshotKey,
     note,
     persistenceIssue: createInitialPersistenceIssue(
       note.id,
