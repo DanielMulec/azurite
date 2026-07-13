@@ -60,7 +60,7 @@ function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
       <EditorModeBody
         isSourceMode={editor.isSourceMode}
         onSourceChange={editor.updateSourceMarkdown}
-        rootRef={editor.rootRef}
+        setEditorRoot={editor.setEditorRoot}
         sourceInputId={sourceInputId}
         sourceMarkdown={editor.sourceMarkdown}
         title={props.title}
@@ -142,14 +142,17 @@ function EditorError(props: {
 function EditorModeBody(props: {
   readonly isSourceMode: boolean;
   readonly onSourceChange: (markdown: string) => void;
-  readonly rootRef: RefCallback<HTMLDivElement>;
+  readonly setEditorRoot: RefCallback<HTMLDivElement>;
   readonly sourceInputId: string;
   readonly sourceMarkdown: string;
   readonly title: string;
 }): ReactElement {
   return (
     <>
-      <EditorRoot isSourceMode={props.isSourceMode} rootRef={props.rootRef} />
+      <EditorRoot
+        isSourceMode={props.isSourceMode}
+        setEditorRoot={props.setEditorRoot}
+      />
       <SourceEditor
         isSourceMode={props.isSourceMode}
         onSourceChange={props.onSourceChange}
@@ -161,16 +164,19 @@ function EditorModeBody(props: {
   );
 }
 
-function EditorRoot(props: {
+function EditorRoot({
+  isSourceMode,
+  setEditorRoot,
+}: {
   readonly isSourceMode: boolean;
-  readonly rootRef: RefCallback<HTMLDivElement>;
+  readonly setEditorRoot: RefCallback<HTMLDivElement>;
 }): ReactElement {
   return (
     <div
-      aria-hidden={props.isSourceMode}
-      className={props.isSourceMode ? "hidden" : undefined}
+      aria-hidden={isSourceMode}
+      className={isSourceMode ? "hidden" : undefined}
       data-testid="milkdown-editor-root"
-      ref={props.rootRef}
+      ref={setEditorRoot}
     />
   );
 }

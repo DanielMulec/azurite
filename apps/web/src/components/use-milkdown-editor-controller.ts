@@ -42,7 +42,7 @@ export type MilkdownControllerView = {
   readonly hasPublicationRetry: boolean;
   readonly isEditorReady: boolean;
   readonly isSourceMode: boolean;
-  readonly rootRef: RefCallback<HTMLDivElement>;
+  readonly setEditorRoot: RefCallback<HTMLDivElement>;
   readonly retryPublication: () => void;
   readonly showSourceMode: () => void;
   readonly showWysiwygMode: () => void;
@@ -120,7 +120,7 @@ function createControllerView(
     hasPublicationRetry: state.hasPublicationRetry,
     isEditorReady: state.lifecycle === "ready",
     isSourceMode: state.mode === "markdown",
-    rootRef: resources.root.set,
+    setEditorRoot: resources.root.set,
     retryPublication: () => {
       resources.controller.retryPublication();
     },
