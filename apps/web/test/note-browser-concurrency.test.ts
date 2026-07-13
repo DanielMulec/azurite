@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  noteOperationIdSchema,
-  requestIdSchema,
-  type ListNotesResponse,
-} from "@azurite/shared";
+import { noteOperationIdSchema, requestIdSchema } from "@azurite/shared";
 import { createNoteBrowserStore } from "../src/state/note-browser-store.js";
 import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
 import {
@@ -19,7 +15,6 @@ import {
 import {
   loadTestRoute,
   selectTestNote,
-  syncTestRoute,
 } from "./note-browser-route-test-helpers.js";
 
 describe("note load operation ownership", () => {
@@ -30,11 +25,8 @@ describe("note load operation ownership", () => {
       api: createApi({ readNote }),
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
-    let routeEcho: Promise<void> | undefined;
     const navigation = {
-      replaceSelectedNote: vi.fn((noteId: string) => {
-      routeEcho = syncTestRoute(store, noteId);
-      }),
+      replaceSelectedNote: vi.fn(),
     };
 
     const load = loadTestRoute(store, undefined, navigation);
@@ -46,7 +38,6 @@ describe("note load operation ownership", () => {
       note: createNote("index.md", "# Home", "sha256-home"),
     });
     await load;
-    await routeEcho;
 
     expect(navigation.replaceSelectedNote).toHaveBeenCalledOnce();
     expect(readNote).toHaveBeenCalledOnce();
@@ -59,45 +50,25 @@ describe("note load operation ownership", () => {
 });
 
 describe("overlapping note-list ownership", () => {
-  it("keeps newer list success and failure state in both stale orderings", async () => {
-    const first = createDeferred<ListNotesResponse>();
-    const second = createDeferred<ListNotesResponse>();
-    const listNotes = vi
-      .fn<NoteBrowserApi["listNotes"]>()
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise);
+  it("joins active callers into one list request and one terminal result", async () => {
+    const response = createDeferred<ReturnType<NoteBrowserApi["listNotes"]>>();
+    const listNotes = vi.fn<NoteBrowserApi["listNotes"]>(
+      () => response.promise,
+    );
     const store = createNoteBrowserStore({
       api: createApi({ listNotes }),
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
-    const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = loadTestRoute(store, undefined, navigation);
-    const newer = loadTestRoute(store, undefined, navigation);
-    second.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
-    await newer;
-    first.reject(new Error("stale failure"));
-    await older;
+    const first = store.getState().ensureNotes();
+    const second = store.getState().ensureNotes();
+    expect(second).toBe(first);
+    expect(listNotes).toHaveBeenCalledOnce();
+    response.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
+
+    await expect(first).resolves.toEqual({ noteIds: [], status: "ready" });
+    await expect(second).resolves.toEqual({ noteIds: [], status: "ready" });
     expect(store.getState().notesState).toEqual({ data: [], status: "ready" });
-
-    const third = createDeferred<ListNotesResponse>();
-    const fourth = createDeferred<ListNotesResponse>();
-    listNotes
-      .mockReturnValueOnce(third.promise)
-      .mockReturnValueOnce(fourth.promise);
-    const olderSuccess = loadTestRoute(store, undefined, navigation);
-    const newerFailure = loadTestRoute(store, undefined, navigation);
-    fourth.reject(new Error("current failure"));
-    await newerFailure;
-    third.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
-    await olderSuccess;
-    expect(store.getState().notesState).toMatchObject({
-      message: "current failure",
-      status: "error",
-    });
-    expect(requireMockCall(listNotes.mock.calls, 0)[0].requestId).not.toBe(
-      requireMockCall(listNotes.mock.calls, 1)[0].requestId,
-    );
   });
 });
 

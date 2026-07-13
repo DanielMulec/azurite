@@ -14,14 +14,15 @@ export async function selectTestNote(
   noteId: string,
   cause: RouteGateCause = "note_list",
 ): Promise<RouteStoreApplyResult> {
+  await store.getState().flushPendingDraft();
   const routeIndex = (testRouteIndexes.get(store) ?? 0) + 1;
   testRouteIndexes.set(store, routeIndex);
-  return await applyTestOccurrence(
-    store,
-    createTestOccurrence(noteId, routeIndex),
-    noteId,
+  return await applyTestOccurrence({
     cause,
-  );
+    location: createTestOccurrence(noteId, routeIndex),
+    noteId,
+    store,
+  });
 }
 
 /** Loads notes and applies an initial or explicit URL target for store tests. */
@@ -34,14 +35,14 @@ export async function loadTestRoute(
   if (notes.status !== "ready") {
     return;
   }
-  const noteId = routeNoteId ?? notes.noteIds[0];
+  const noteId = selectRouteTarget(routeNoteId, notes.noteIds);
   notifyStartupReplacement(routeNoteId, noteId, navigation);
-  await applyTestOccurrence(
-    store,
-    createTestOccurrence(noteId, 0),
+  await applyTestOccurrence({
+    cause: getInitialRouteCause(routeNoteId),
+    location: createTestOccurrence(noteId, 0),
     noteId,
-    routeNoteId === undefined ? "startup_fallback" : "url_sync",
-  );
+    store,
+  });
 }
 
 /** Applies a URL echo only when the notes list is already ready. */
@@ -52,12 +53,12 @@ export async function syncTestRoute(
   if (store.getState().notesState.status !== "ready") {
     return;
   }
-  await applyTestOccurrence(
+  await applyTestOccurrence({
+    cause: "url_sync",
+    location: createTestOccurrence(routeNoteId, 0),
+    noteId: routeNoteId,
     store,
-    createTestOccurrence(routeNoteId, 0),
-    routeNoteId,
-    "url_sync",
-  );
+  });
 }
 
 /** Creates one deterministic validated occurrence for store-level tests. */
@@ -77,35 +78,59 @@ export function createTestOccurrence(
   };
 }
 
-async function applyTestOccurrence(
-  store: ReturnType<typeof createNoteBrowserStore>,
-  location: ValidatedLocationOccurrence,
-  noteId: string | undefined,
-  cause: RouteGateCause,
-): Promise<RouteStoreApplyResult> {
+async function applyTestOccurrence(input: {
+  readonly cause: RouteGateCause;
+  readonly location: ValidatedLocationOccurrence;
+  readonly noteId: string | undefined;
+  readonly store: ReturnType<typeof createNoteBrowserStore>;
+}): Promise<RouteStoreApplyResult> {
   testIntentIdentity += 1;
   const intentKey = `test-intent-${String(testIntentIdentity)}`;
-  store.getState().activateRouteIntent(intentKey);
-  return await store.getState().applyRoute({
+  input.store.getState().activateRouteIntent(intentKey);
+  return await input.store.getState().applyRoute({
     authorization: {
       authorizationKey: `${intentKey}:authorization`,
       intentKey,
       kind: "route_intent",
     },
-    cause,
-    location,
-    noteId,
+    cause: input.cause,
+    location: input.location,
+    noteId: input.noteId,
   });
 }
 
 function notifyStartupReplacement(
   routeNoteId: string | undefined,
   selectedNoteId: string | undefined,
-  navigation: { readonly replaceSelectedNote: (noteId: string) => void } | undefined,
+  navigation:
+    { readonly replaceSelectedNote: (noteId: string) => void } | undefined,
 ): void {
-  if (routeNoteId === undefined && selectedNoteId !== undefined) {
-    navigation?.replaceSelectedNote(selectedNoteId);
+  if (routeNoteId !== undefined) {
+    return;
   }
+  notifySelectedStartupNote(selectedNoteId, navigation);
+}
+
+function notifySelectedStartupNote(
+  selectedNoteId: string | undefined,
+  navigation:
+    { readonly replaceSelectedNote: (noteId: string) => void } | undefined,
+): void {
+  if (selectedNoteId === undefined) {
+    return;
+  }
+  navigation?.replaceSelectedNote(selectedNoteId);
+}
+
+function selectRouteTarget(
+  routeNoteId: string | undefined,
+  noteIds: readonly string[],
+): string | undefined {
+  return routeNoteId ?? noteIds[0];
+}
+
+function getInitialRouteCause(routeNoteId: string | undefined): RouteGateCause {
+  return routeNoteId === undefined ? "startup_fallback" : "url_sync";
 }
 
 function createTestHref(noteId: string | undefined): string {

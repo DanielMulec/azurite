@@ -11,7 +11,10 @@ import type { ValidatedLocationOccurrence } from "./route-transition-types.js";
 /** Registers the two signals required for exact route occurrence completion. */
 export function registerLocationConfirmation(
   occurrence: ValidatedLocationOccurrence,
-  initialState: { readonly historySeen: boolean; readonly resolvedSeen: boolean },
+  initialState: {
+    readonly historySeen: boolean;
+    readonly resolvedSeen: boolean;
+  },
   runtime: RouteTransitionRuntime,
 ): Promise<void> {
   const confirmation: LocationConfirmation = {
@@ -19,7 +22,10 @@ export function registerLocationConfirmation(
     occurrence,
     result: createControlledResult<undefined>(),
   };
-  runtime.locationConfirmations.set(occurrenceIdentity(occurrence), confirmation);
+  runtime.locationConfirmations.set(
+    occurrenceIdentity(occurrence),
+    confirmation,
+  );
   resolveCompletedConfirmation(confirmation, runtime);
   return confirmation.result.promise;
 }

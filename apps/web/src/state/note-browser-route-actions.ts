@@ -10,7 +10,7 @@ import type {
   RouteStoreApplyResult,
 } from "../routing/route-store-executor.js";
 import {
-  applyClusterIdentity,
+  getClusterIdentityPatch,
   getErrorMessage,
 } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
@@ -27,7 +27,10 @@ import {
   recoverMissingAuthorizedRoute,
 } from "./note-browser-read-actions.js";
 import { getCoherentRouteView } from "./note-browser-route-predicates.js";
-import { applyEmptyRoute } from "./note-browser-route-state.js";
+import {
+  applyEmptyRoute,
+  applyStorePatchAtomically,
+} from "./note-browser-route-state.js";
 import { createRequestMetadata } from "./note-operation-metadata.js";
 
 type ListCompletion = {
@@ -49,12 +52,12 @@ export function ensureNotesAction(
 }
 
 /** Applies one exact route intent across selection, recovery, and note reads. */
-export async function applyRouteAction(
+export function applyRouteAction(
   input: RouteStoreApplyInput,
   context: StoreContext,
 ): Promise<RouteStoreApplyResult> {
   if (context.getCurrentRouteIntentKey() !== input.authorization.intentKey) {
-    return { status: "stale" };
+    return Promise.resolve({ status: "stale" });
   }
   const coherent = getCoherentRouteView(
     {
@@ -65,9 +68,9 @@ export async function applyRouteAction(
     context.get(),
   );
   if (coherent !== undefined) {
-    return coherent;
+    return Promise.resolve(coherent);
   }
-  return await applyIncoherentRoute(input, context);
+  return applyIncoherentRoute(input, context);
 }
 
 function startNotesLoad(context: StoreContext): Promise<RouteNotesResult> {
@@ -116,15 +119,37 @@ function applyListSuccess(
     recordListResult(completion.evidence, { staleCompletion: staleSucceeded });
     return { status: "failed" };
   }
-  recordListResult(completion.evidence, {
-    clusterIdentity: response.clusterIdentity,
-    noteCount: response.notes.length,
-  });
-  applyClusterIdentity(response.clusterIdentity, completion.context);
-  completion.context.set({
-    notesState: { data: response.notes, status: "ready" },
-  });
+  const applied = applyStorePatchAtomically(
+    {
+      ...getClusterIdentityPatch(
+        response.clusterIdentity,
+        completion.context.get().draftRecoveryStatus,
+      ),
+      notesState: { data: response.notes, status: "ready" },
+    },
+    completion.context,
+  );
+  recordListApplicationResult(response, completion.evidence, applied);
+  if (!applied) {
+    return { status: "failed" };
+  }
   return { noteIds: response.notes.map((note) => note.id), status: "ready" };
+}
+
+function recordListApplicationResult(
+  response: Awaited<ReturnType<StoreContext["api"]["listNotes"]>>,
+  evidence: BrowserOperationEvidence,
+  applied: boolean,
+): void {
+  recordListResult(
+    evidence,
+    applied
+      ? {
+          clusterIdentity: response.clusterIdentity,
+          noteCount: response.notes.length,
+        }
+      : { error: storeApplyError },
+  );
 }
 
 function applyListFailure(
@@ -136,9 +161,10 @@ function applyListFailure(
     return { status: "failed" };
   }
   recordListResult(completion.evidence, { error });
-  completion.context.set({
-    notesState: { message: getErrorMessage(error), status: "error" },
-  });
+  applyStorePatchAtomically(
+    { notesState: { message: getErrorMessage(error), status: "error" } },
+    completion.context,
+  );
   return { status: "failed" };
 }
 
@@ -149,23 +175,25 @@ function readReadyNotes(context: StoreContext): RouteNotesResult | undefined {
     : undefined;
 }
 
-async function applyIncoherentRoute(
+function applyIncoherentRoute(
   input: RouteStoreApplyInput,
   context: StoreContext,
 ): Promise<RouteStoreApplyResult> {
   if (input.noteId === undefined) {
-    return applyEmptyRoute(input.location, context)
-      ? {
-          requestSequence: undefined,
-          status: "applied",
-          view: "empty",
-        }
-      : { reason: "store_apply_failed", status: "failed" };
+    return Promise.resolve(
+      applyEmptyRoute(input.location, context)
+        ? {
+            requestSequence: undefined,
+            status: "applied",
+            view: "empty",
+          }
+        : { reason: "store_apply_failed", status: "failed" },
+    );
   }
-  return await applyNoteRoute({ ...input, noteId: input.noteId }, context);
+  return applyNoteRoute({ ...input, noteId: input.noteId }, context);
 }
 
-async function applyNoteRoute(
+function applyNoteRoute(
   input: RouteStoreApplyInput & { readonly noteId: string },
   context: StoreContext,
 ): Promise<RouteStoreApplyResult> {
@@ -176,8 +204,8 @@ async function applyNoteRoute(
     routeSource: input.cause,
   };
   return isNoteInReadyList(input.noteId, context)
-    ? await readAuthorizedNote(readInput, context)
-    : await recoverMissingAuthorizedRoute(readInput, context);
+    ? readAuthorizedNote(readInput, context)
+    : recoverMissingAuthorizedRoute(readInput, context);
 }
 
 function isNoteInReadyList(noteId: string, context: StoreContext): boolean {
@@ -235,3 +263,5 @@ function getCommittedLocation(
 ) {
   return view?.location;
 }
+
+const storeApplyError = new Error("The note list could not be applied.");

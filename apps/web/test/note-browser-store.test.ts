@@ -16,6 +16,10 @@ import {
   toSummary,
   unavailableClusterIdentity,
 } from "./note-browser-store-test-helpers.js";
+import {
+  loadTestRoute,
+  selectTestNote,
+} from "./note-browser-route-test-helpers.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -36,7 +40,7 @@ describe("note browser store route loading", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    await store.getState().loadNotes("Projects/azurite.md", navigation);
+    await loadTestRoute(store, "Projects/azurite.md", navigation);
 
     expect(store.getState().clusterIdentity).toEqual(readyClusterIdentity);
     expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
@@ -55,7 +59,7 @@ describe("note browser store route loading", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    await store.getState().loadNotes(undefined, navigation);
+    await loadTestRoute(store, undefined, navigation);
 
     expect(navigation.replaceSelectedNote).toHaveBeenCalledWith("index.md");
     expect(store.getState().selectedNoteId).toBe("index.md");
@@ -198,8 +202,8 @@ describe("note browser store async guards", () => {
     });
     const store = createSeededStore({ api });
 
-    const homeSelection = store.getState().selectNote("index.md");
-    const projectSelection = store.getState().selectNote("Projects/azurite.md");
+    const homeSelection = selectTestNote(store, "index.md");
+    const projectSelection = selectTestNote(store, "Projects/azurite.md");
     await projectSelection;
     slowHome.resolve({
       clusterIdentity: readyClusterIdentity,
@@ -218,7 +222,7 @@ describe("note browser store async guards", () => {
     const store = createLoadedStore({ draftPersistence: drafts.persistence });
 
     store.getState().updateDraftMarkdown("# Home\nBefore switch");
-    await store.getState().selectNote("Projects/azurite.md");
+    await selectTestNote(store, "Projects/azurite.md");
 
     expect(
       drafts.read(readyClusterIdentity.clusterId, "index.md"),
@@ -241,11 +245,11 @@ describe("note browser store missing notes", () => {
       draftPersistence: drafts.persistence,
     });
 
-    await store
-      .getState()
-      .loadNotes("deleted.md", { replaceSelectedNote: vi.fn() });
+    await loadTestRoute(store, "deleted.md", {
+      replaceSelectedNote: vi.fn(),
+    });
 
-    expect(store.getState().noteState).toEqual({
+    expect(store.getState().noteState).toMatchObject({
       draft: {
         editorMode: "wysiwyg",
         markdown: "# Deleted but protected",
@@ -254,6 +258,10 @@ describe("note browser store missing notes", () => {
       noteId: "deleted.md",
       status: "missing-draft",
     });
+    expect(store.getState().noteState).toHaveProperty(
+      "renderedOwnerKey",
+      expect.any(String),
+    );
   });
 });
 
@@ -282,9 +290,9 @@ describe("note browser store degraded recovery", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    await store
-      .getState()
-      .loadNotes("index.md", { replaceSelectedNote: vi.fn() });
+    await loadTestRoute(store, "index.md", {
+      replaceSelectedNote: vi.fn(),
+    });
     store.getState().updateDraftMarkdown("# Saved");
     await store.getState().saveSelectedNote();
 

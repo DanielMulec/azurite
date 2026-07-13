@@ -46,6 +46,7 @@ describe("NoteEditorSurface", () => {
           updatedAt: "2026-07-08T10:00:00.000Z",
         },
         noteId: "deleted.md",
+        renderedOwnerKey: "deleted.md:missing-draft:1",
         status: "missing-draft",
       },
       { onDiscardMissingDraft },
@@ -95,6 +96,7 @@ function renderSurface(
       onEditorModeChange={() => {}}
       onMarkdownChange={() => {}}
       onSaveNote={() => Promise.resolve()}
+      routeHistoryStatus={{ status: "available" }}
     />,
   );
 }

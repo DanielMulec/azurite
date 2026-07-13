@@ -3,6 +3,7 @@ import {
   serializeAppSearch,
 } from "./app-route-search.js";
 import {
+  completeRouteIntent,
   completePendingApplication,
   supersededOutcome,
 } from "./route-intent-outcomes.js";
@@ -10,6 +11,7 @@ import {
   createControlledResult,
   nextRuntimeIdentity,
   type PendingApplicationNavigation,
+  type RouteIntent,
   type RouteTransitionRouterAdapter,
   type RouteTransitionRuntime,
 } from "./route-transition-runtime.js";
@@ -20,11 +22,9 @@ import type {
 
 type ApplicationNavigationInput = {
   readonly cause: RouteGateCause;
-  readonly kind:
-    | "application_push"
-    | "canonical_replace"
-    | "startup_replace";
+  readonly kind: "application_push" | "canonical_replace" | "startup_replace";
   readonly noteId: string | undefined;
+  readonly suppressStartupFallback?: boolean;
 };
 
 /** Starts a tokenized application navigation without trusting its promise. */
@@ -49,7 +49,7 @@ export function startApplicationNavigation(
       token: pending.token,
     })
     .catch(() => {
-      failPendingNavigation(pending, dependencies.runtime);
+      void failPendingNavigation(pending, dependencies.runtime);
     });
   return pending.result.promise;
 }
@@ -72,6 +72,7 @@ function createPendingApplication(
     ...input,
     intentKey: nextRuntimeIdentity(runtime, "intent"),
     result: createControlledResult<RouteTransitionOutcome>(),
+    suppressStartupFallback: input.suppressStartupFallback ?? false,
     token: nextRuntimeIdentity(runtime, "navigation"),
   };
 }
@@ -119,18 +120,41 @@ function findPendingByIntentKey(
   return undefined;
 }
 
-function failPendingNavigation(
+async function failPendingNavigation(
   pending: PendingApplicationNavigation,
   runtime: RouteTransitionRuntime,
-): void {
-  if (!runtime.pendingApplications.delete(pending.token)) {
+): Promise<void> {
+  if (runtime.pendingApplications.delete(pending.token)) {
+    const outcome =
+      runtime.currentIntentKey === pending.intentKey
+        ? navigationRejectedOutcome(pending)
+        : pendingSupersededOutcome(pending, runtime);
+    completePendingApplication(pending, outcome);
     return;
   }
-  const outcome =
-    runtime.currentIntentKey === pending.intentKey
-      ? navigationRejectedOutcome(pending)
-      : pendingSupersededOutcome(pending, runtime);
-  completePendingApplication(pending, outcome);
+  await failAdmittedNavigation(pending, runtime);
+}
+
+async function failAdmittedNavigation(
+  pending: PendingApplicationNavigation,
+  runtime: RouteTransitionRuntime,
+): Promise<void> {
+  const intent = runtime.activeIntents.get(pending.intentKey);
+  if (intent?.gate === undefined) {
+    return;
+  }
+  const outcome = getAdmittedNavigationFailure(pending, intent, runtime);
+  await completeRouteIntent({ gate: intent.gate, intent, outcome }, runtime);
+}
+
+function getAdmittedNavigationFailure(
+  pending: PendingApplicationNavigation,
+  intent: RouteIntent,
+  runtime: RouteTransitionRuntime,
+): RouteTransitionOutcome {
+  return runtime.currentIntentKey === pending.intentKey
+    ? navigationRejectedOutcome(pending)
+    : supersededOutcome(intent, "awaiting_location");
 }
 
 function navigationRejectedOutcome(
@@ -152,6 +176,7 @@ function pendingSupersededOutcome(
   return supersededOutcome(
     {
       ...pending,
+      gate: undefined,
       location: runtime.currentOccurrence,
       needsCanonicalReplacement: false,
       settled: false,

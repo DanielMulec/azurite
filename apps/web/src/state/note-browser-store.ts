@@ -113,7 +113,9 @@ function getApi(options: NoteBrowserStoreOptions): NoteBrowserApi {
   return options.api ?? defaultApi;
 }
 
-function getDraftPersistence(options: NoteBrowserStoreOptions): DraftPersistence {
+function getDraftPersistence(
+  options: NoteBrowserStoreOptions,
+): DraftPersistence {
   return options.draftPersistence ?? createDraftPersistence();
 }
 
@@ -131,8 +133,7 @@ function createInitialState(
     activateRouteIntent: (intentKey) => {
       activateRouteIntent(intentKey, runtime);
     },
-    applyRoute: async (input) =>
-      await applyRouteAction(input, runtime.context),
+    applyRoute: (input) => applyRouteAction(input, runtime.context),
     clusterIdentity: undefined,
     committedRouteView: undefined,
     discardDraftAndReloadDiskVersion: async () => {
@@ -142,7 +143,7 @@ function createInitialState(
       await discardMissingDraftAction(runtime.context);
     },
     draftRecoveryStatus: { status: "available" },
-    ensureNotes: async () => await ensureNotesAction(runtime.context),
+    ensureNotes: () => ensureNotesAction(runtime.context),
     flushPendingDraft: async () => {
       await flushPendingDraft(runtime);
     },
@@ -165,9 +166,7 @@ function createInitialState(
       });
     },
     routeHistoryStatus: { status: "available" },
-    saveSelectedNote: async () => {
-      await saveSelectedNoteAction(runtime.context);
-    },
+    saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
     selectedNoteId: undefined,
     updateDraftMarkdown: (markdown) => {
       updateDraftMarkdown(markdown, runtime);
@@ -211,10 +210,7 @@ function configureContext(
       requestSequence: number,
       noteId: string,
     ) =>
-      isCurrentNoteRequest(
-        { authorization, noteId, requestSequence },
-        runtime,
-      ),
+      isCurrentNoteRequest({ authorization, noteId, requestSequence }, runtime),
     isCurrentNotesRequest: (requestSequence: number) =>
       requestSequence === runtime.notesRequestSequence,
     nextEditorSessionKey: (noteId: string, contentHash: string) =>
@@ -268,12 +264,14 @@ function isCurrentAuthorization(
 }
 
 async function flushPendingDraft(runtime: NoteBrowserRuntime): Promise<void> {
-  clearPendingDraftTimer(runtime);
   if (runtime.activeDraftFlush !== undefined) {
     await runtime.activeDraftFlush;
+    ensurePendingDraftSchedule(runtime);
     return;
   }
+  clearPendingDraftTimer(runtime);
   await startPendingDraftFlush(runtime);
+  ensurePendingDraftSchedule(runtime);
 }
 
 async function startPendingDraftFlush(
@@ -305,8 +303,15 @@ function scheduleDraftWrite(runtime: NoteBrowserRuntime): void {
   runtime.hasPendingDraftWrite = true;
   clearPendingDraftTimer(runtime);
   runtime.pendingDraftTimer = setTimeout(() => {
+    runtime.pendingDraftTimer = undefined;
     void flushPendingDraft(runtime);
   }, runtime.draftWriteDelayMs);
+}
+
+function ensurePendingDraftSchedule(runtime: NoteBrowserRuntime): void {
+  if (runtime.hasPendingDraftWrite && runtime.pendingDraftTimer === undefined) {
+    scheduleDraftWrite(runtime);
+  }
 }
 
 function updateDraftMarkdown(
@@ -333,7 +338,9 @@ function activateRouteIntent(
     return;
   }
   runtime.currentRouteIntentKey = intentKey;
-  incrementNoteRequestSequence(runtime);
+  if (runtime.activeNoteLoad !== undefined) {
+    incrementNoteRequestSequence(runtime);
+  }
 }
 
 function clearPendingDraftTimer(runtime: NoteBrowserRuntime): void {

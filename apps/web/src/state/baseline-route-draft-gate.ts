@@ -19,12 +19,16 @@ export function createBaselineRouteDraftGate(
 }
 
 function recordThrownDraftFlush(store: StoreApi<NoteBrowserStore>): void {
-  store.setState({
-    draftRecoveryStatus: {
-      message: "Draft recovery is degraded. Manual save still works.",
-      reason: "write_failed",
-      status: "degraded",
-    },
-  });
+  try {
+    store.setState({
+      draftRecoveryStatus: {
+        message: "Draft recovery is degraded. Manual save still works.",
+        reason: "write_failed",
+        status: "degraded",
+      },
+    });
+  } catch {
+    // Production navigation remains fail-open even when a subscriber throws.
+  }
 }
 import type { StoreApi } from "zustand/vanilla";

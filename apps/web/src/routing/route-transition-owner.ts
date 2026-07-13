@@ -1,13 +1,15 @@
+import { hasInvalidNoteSearch } from "./app-route-search.js";
 import { startApplicationNavigation } from "./route-application-navigation.js";
 import { createRouteGateRegistry } from "./route-gate-registry.js";
-import {
-  createRouteHistoryAdmission,
-  type RouteHistoryAdmission,
-} from "./route-history-admission.js";
+import { createRouteHistoryAdmission } from "./route-history-admission.js";
 import {
   admitCurrentOccurrence,
   admitHistoryCandidate,
 } from "./route-intent-admission.js";
+import {
+  disposeRouteTransitionOwner,
+  ownerDisposedSelection,
+} from "./route-owner-disposal.js";
 import {
   markHistoryOccurrence,
   markResolvedOccurrence,
@@ -29,7 +31,6 @@ import type {
   RouteTransitionOutcome,
 } from "./route-transition-types.js";
 import {
-  isSameHistoryOccurrence,
   needsCanonicalReplacement,
   validateLocationOccurrence,
 } from "./validated-route-location.js";
@@ -38,8 +39,16 @@ type RouteTransitionOwnerOptions = {
   readonly confirmRestoration?: Parameters<
     typeof createRouteHistoryAdmission
   >[0]["confirmRestoration"];
-  readonly history: Parameters<typeof createRouteHistoryAdmission>[0]["history"];
+  readonly history: Parameters<
+    typeof createRouteHistoryAdmission
+  >[0]["history"];
+  readonly readBrowserLocation?: Parameters<
+    typeof createRouteHistoryAdmission
+  >[0]["readBrowserLocation"];
   readonly router: RouteTransitionRouterAdapter;
+  readonly subscribeToPopState?: Parameters<
+    typeof createRouteHistoryAdmission
+  >[0]["subscribeToPopState"];
 };
 
 /** Single runtime owner for route intent, history admission, and completion. */
@@ -57,9 +66,8 @@ export function createRouteTransitionOwner(
   const runtime = createRuntime(options.router.historyLocation());
   const dependencies = { router: options.router, runtime };
   const historyAdmission = createRouteHistoryAdmission({
-    ...(options.confirmRestoration === undefined
-      ? {}
-      : { confirmRestoration: options.confirmRestoration }),
+    ...getRestorationOption(options),
+    ...getBrowserAdmissionOptions(options),
     history: options.history,
     onCandidate: async (candidate) =>
       await admitHistoryCandidate(candidate, dependencies),
@@ -78,20 +86,43 @@ export function createRouteTransitionOwner(
 
   return {
     dispose: () => {
-      disposeOwner(
-        { historyAdmission, removeHistorySubscription, removeResolvedSubscription },
+      disposeRouteTransitionOwner(
+        {
+          historyAdmission,
+          removeHistorySubscription,
+          removeResolvedSubscription,
+        },
         runtime,
       );
     },
-    registerGate: runtime.gateRegistry.register,
+    registerGate: (gate) =>
+      runtime.disposed ? () => {} : runtime.gateRegistry.register(gate),
     registerStoreExecutor: (executor) =>
       registerStoreExecutor(executor, runtime),
-    selectNote: async (noteId) =>
-      await selectNote(noteId, dependencies),
+    selectNote: async (noteId) => await selectNote(noteId, dependencies),
   };
 }
 
-function createRuntime(initialLocation: Parameters<typeof validateLocationOccurrence>[0]): RouteTransitionRuntime {
+function getRestorationOption(options: RouteTransitionOwnerOptions) {
+  return options.confirmRestoration === undefined
+    ? {}
+    : { confirmRestoration: options.confirmRestoration };
+}
+
+function getBrowserAdmissionOptions(options: RouteTransitionOwnerOptions) {
+  return {
+    ...(options.readBrowserLocation === undefined
+      ? {}
+      : { readBrowserLocation: options.readBrowserLocation }),
+    ...(options.subscribeToPopState === undefined
+      ? {}
+      : { subscribeToPopState: options.subscribeToPopState }),
+  };
+}
+
+function createRuntime(
+  initialLocation: Parameters<typeof validateLocationOccurrence>[0],
+): RouteTransitionRuntime {
   const gateRegistry = createRouteGateRegistry();
   const storeRegistry = createRouteStoreExecutorRegistry();
   const initialOccurrence = validateLocationOccurrence(initialLocation, 1);
@@ -133,6 +164,7 @@ function startInitialIntent(
         occurrence,
       ),
       noteId: occurrence.search.note,
+      suppressStartupFallback: hasInvalidNoteSearch(location.search),
     },
     dependencies,
   );
@@ -145,6 +177,23 @@ async function selectNote(
     readonly runtime: RouteTransitionRuntime;
   },
 ): Promise<RouteTransitionOutcome> {
+  if (dependencies.runtime.disposed) {
+    return ownerDisposedSelection(noteId, dependencies.runtime);
+  }
+  return await selectAvailableNote(noteId, dependencies);
+}
+
+async function selectAvailableNote(
+  noteId: string,
+  dependencies: {
+    readonly router: RouteTransitionRouterAdapter;
+    readonly runtime: RouteTransitionRuntime;
+  },
+): Promise<RouteTransitionOutcome> {
+  const joined = findJoinedCurrentIntent(noteId, dependencies.runtime);
+  if (joined !== undefined) {
+    return await joined;
+  }
   const sameTarget =
     dependencies.runtime.currentOccurrence.search.note === noteId;
   if (!sameTarget) {
@@ -163,10 +212,6 @@ async function selectSameTargetNote(
     readonly runtime: RouteTransitionRuntime;
   },
 ): Promise<RouteTransitionOutcome> {
-  const joined = findJoinedCurrentIntent(noteId, dependencies.runtime);
-  if (joined !== undefined) {
-    return await joined;
-  }
   return await selectUnjoinedSameTarget(noteId, dependencies);
 }
 
@@ -197,10 +242,12 @@ async function selectUnjoinedSameTarget(
 function getCoherentView(
   noteId: string,
   runtime: RouteTransitionRuntime,
-): Extract<
-  ReturnType<RouteStoreExecutor["getCoherentView"]>,
-  { status: "coherent_noop" }
-> | undefined {
+):
+  | Extract<
+      ReturnType<RouteStoreExecutor["getCoherentView"]>,
+      { status: "coherent_noop" }
+    >
+  | undefined {
   const executor = runtime.storeRegistry.get();
   if (executor === undefined) {
     return undefined;
@@ -211,10 +258,12 @@ function getCoherentView(
 
 function readCoherentResult(
   result: ReturnType<RouteStoreExecutor["getCoherentView"]>,
-): Extract<
-  ReturnType<RouteStoreExecutor["getCoherentView"]>,
-  { status: "coherent_noop" }
-> | undefined {
+):
+  | Extract<
+      ReturnType<RouteStoreExecutor["getCoherentView"]>,
+      { status: "coherent_noop" }
+    >
+  | undefined {
   return result?.status === "coherent_noop" ? result : undefined;
 }
 
@@ -227,7 +276,7 @@ function findJoinedCurrentIntent(
     return undefined;
   }
   const active = runtime.activeIntents.get(currentKey);
-  const activePromise = getMatchingActivePromise(active, noteId, runtime);
+  const activePromise = getMatchingActivePromise(active, noteId);
   if (activePromise !== undefined) {
     return activePromise;
   }
@@ -245,9 +294,8 @@ function getMatchingPendingPromise(
 function getMatchingActivePromise(
   intent: RouteIntent | undefined,
   noteId: string,
-  runtime: RouteTransitionRuntime,
 ): Promise<RouteTransitionOutcome> | undefined {
-  return isMatchingActiveIntent(intent, noteId, runtime)
+  return isMatchingActiveIntent(intent, noteId)
     ? intent.result.promise
     : undefined;
 }
@@ -255,23 +303,11 @@ function getMatchingActivePromise(
 function isMatchingActiveIntent(
   intent: RouteIntent | undefined,
   noteId: string,
-  runtime: RouteTransitionRuntime,
 ): intent is RouteIntent {
   if (intent === undefined || intent.settled) {
     return false;
   }
-  return isMatchingIntentTarget(intent, noteId, runtime);
-}
-
-function isMatchingIntentTarget(
-  intent: RouteIntent,
-  noteId: string,
-  runtime: RouteTransitionRuntime,
-): boolean {
-  return (
-    intent.noteId === noteId &&
-    isSameHistoryOccurrence(intent.location, runtime.currentOccurrence)
-  );
+  return intent.noteId === noteId;
 }
 
 function findMatchingPending(
@@ -310,40 +346,4 @@ function registerStoreExecutor(
     executor.activateRouteIntent(runtime.currentIntentKey);
   }
   return unregister;
-}
-
-function disposeOwner(
-  resources: {
-    readonly historyAdmission: RouteHistoryAdmission;
-    readonly removeHistorySubscription: () => void;
-    readonly removeResolvedSubscription: () => void;
-  },
-  runtime: RouteTransitionRuntime,
-): void {
-  if (runtime.disposed) {
-    return;
-  }
-  runtime.disposed = true;
-  resources.historyAdmission.dispose();
-  resources.removeHistorySubscription();
-  resources.removeResolvedSubscription();
-  for (const confirmation of runtime.locationConfirmations.values()) {
-    confirmation.result.resolve(undefined);
-  }
-  runtime.locationConfirmations.clear();
-  runtime.storeRegistry.dispose();
-  settlePendingOnDisposal(runtime);
-}
-
-function settlePendingOnDisposal(runtime: RouteTransitionRuntime): void {
-  for (const pending of runtime.pendingApplications.values()) {
-    pending.result.resolve({
-      intentKey: pending.intentKey,
-      noteId: pending.noteId,
-      reason: "owner_disposed",
-      status: "failed",
-      surfaceEffect: "none",
-    });
-  }
-  runtime.pendingApplications.clear();
 }

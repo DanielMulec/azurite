@@ -8,44 +8,42 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AzuriteRouterProvider } from "../src/app-router.js";
+import type { RouteStoreExecutor } from "../src/routing/route-store-executor.js";
+import type { RouteTransitionOwner } from "../src/routing/route-transition-owner.js";
 
 vi.mock("../src/App.js", () => ({
   App: ({
     devDiagnostics,
-    navigation,
-    routeNoteId,
+    transitionOwner,
   }: {
     readonly devDiagnostics?: "sentry-test";
-    readonly navigation: {
-      readonly pushSelectedNote: (noteId: string) => void;
-      readonly replaceSelectedNote: (noteId: string) => void;
-    };
-    readonly routeNoteId: string | undefined;
-  }) => (
-    <main>
-      <p data-testid="route-note">{routeNoteId}</p>
-      <p data-testid="dev-diagnostics">{devDiagnostics}</p>
-      <button
-        onClick={() => {
-          navigation.pushSelectedNote("Projects/azurite.md");
-        }}
-        type="button"
-      >
-        Push note
-      </button>
-      <button
-        onClick={() => {
-          navigation.replaceSelectedNote("Daily/today.md");
-        }}
-        type="button"
-      >
-        Replace note
-      </button>
-    </main>
-  ),
+    readonly transitionOwner: RouteTransitionOwner;
+  }) => {
+    useEffect(
+      () => transitionOwner.registerStoreExecutor(createProbeExecutor()),
+      [transitionOwner],
+    );
+    return (
+      <main>
+        <p data-testid="route-note">
+          {new URLSearchParams(window.location.search).get("note")}
+        </p>
+        <p data-testid="dev-diagnostics">{devDiagnostics}</p>
+        <button
+          onClick={() => {
+            void transitionOwner.selectNote("Projects/azurite.md");
+          }}
+          type="button"
+        >
+          Push note
+        </button>
+      </main>
+    );
+  },
 }));
 
 afterEach(() => {
@@ -79,19 +77,40 @@ describe("development diagnostics routing", () => {
   });
 
   it("preserves the typed diagnostics value during replacement", async () => {
-    window.history.replaceState(
-      {},
-      "",
-      "/?note=index.md&azurite-dev=sentry-test",
-    );
+    window.history.replaceState({}, "", "/?azurite-dev=sentry-test");
     render(<AzuriteRouterProvider />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Replace note" }),
-    );
     await waitFor(() => {
       expect(window.location.search).toContain("azurite-dev=sentry-test");
       expect(window.location.search).toContain("note=Daily%2Ftoday.md");
     });
   });
 });
+
+function createProbeExecutor(): RouteStoreExecutor {
+  return {
+    activateRouteIntent: () => {},
+    applyRoute: (input) =>
+      Promise.resolve(
+        input.noteId === undefined
+          ? {
+              requestSequence: undefined,
+              status: "applied",
+              view: "empty",
+            }
+          : {
+              requestSequence: 1,
+              status: "applied",
+              view: "missing",
+            },
+      ),
+    ensureNotes: () =>
+      Promise.resolve({
+        noteIds: ["Daily/today.md", "index.md", "Projects/azurite.md"],
+        status: "ready",
+      }),
+    getCoherentView: () => undefined,
+    getRenderedOwnerKey: () => undefined,
+    reportHistoryUnavailable: () => {},
+  };
+}

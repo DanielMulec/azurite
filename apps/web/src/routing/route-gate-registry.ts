@@ -7,13 +7,13 @@ import type {
 
 /** One captured gate call that retains its originating capability. */
 export type PreparedRouteGate = {
-  readonly result: RouteGateResult;
+  readonly decision: Promise<RouteGateResult>;
   readonly settle: (settlement: RouteGateSettlement) => Promise<void>;
 };
 
 /** Replaceable target-free gate registry with identity-safe unregistration. */
 export type RouteGateRegistry = {
-  readonly prepare: (input: RouteGatePrepareInput) => Promise<PreparedRouteGate>;
+  readonly prepare: (input: RouteGatePrepareInput) => PreparedRouteGate;
   readonly register: (gate: RouteTransitionGate) => () => void;
 };
 
@@ -27,7 +27,7 @@ export function createRouteGateRegistry(): RouteGateRegistry {
   let currentGate = noOpGate;
 
   return {
-    prepare: async (input) => await prepareGate(currentGate, input),
+    prepare: (input) => prepareGate(currentGate, input),
     register: (gate) => {
       currentGate = gate;
       return () => {
@@ -39,15 +39,14 @@ export function createRouteGateRegistry(): RouteGateRegistry {
   };
 }
 
-async function prepareGate(
+function prepareGate(
   gate: RouteTransitionGate,
   input: RouteGatePrepareInput,
-): Promise<PreparedRouteGate> {
-  const result = await callPrepare(gate, input);
+): PreparedRouteGate {
   let didSettle = false;
 
   return {
-    result,
+    decision: callPrepare(gate, input),
     settle: async (settlement) => {
       if (didSettle) {
         return;

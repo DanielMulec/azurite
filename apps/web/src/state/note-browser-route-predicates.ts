@@ -151,7 +151,6 @@ function matchesTargetSurface(
   snapshot: NoteBrowserStore,
 ): boolean {
   return (
-    snapshot.noteState.status === status &&
-    snapshot.noteState.noteId === noteId
+    snapshot.noteState.status === status && snapshot.noteState.noteId === noteId
   );
 }

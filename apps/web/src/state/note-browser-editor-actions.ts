@@ -26,6 +26,7 @@ import {
 } from "./note-browser-evidence.js";
 import { createNoteRequestMetadata } from "./note-operation-metadata.js";
 import { reloadSelectedNoteAction } from "./note-browser-route-actions.js";
+import { applyMissingRoute } from "./note-browser-route-state.js";
 import {
   applySaveFailure,
   applySaveResponse,
@@ -289,7 +290,12 @@ async function discardMissingNoteDraftState(
   context: StoreContext,
 ): Promise<void> {
   await clearDraftForNote(noteId, context);
-  context.set({ noteState: { noteId, status: "missing" } });
+  const location = context.get().committedRouteView?.location;
+  if (location === undefined) {
+    context.set({ noteState: { noteId, status: "missing" } });
+    return;
+  }
+  applyMissingRoute({ location, noteId }, context);
 }
 
 async function clearDraftForNote(

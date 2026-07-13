@@ -27,6 +27,15 @@ export function parseAppLocationSearch(locationSearch: string): AppSearch {
   });
 }
 
+/** Returns whether raw search named a note rejected by the safe note boundary. */
+export function hasInvalidNoteSearch(locationSearch: string): boolean {
+  const parameters = new URLSearchParams(locationSearch);
+  if (!parameters.has("note")) {
+    return false;
+  }
+  return parseSafeRouteNote(parameters.get("note") ?? "").note === undefined;
+}
+
 /** Creates search state for a note while preserving recognized diagnostics. */
 export function createNoteNavigationSearch(
   currentSearch: AppSearch,

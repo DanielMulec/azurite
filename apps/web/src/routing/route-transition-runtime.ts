@@ -1,5 +1,6 @@
 import type { HistoryLocation } from "@tanstack/react-router";
 
+import type { PreparedRouteGate } from "./route-gate-registry.js";
 import type { RouteGateRegistry } from "./route-gate-registry.js";
 import type { RouteStoreExecutorRegistry } from "./route-store-executor.js";
 import type {
@@ -24,19 +25,19 @@ export type RouteIntent = {
   readonly needsCanonicalReplacement: boolean;
   readonly noteId: string | undefined;
   readonly result: ControlledResult<RouteTransitionOutcome>;
+  gate: PreparedRouteGate | undefined;
   settled: boolean;
+  readonly suppressStartupFallback: boolean;
 };
 
 /** Tokenized application request waiting for its one history echo. */
 export type PendingApplicationNavigation = {
   readonly cause: RouteGateCause;
   readonly intentKey: string;
-  readonly kind:
-    | "application_push"
-    | "canonical_replace"
-    | "startup_replace";
+  readonly kind: "application_push" | "canonical_replace" | "startup_replace";
   readonly noteId: string | undefined;
   readonly result: ControlledResult<RouteTransitionOutcome>;
+  readonly suppressStartupFallback: boolean;
   readonly token: string;
 };
 
@@ -98,10 +99,7 @@ export function nextRuntimeIdentity(
 
 /** Creates the stable map key for one exact history occurrence. */
 export function occurrenceIdentity(
-  occurrence: Pick<
-    ValidatedLocationOccurrence,
-    "historyIndex" | "historyKey"
-  >,
+  occurrence: Pick<ValidatedLocationOccurrence, "historyIndex" | "historyKey">,
 ): string {
   return `${occurrence.historyKey}:${String(occurrence.historyIndex)}`;
 }

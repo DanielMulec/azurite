@@ -23,7 +23,11 @@ export type LoadableNotes =
 
 /** Render state for the selected-note editor surface. */
 export type NoteViewState =
-  | { readonly status: "error"; readonly message: string; readonly noteId: string }
+  | {
+      readonly status: "error";
+      readonly message: string;
+      readonly noteId: string;
+    }
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "missing"; readonly noteId: string }

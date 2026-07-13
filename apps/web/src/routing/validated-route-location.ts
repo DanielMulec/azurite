@@ -10,8 +10,7 @@ import type {
 } from "./route-transition-types.js";
 
 /** Private history-state key recognizing one expected application echo. */
-export const applicationNavigationTokenStateKey =
-  "__azurite_navigation_token";
+export const applicationNavigationTokenStateKey = "__azurite_navigation_token";
 
 /** Validates one raw TanStack history location into product-owned route state. */
 export function validateLocationOccurrence(

@@ -57,7 +57,7 @@ async function executeWithExecutor(
   executor: RouteStoreExecutor,
   dependencies: ExecutionDependencies,
 ): Promise<void> {
-  const notes = await executor.ensureNotes();
+  const notes = await ensureNotes(executor);
   if (await completeAfterNotesWait(input, notes, dependencies)) {
     return;
   }
@@ -73,7 +73,11 @@ async function executeWithExecutor(
     return;
   }
   const result = await applyRoute(input.intent, executor);
-  const outcome = selectStoreOutcome(input.intent, result, dependencies.runtime);
+  const outcome = selectStoreOutcome(
+    input.intent,
+    result,
+    dependencies.runtime,
+  );
   await completeRouteIntent(
     { gate: input.gate, intent: input.intent, outcome },
     dependencies.runtime,
@@ -85,7 +89,11 @@ async function completeIfNotCurrent(
   phase: Extract<RouteTransitionOutcome, { status: "superseded" }>["phase"],
   dependencies: ExecutionDependencies,
 ): Promise<boolean> {
-  const outcome = getNonCurrentOutcome(input.intent, phase, dependencies.runtime);
+  const outcome = getNonCurrentOutcome(
+    input.intent,
+    phase,
+    dependencies.runtime,
+  );
   if (outcome === undefined) {
     return false;
   }
@@ -113,11 +121,7 @@ async function completeAfterExecutorWait(
     return true;
   }
   executor.activateRouteIntent(input.intent.intentKey);
-  return await completeIfNotCurrent(
-    input,
-    "awaiting_executor",
-    dependencies,
-  );
+  return await completeIfNotCurrent(input, "awaiting_executor", dependencies);
 }
 
 async function completeAfterNotesWait(
@@ -150,11 +154,41 @@ function redirectUndefinedTarget(
   if (cannotRedirectUndefinedTarget(intent, notes)) {
     return false;
   }
+  if (intent.suppressStartupFallback) {
+    return redirectInvalidTarget(intent, dependencies);
+  }
+  return redirectOrdinaryUndefinedTarget(intent, notes, dependencies);
+}
+
+function redirectOrdinaryUndefinedTarget(
+  intent: RouteIntent,
+  notes: RouteNotesResult,
+  dependencies: ExecutionDependencies,
+): boolean {
   const firstNoteId = firstReadyNoteId(notes);
   if (firstNoteId === undefined) {
     return redirectCanonicalEmpty(intent, dependencies);
   }
   startStartupReplacement(firstNoteId, dependencies);
+  return true;
+}
+
+function redirectInvalidTarget(
+  intent: RouteIntent,
+  dependencies: ExecutionDependencies,
+): boolean {
+  if (!intent.needsCanonicalReplacement) {
+    return false;
+  }
+  void startApplicationNavigation(
+    {
+      cause: "url_sync",
+      kind: "canonical_replace",
+      noteId: undefined,
+      suppressStartupFallback: true,
+    },
+    dependencies,
+  );
   return true;
 }
 
@@ -214,6 +248,16 @@ async function applyRoute(
     });
   } catch {
     return { reason: "store_apply_failed", status: "failed" };
+  }
+}
+
+async function ensureNotes(
+  executor: RouteStoreExecutor,
+): Promise<RouteNotesResult> {
+  try {
+    return await executor.ensureNotes();
+  } catch {
+    return { status: "failed" };
   }
 }
 

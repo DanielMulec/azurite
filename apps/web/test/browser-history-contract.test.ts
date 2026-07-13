@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
-import { createBrowserHistory, type RouterHistory } from "@tanstack/react-router";
+import {
+  createBrowserHistory,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
 
 type TestHistoryState = {
@@ -14,7 +17,7 @@ type TestHistoryEntry = {
   readonly state: TestHistoryState;
 };
 
-describe("installed TanStack browser-history contract", () => {
+describe("installed TanStack application-history contract", () => {
   it("admits push and replace only after their blocker continues", async () => {
     const browser = createTestBrowser(["/?note=a.md"]);
     const history = createBrowserHistory({ window: browser.window });
@@ -43,7 +46,9 @@ describe("installed TanStack browser-history contract", () => {
     await expectCurrent(browser, "/?note=c.md");
     expect(browser.entries()).toHaveLength(2);
   });
+});
 
+describe("installed TanStack traversal-restoration contract", () => {
   it.each([
     { delta: -1, name: "Back" },
     { delta: 1, name: "Forward" },
@@ -51,40 +56,12 @@ describe("installed TanStack browser-history contract", () => {
   ])(
     "restores the exact predecessor after cancelled $name",
     async ({ delta }) => {
-      const initialIndex = delta === 1 ? 2 : 3;
-      const browser = createTestBrowser(
-        ["/?note=a.md", "/?note=b.md", "/?note=c.md", "/?note=d.md"],
-        initialIndex,
-      );
-      const initialEntries = browser.entries();
-      const predecessor = initialEntries[initialIndex];
-      if (predecessor === undefined) {
-        throw new Error("Expected a predecessor entry.");
-      }
-      const history = createBrowserHistory({ window: browser.window });
-      let shouldBlock = true;
-      history.block({
-        blockerFn: () => shouldBlock,
-        enableBeforeUnload: false,
-      });
-
-      navigateByDelta(history, delta);
-      await expectCurrent(browser, predecessor.href);
-
-      expect(browser.entries()).toEqual(initialEntries);
-      expect(browser.currentState()).toEqual(predecessor.state);
-
-      shouldBlock = false;
-      navigateByDelta(history, delta);
-      const retriedEntry = initialEntries[initialIndex + delta];
-      if (retriedEntry === undefined) {
-        throw new Error("Expected a retry destination entry.");
-      }
-      await expectCurrent(browser, retriedEntry.href);
-      expect(browser.entries()).toEqual(initialEntries);
+      await verifyCancelledTraversal(delta);
     },
   );
+});
 
+describe("installed TanStack traversal-reachability contract", () => {
   it("keeps every entry reachable after cancelled traversal", async () => {
     const browser = createTestBrowser([
       "/?note=a.md",
@@ -111,6 +88,37 @@ describe("installed TanStack browser-history contract", () => {
     await expectCurrent(browser, "/?note=c.md");
   });
 });
+
+async function verifyCancelledTraversal(delta: number): Promise<void> {
+  const initialIndex = getInitialIndex(delta);
+  const browser = createTestBrowser(
+    ["/?note=a.md", "/?note=b.md", "/?note=c.md", "/?note=d.md"],
+    initialIndex,
+  );
+  const initialEntries = browser.entries();
+  const predecessor = requireEntry(initialEntries, initialIndex);
+  const history = createBrowserHistory({ window: browser.window });
+  let shouldBlock = true;
+  history.block({
+    blockerFn: () => shouldBlock,
+    enableBeforeUnload: false,
+  });
+
+  navigateByDelta(history, delta);
+  await expectCurrent(browser, predecessor.href);
+  expect(browser.entries()).toEqual(initialEntries);
+  expect(browser.currentState()).toEqual(predecessor.state);
+
+  shouldBlock = false;
+  navigateByDelta(history, delta);
+  const retriedEntry = requireEntry(initialEntries, initialIndex + delta);
+  await expectCurrent(browser, retriedEntry.href);
+  expect(browser.entries()).toEqual(initialEntries);
+}
+
+function getInitialIndex(delta: number): number {
+  return delta === 1 ? 2 : 3;
+}
 
 function navigateByDelta(history: RouterHistory, delta: number): void {
   if (delta === -1) {
@@ -142,72 +150,97 @@ type TestBrowser = {
   readonly window: object;
 };
 
+type TestBrowserRuntime = {
+  entries: TestHistoryEntry[];
+  index: number;
+  readonly listeners: Map<string, Set<BrowserEventListener>>;
+};
+
 function createTestBrowser(
   hrefs: readonly string[],
   initialIndex = hrefs.length - 1,
 ): TestBrowser {
-  let entries = hrefs.map(createHistoryEntry);
-  let index = initialIndex;
-  const listeners = new Map<string, Set<BrowserEventListener>>();
-  const location = createTestLocation(() => entries[index]?.href ?? "/");
-  const history = {
+  const runtime: TestBrowserRuntime = {
+    entries: hrefs.map(createHistoryEntry),
+    index: initialIndex,
+    listeners: new Map(),
+  };
+  const location = createTestLocation(
+    () => runtime.entries[runtime.index]?.href ?? "/",
+  );
+  const history = createTestHistory(runtime);
+  return {
+    currentHref: () => requireEntry(runtime.entries, runtime.index).href,
+    currentState: () =>
+      structuredClone(requireEntry(runtime.entries, runtime.index).state),
+    entries: () => structuredClone(runtime.entries),
+    window: createTestWindow(history, location, runtime.listeners),
+  };
+}
+
+function createTestHistory(runtime: TestBrowserRuntime) {
+  return {
     back: () => {
-      move(-1);
+      move(-1, runtime);
     },
     forward: () => {
-      move(1);
+      move(1, runtime);
     },
     get length() {
-      return entries.length;
+      return runtime.entries.length;
     },
     go: (delta: number) => {
-      move(delta);
+      move(delta, runtime);
     },
     pushState: (state: TestHistoryState, _unused: string, href: string) => {
-      entries = [
-        ...entries.slice(0, index + 1),
+      runtime.entries = [
+        ...runtime.entries.slice(0, runtime.index + 1),
         { href, state: structuredClone(state) },
       ];
-      index = entries.length - 1;
+      runtime.index = runtime.entries.length - 1;
     },
     replaceState: (state: TestHistoryState, _unused: string, href?: string) => {
-      const current = requireEntry(entries, index);
-      entries = entries.with(index, {
+      const current = requireEntry(runtime.entries, runtime.index);
+      runtime.entries = runtime.entries.with(runtime.index, {
         href: href ?? current.href,
         state: structuredClone(state),
       });
     },
     get state() {
-      return requireEntry(entries, index).state;
+      return requireEntry(runtime.entries, runtime.index).state;
     },
   };
+}
 
-  function move(delta: number): void {
-    const nextIndex = Math.min(Math.max(index + delta, 0), entries.length - 1);
-    if (nextIndex === index) {
-      return;
-    }
-    index = nextIndex;
-    queueMicrotask(() => {
-      dispatch("popstate", listeners);
-    });
+function move(delta: number, runtime: TestBrowserRuntime): void {
+  const nextIndex = Math.min(
+    Math.max(runtime.index + delta, 0),
+    runtime.entries.length - 1,
+  );
+  if (nextIndex === runtime.index) {
+    return;
   }
+  runtime.index = nextIndex;
+  queueMicrotask(() => {
+    dispatch("popstate", runtime.listeners);
+  });
+}
 
+function createTestWindow(
+  history: ReturnType<typeof createTestHistory>,
+  location: object,
+  listeners: Map<string, Set<BrowserEventListener>>,
+): object {
   return {
-    currentHref: () => requireEntry(entries, index).href,
-    currentState: () => structuredClone(requireEntry(entries, index).state),
-    entries: () => structuredClone(entries),
-    window: {
-      addEventListener: (type: string, listener: BrowserEventListener) => {
-        const eventListeners = listeners.get(type) ?? new Set();
-        eventListeners.add(listener);
-        listeners.set(type, eventListeners);
-      },
-      history,
-      location,
-      removeEventListener: (type: string, listener: BrowserEventListener) => {
-        listeners.get(type)?.delete(listener);
-      },
+    addEventListener: (type: string, listener: BrowserEventListener) => {
+      const eventListeners = listeners.get(type) ?? new Set();
+      eventListeners.add(listener);
+      listeners.set(type, eventListeners);
+    },
+    history,
+    location,
+    removeEventListener: (type: string, listener: BrowserEventListener) => {
+      listeners.get(type)?.delete(listener);
     },
   };
 }

@@ -13,6 +13,7 @@ import type {
   DraftRecoveryKind,
   EditorSession,
   LoadableNotes,
+  NoteBrowserSnapshot,
   NoteViewState,
 } from "./note-browser-types.js";
 import type { StoreContext } from "./note-browser-contracts.js";
@@ -27,15 +28,30 @@ export function applyClusterIdentity(
   clusterIdentity: ClusterIdentity,
   context: Pick<StoreContext, "get" | "set">,
 ): void {
-  if (clusterIdentity.status !== "ready") {
-    applyUnavailableClusterIdentity(clusterIdentity, context);
-    return;
-  }
+  context.set(
+    getClusterIdentityPatch(clusterIdentity, context.get().draftRecoveryStatus),
+  );
+}
 
-  context.set({
+/** Computes cluster and recovery state without mutating a route transaction. */
+export function getClusterIdentityPatch(
+  clusterIdentity: ClusterIdentity,
+  currentStatus: DraftRecoveryStatus,
+): Pick<NoteBrowserSnapshot, "clusterIdentity" | "draftRecoveryStatus"> {
+  if (clusterIdentity.status !== "ready") {
+    return {
+      clusterIdentity,
+      draftRecoveryStatus: {
+        message: "Draft recovery is unavailable for this cluster.",
+        reason: "cluster_identity_unavailable",
+        status: "degraded",
+      },
+    };
+  }
+  return {
     clusterIdentity,
-    draftRecoveryStatus: getReadyClusterRecoveryStatus(context),
-  });
+    draftRecoveryStatus: getReadyClusterRecoveryStatus(currentStatus),
+  };
 }
 
 /** Creates a resolved editor session after note and draft recovery load. */
@@ -184,13 +200,18 @@ export function degradeDraftRecovery(
   reason: DraftPersistenceUnavailableReason,
   context: Pick<StoreContext, "set">,
 ): void {
-  context.set({
-    draftRecoveryStatus: {
-      message: "Draft recovery is degraded. Manual save still works.",
-      reason,
-      status: "degraded",
-    },
-  });
+  context.set({ draftRecoveryStatus: getDegradedDraftRecoveryStatus(reason) });
+}
+
+/** Creates the visible degraded state for one browser-draft failure. */
+export function getDegradedDraftRecoveryStatus(
+  reason: DraftPersistenceUnavailableReason,
+): DraftRecoveryStatus {
+  return {
+    message: "Draft recovery is degraded. Manual save still works.",
+    reason,
+    status: "degraded",
+  };
 }
 
 /** Converts unknown failures into safe user-facing messages. */
@@ -215,25 +236,9 @@ export function isNoteWriteConflictError(error: unknown): boolean {
   );
 }
 
-function applyUnavailableClusterIdentity(
-  clusterIdentity: ClusterIdentity,
-  context: Pick<StoreContext, "set">,
-): void {
-  context.set({
-    clusterIdentity,
-    draftRecoveryStatus: {
-      message: "Draft recovery is unavailable for this cluster.",
-      reason: "cluster_identity_unavailable",
-      status: "degraded",
-    },
-  });
-}
-
 function getReadyClusterRecoveryStatus(
-  context: Pick<StoreContext, "get">,
+  currentStatus: DraftRecoveryStatus,
 ): DraftRecoveryStatus {
-  const currentStatus = context.get().draftRecoveryStatus;
-
   if (shouldPreserveDraftRecoveryStatus(currentStatus)) {
     return currentStatus;
   }

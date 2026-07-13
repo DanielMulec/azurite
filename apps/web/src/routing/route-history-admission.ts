@@ -90,7 +90,11 @@ async function handleBlocker(
   if (directDecision !== undefined) {
     return directDecision;
   }
-  return handleBlockedTraversal(input, requireRestoration(restoration), runtime);
+  return handleBlockedTraversal(
+    input,
+    requireRestoration(restoration),
+    runtime,
+  );
 }
 
 function handleBlockedTraversal(

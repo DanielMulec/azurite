@@ -11,7 +11,6 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { App } from "../src/App.js";
 import { AzuriteRouterProvider } from "../src/app-router.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
@@ -69,7 +68,7 @@ describe("App rapid note selection routing", () => {
         "sha256-home",
       ),
     });
-    const navigation = renderApp();
+    renderApp();
 
     expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
     fireEvent.click(
@@ -88,10 +87,7 @@ describe("App rapid note selection routing", () => {
       ).toBeInTheDocument();
     });
 
-    expect(navigation.pushSelectedNote).toHaveBeenCalledWith("Daily/today.md");
-    expect(navigation.pushSelectedNote).not.toHaveBeenCalledWith(
-      "Projects/azurite.md",
-    );
+    expect(window.location.search).toContain("note=Daily%2Ftoday.md");
   });
 });
 
@@ -138,7 +134,7 @@ describe("App browser history routing", () => {
 });
 
 describe("App invalid route startup", () => {
-  it("drops encoded unsafe route notes before selecting a note", async () => {
+  it("canonicalizes an unsafe note without issuing any note read", async () => {
     window.history.replaceState({}, "", "/?note=..%2Fsecret.md");
     stubJsonFetch({
       "/api/notes": {
@@ -148,20 +144,21 @@ describe("App invalid route startup", () => {
         },
         status: 200,
       },
-      "/api/notes/content?noteId=index.md": noteRoute(
-        homeSummary,
-        "# Home",
-        "sha256-home",
-      ),
     });
 
     render(<AzuriteRouterProvider />);
 
-    expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Choose a note from the cluster list."),
+    ).toBeInTheDocument();
     await waitFor(() => {
-      expect(window.location.search).toBe("?note=index.md");
+      expect(window.location.search).toBe("");
     });
-    expect(screen.queryByText("Note not found")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("milkdown-editor")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(toRouteKey(vi.mocked(fetch).mock.calls[0]?.[0] ?? "")).toBe(
+      "/api/notes",
+    );
   });
 });
 
@@ -225,15 +222,11 @@ describe("App percent route startup", () => {
   });
 });
 
-function renderApp(routeNoteId?: string) {
-  const navigation = {
-    pushSelectedNote: vi.fn(),
-    replaceSelectedNote: vi.fn(),
-  };
-
-  render(<App navigation={navigation} routeNoteId={routeNoteId} />);
-
-  return navigation;
+function renderApp(routeNoteId?: string): void {
+  const search =
+    routeNoteId === undefined ? "" : `?note=${encodeURIComponent(routeNoteId)}`;
+  window.history.replaceState({}, "", `/${search}`);
+  render(<AzuriteRouterProvider />);
 }
 
 function createSummary(id: string, title: string) {

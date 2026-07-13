@@ -123,9 +123,7 @@ export type RouteTransitionOutcome =
     }
   | {
       readonly historyEffect:
-        | "entry_not_committed"
-        | "not_needed"
-        | "traversal_restored";
+        "entry_not_committed" | "not_needed" | "traversal_restored";
       readonly intentKey: string;
       readonly noteId: string | undefined;
       readonly reason: Extract<RouteGateResult, { status: "cancel" }>["reason"];
@@ -136,9 +134,7 @@ export type RouteTransitionOutcome =
       readonly intentKey: string;
       readonly noteId: string | undefined;
       readonly reason:
-        | "navigation_rejected"
-        | "notes_list_failed"
-        | "store_apply_failed";
+        "navigation_rejected" | "notes_list_failed" | "store_apply_failed";
       readonly status: "failed";
       readonly surfaceEffect: "retained";
     }
@@ -177,9 +173,7 @@ export type RouteTransitionGate = {
   readonly prepare: (
     input: RouteGatePrepareInput,
   ) => Promise<RouteGateResult> | RouteGateResult;
-  readonly settle: (
-    settlement: RouteGateSettlement,
-  ) => Promise<void> | void;
+  readonly settle: (settlement: RouteGateSettlement) => Promise<void> | void;
 };
 
 /** User-facing degraded history state produced when restoration is unconfirmed. */

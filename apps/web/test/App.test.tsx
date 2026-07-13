@@ -12,7 +12,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiErrorCodes } from "@azurite/shared";
-import { App } from "../src/App.js";
+import { AzuriteRouterProvider } from "../src/app-router.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
@@ -71,22 +71,24 @@ describe("App primary note flow", () => {
   it("loads notes, auto-selects the first note, and mounts the editor", async () => {
     stubWorkspaceResponses();
 
-    const navigation = renderApp();
+    renderApp();
 
     const homeButton = await screen.findByRole("button", { name: /Home/ });
-    expect(homeButton).toHaveAttribute("aria-current", "page");
+    await waitFor(() => {
+      expect(homeButton).toHaveAttribute("aria-current", "page");
+    });
     expect(await screen.findByTestId("milkdown-editor")).toHaveAttribute(
       "data-note-id",
       "index.md",
     );
     expect(await screen.findByText("Mock editor for Home")).toBeInTheDocument();
-    expect(navigation.replaceSelectedNote).toHaveBeenCalledWith("index.md");
+    expect(window.location.search).toContain("note=index.md");
   });
 
   it("renders the selected note after a user selects another note", async () => {
     stubWorkspaceResponses();
 
-    const navigation = renderApp();
+    renderApp();
 
     const projectButton = await screen.findByRole("button", {
       name: /Project Plan/,
@@ -103,15 +105,13 @@ describe("App primary note flow", () => {
       "data-note-id",
       "Projects/azurite.md",
     );
-    expect(navigation.pushSelectedNote).toHaveBeenCalledWith(
-      "Projects/azurite.md",
-    );
+    expect(window.location.search).toContain("note=Projects%2Fazurite.md");
   });
 
   it("restores the selected note from route state on reload", async () => {
     stubWorkspaceResponses();
 
-    const navigation = renderApp("Projects/azurite.md");
+    renderApp("Projects/azurite.md");
 
     expect(
       await screen.findByRole("heading", {
@@ -123,7 +123,7 @@ describe("App primary note flow", () => {
       "data-note-id",
       "Projects/azurite.md",
     );
-    expect(navigation.replaceSelectedNote).not.toHaveBeenCalled();
+    expect(window.location.search).toContain("note=Projects%2Fazurite.md");
   });
 });
 
@@ -192,12 +192,14 @@ describe("App workspace states", () => {
 
     renderApp();
 
-    expect(
-      await screen.findByText("No markdown notes found in this cluster."),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText("Choose a note from the cluster list."),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("No markdown notes found in this cluster."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Choose a note from the cluster list."),
+      ).toBeInTheDocument();
+    });
   });
 
   it("shows safe API errors without absolute paths", async () => {
@@ -277,15 +279,11 @@ function stubWorkspaceResponses(): void {
   });
 }
 
-function renderApp(routeNoteId?: string) {
-  const navigation = {
-    pushSelectedNote: vi.fn(),
-    replaceSelectedNote: vi.fn(),
-  };
-
-  render(<App navigation={navigation} routeNoteId={routeNoteId} />);
-
-  return navigation;
+function renderApp(routeNoteId?: string): void {
+  const search =
+    routeNoteId === undefined ? "" : `?note=${encodeURIComponent(routeNoteId)}`;
+  window.history.replaceState({}, "", `/${search}`);
+  render(<AzuriteRouterProvider />);
 }
 
 function stubJsonFetch(

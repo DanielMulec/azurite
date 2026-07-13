@@ -19,6 +19,10 @@ import {
   requireMockCall,
   toSummary,
 } from "./note-browser-store-test-helpers.js";
+import {
+  loadTestRoute,
+  syncTestRoute,
+} from "./note-browser-route-test-helpers.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -172,13 +176,13 @@ describe("note browser store route hardening", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    const load = store.getState().loadNotes("index.md", navigation);
-    await store.getState().syncRouteNote("Projects/azurite.md", navigation);
+    const load = store.getState().ensureNotes();
     listResponse.resolve({
       clusterIdentity: readyClusterIdentity,
       notes: [toSummary(home), toSummary(project)],
     });
     await load;
+    await syncTestRoute(store, "Projects/azurite.md");
 
     expect(navigation.replaceSelectedNote).not.toHaveBeenCalled();
     expect(store.getState().selectedNoteId).toBe("Projects/azurite.md");
@@ -224,13 +228,9 @@ describe("note browser store stale missing-note recovery hardening", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    await store.getState().loadNotes(undefined, navigation);
-    const missingSync = store
-      .getState()
-      .syncRouteNote("missing.md", navigation);
-    const projectSync = store
-      .getState()
-      .syncRouteNote("Projects/azurite.md", navigation);
+    await loadTestRoute(store, undefined, navigation);
+    const missingSync = syncTestRoute(store, "missing.md");
+    const projectSync = syncTestRoute(store, "Projects/azurite.md");
     await projectSync;
     missingDraftLookup.resolve({ draft: undefined, status: "ok" });
     await missingSync;
@@ -261,13 +261,9 @@ describe("note browser store stale missing-note degradation hardening", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    await store.getState().loadNotes(undefined, navigation);
-    const missingSync = store
-      .getState()
-      .syncRouteNote("missing.md", navigation);
-    const projectSync = store
-      .getState()
-      .syncRouteNote("Projects/azurite.md", navigation);
+    await loadTestRoute(store, undefined, navigation);
+    const missingSync = syncTestRoute(store, "missing.md");
+    const projectSync = syncTestRoute(store, "Projects/azurite.md");
     await projectSync;
     missingDraftLookup.resolve({
       reason: "database_unavailable",
@@ -290,9 +286,9 @@ describe("note browser store current missing-note recovery", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    await store
-      .getState()
-      .loadNotes("missing.md", { replaceSelectedNote: vi.fn() });
+    await loadTestRoute(store, "missing.md", {
+      replaceSelectedNote: vi.fn(),
+    });
 
     expect(store.getState().selectedNoteId).toBe("missing.md");
     expect(store.getState().noteState).toEqual({

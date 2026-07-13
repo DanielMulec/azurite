@@ -8,7 +8,12 @@ import type { EditorSession, MissingNoteDraft } from "./note-browser-types.js";
 type NoteRouteIdentity = {
   readonly location: ValidatedLocationOccurrence;
   readonly noteId: string;
+  readonly statePatch?: RouteSupplementalState;
 };
+
+type RouteSupplementalState = Partial<
+  Pick<NoteBrowserStore, "clusterIdentity" | "draftRecoveryStatus">
+>;
 
 type RouteStatePatch =
   | Partial<NoteBrowserStore>
@@ -19,8 +24,9 @@ export function applyReadyRoute(
   input: NoteRouteIdentity & { readonly editor: EditorSession },
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     {
+      ...input.statePatch,
       committedRouteView: {
         location: input.location,
         noteId: input.noteId,
@@ -40,8 +46,9 @@ export function applyMissingRoute(
   input: NoteRouteIdentity,
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     {
+      ...input.statePatch,
       committedRouteView: {
         location: input.location,
         noteId: input.noteId,
@@ -64,8 +71,9 @@ export function applyMissingDraftRoute(
   },
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     {
+      ...input.statePatch,
       committedRouteView: {
         location: input.location,
         noteId: input.noteId,
@@ -90,8 +98,9 @@ export function applyErrorRoute(
   input: NoteRouteIdentity & { readonly message: string },
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     {
+      ...input.statePatch,
       committedRouteView: {
         location: input.location,
         noteId: input.noteId,
@@ -115,7 +124,7 @@ export function applyEmptyRoute(
   location: ValidatedLocationOccurrence,
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     {
       committedRouteView: {
         location,
@@ -136,7 +145,7 @@ export function applyPendingRouteSelection(
   noteId: string,
   context: StoreContext,
 ): boolean {
-  return applyRoutePatch(
+  return applyStorePatchAtomically(
     (state) => ({
       noteState: keepRenderedSurface(state),
       selectedNoteId: noteId,
@@ -145,7 +154,8 @@ export function applyPendingRouteSelection(
   );
 }
 
-function applyRoutePatch(
+/** Applies one state mutation and restores the exact snapshot after a throw. */
+export function applyStorePatchAtomically(
   patch: RouteStatePatch,
   context: StoreContext,
 ): boolean {

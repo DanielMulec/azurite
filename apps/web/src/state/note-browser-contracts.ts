@@ -60,7 +60,9 @@ export type NoteBrowserApi = {
 /** Zustand store shape for note navigation, editing, saving, and recovery. */
 export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly activateRouteIntent: RouteStoreExecutor["activateRouteIntent"];
-  readonly applyRoute: (input: RouteStoreApplyInput) => Promise<RouteStoreApplyResult>;
+  readonly applyRoute: (
+    input: RouteStoreApplyInput,
+  ) => Promise<RouteStoreApplyResult>;
   readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly discardMissingDraft: () => Promise<void>;
   readonly flushPendingDraft: () => Promise<void>;

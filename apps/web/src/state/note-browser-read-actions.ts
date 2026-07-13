@@ -1,26 +1,20 @@
 import type { ReadNoteResponse } from "@azurite/shared";
 import {
+  noteRouteSources,
   runtimeObservabilityAttributeNames,
   runtimeObservabilityEventNames,
   runtimeSpanNames,
 } from "@azurite/shared";
 
-import type {
-  DraftPersistenceUnavailableReason,
-  DraftReadResult,
-} from "../persistence/draft-database.js";
-import type { DraftRecord } from "../persistence/draft-records.js";
 import type { RouteStoreApplyResult } from "../routing/route-store-executor.js";
 import type {
   NoteLoadAuthorization,
   ValidatedLocationOccurrence,
 } from "../routing/route-transition-types.js";
 import {
-  applyClusterIdentity,
   createEditorSession,
-  degradeDraftRecovery,
+  getClusterIdentityPatch,
   getErrorMessage,
-  getReadyClusterId,
   isNoteNotFoundError,
 } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
@@ -33,10 +27,10 @@ import {
   staleSucceeded,
   type BrowserOperationEvidence,
 } from "./note-browser-evidence.js";
+import { applyMissingRouteRead } from "./note-browser-missing-route-read.js";
+import { readRouteDraft } from "./note-browser-route-drafts.js";
 import {
   applyErrorRoute,
-  applyMissingDraftRoute,
-  applyMissingRoute,
   applyPendingRouteSelection,
   applyReadyRoute,
 } from "./note-browser-route-state.js";
@@ -58,12 +52,9 @@ type NoteRequest = {
   readonly requestSequence: number;
 };
 
-type DraftLookupResult =
-  | { readonly draft: DraftRecord | undefined; readonly status: "ready" }
-  | {
-      readonly reason: DraftPersistenceUnavailableReason;
-      readonly status: "unavailable";
-    };
+type NoteReadAttempt =
+  | { readonly error: unknown; readonly status: "failed" }
+  | { readonly response: ReadNoteResponse; readonly status: "succeeded" };
 
 /** Reads one note under exact route-or-reload authorization. */
 export function readAuthorizedNote(
@@ -87,7 +78,7 @@ export async function recoverMissingAuthorizedRoute(
     return storeApplyFailed;
   }
   const request = createRequest(input, requestSequence, context);
-  const result = await applyMissingDraft(request);
+  const result = await applyMissingDraftSafely(request);
   recordRouteEvidence(
     runtimeObservabilityEventNames.noteRouteSynchronized,
     input.noteId,
@@ -149,14 +140,45 @@ function createRequest(
 async function performAuthorizedRead(
   request: NoteRequest,
 ): Promise<RouteStoreApplyResult> {
+  const attempt = await readNoteAttempt(request);
+  return attempt.status === "failed"
+    ? await applyReadFailureSafely(attempt.error, request)
+    : await applyReadResponseSafely(attempt.response, request);
+}
+
+async function readNoteAttempt(request: NoteRequest): Promise<NoteReadAttempt> {
   try {
     const response = await request.context.api.readNote(
       request.input.noteId,
       request.evidence.metadata,
     );
+    return { response, status: "succeeded" };
+  } catch (error) {
+    return { error, status: "failed" };
+  }
+}
+
+async function applyReadResponseSafely(
+  response: ReadNoteResponse,
+  request: NoteRequest,
+): Promise<RouteStoreApplyResult> {
+  try {
     return await applyReadResponse(response, request);
   } catch (error) {
+    recordReadFailure(error, storeApplyFailed, request.evidence);
+    return storeApplyFailed;
+  }
+}
+
+async function applyReadFailureSafely(
+  error: unknown,
+  request: NoteRequest,
+): Promise<RouteStoreApplyResult> {
+  try {
     return await applyReadFailure(error, request);
+  } catch (applicationError) {
+    recordReadFailure(applicationError, storeApplyFailed, request.evidence);
+    return storeApplyFailed;
   }
 }
 
@@ -178,21 +200,33 @@ async function applyLoadedNote(
   request: NoteRequest,
 ): Promise<RouteStoreApplyResult> {
   const note = response.note;
-  const draftLookup = await readDraftForCurrentCluster(
-    note.id,
-    request.context,
-  );
+  const draftApplication = await readRouteDraft(note.id, request.context);
   if (!isCurrentRequest(request)) {
     return { status: "stale" };
   }
-  const draft = applyDraftLookupResult(draftLookup, request.context);
-  applyClusterIdentity(response.clusterIdentity, request.context);
-  const editor = createEditorSession(note, draft, request.context);
+  const editor = createEditorSession(
+    note,
+    draftApplication.draft,
+    request.context,
+  );
+  const clusterPatch = getClusterIdentityPatch(
+    response.clusterIdentity,
+    request.context.get().draftRecoveryStatus,
+  );
   return applyReadyRoute(
-    { editor, location: request.input.location, noteId: note.id },
+    {
+      editor,
+      location: request.input.location,
+      noteId: note.id,
+      statePatch: { ...clusterPatch, ...draftApplication.statePatch },
+    },
     request.context,
   )
-    ? { requestSequence: request.requestSequence, status: "applied", view: "ready" }
+    ? {
+        requestSequence: request.requestSequence,
+        status: "applied",
+        view: "ready",
+      }
     : storeApplyFailed;
 }
 
@@ -214,57 +248,24 @@ async function applyReadFailure(
 async function applyMissingDraft(
   request: NoteRequest,
 ): Promise<RouteStoreApplyResult> {
-  const lookup = await readDraftForCurrentCluster(
-    request.input.noteId,
-    request.context,
-  );
-  if (!isCurrentRequest(request)) {
-    return { status: "stale" };
-  }
-  const draft = applyDraftLookupResult(lookup, request.context);
-  return draft === undefined
-    ? applyMissingWithoutDraft(request)
-    : applyRecoveredMissingDraft(draft, request);
+  return await applyMissingRouteRead({
+    context: request.context,
+    isCurrent: () => isCurrentRequest(request),
+    location: request.input.location,
+    noteId: request.input.noteId,
+    requestSequence: request.requestSequence,
+  });
 }
 
-function applyMissingWithoutDraft(request: NoteRequest): RouteStoreApplyResult {
-  const applied = applyMissingRoute(
-    { location: request.input.location, noteId: request.input.noteId },
-    request.context,
-  );
-  return applied
-    ? { requestSequence: request.requestSequence, status: "applied", view: "missing" }
-    : storeApplyFailed;
-}
-
-function applyRecoveredMissingDraft(
-  draft: DraftRecord,
+async function applyMissingDraftSafely(
   request: NoteRequest,
-): RouteStoreApplyResult {
-  const renderedOwnerKey = request.context.nextEditorSessionKey(
-    request.input.noteId,
-    "missing-draft",
-  );
-  const applied = applyMissingDraftRoute(
-    {
-      draft: {
-        editorMode: draft.editorMode,
-        markdown: draft.markdown,
-        updatedAt: draft.updatedAt,
-      },
-      location: request.input.location,
-      noteId: request.input.noteId,
-      renderedOwnerKey,
-    },
-    request.context,
-  );
-  return applied
-    ? {
-        requestSequence: request.requestSequence,
-        status: "applied",
-        view: "missing_draft",
-      }
-    : storeApplyFailed;
+): Promise<RouteStoreApplyResult> {
+  try {
+    return await applyMissingDraft(request);
+  } catch (error) {
+    recordReadFailure(error, storeApplyFailed, request.evidence);
+    return storeApplyFailed;
+  }
 }
 
 function applyTargetError(
@@ -309,43 +310,16 @@ function hasSameAuthorization(
 ): active is NonNullable<typeof active> {
   return (
     active?.noteId === input.noteId &&
-    active.authorization.authorizationKey === input.authorization.authorizationKey
+    active.authorization.authorizationKey ===
+      input.authorization.authorizationKey
   );
-}
-
-async function readDraftForCurrentCluster(
-  noteId: string,
-  context: StoreContext,
-): Promise<DraftLookupResult> {
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
-  if (clusterId === undefined) {
-    return { draft: undefined, status: "ready" };
-  }
-  return toDraftLookupResult(
-    await context.draftPersistence.readDraft(clusterId, noteId),
-  );
-}
-
-function toDraftLookupResult(result: DraftReadResult): DraftLookupResult {
-  return result.status === "unavailable"
-    ? { reason: result.reason, status: "unavailable" }
-    : { draft: result.draft, status: "ready" };
-}
-
-function applyDraftLookupResult(
-  result: DraftLookupResult,
-  context: StoreContext,
-): DraftRecord | undefined {
-  if (result.status === "unavailable") {
-    degradeDraftRecovery(result.reason, context);
-    return undefined;
-  }
-  return result.draft;
 }
 
 function recordSelectionRoute(noteId: string, routeSource: string): void {
   recordRouteEvidence(
-    runtimeObservabilityEventNames.noteRouteNavigationRequested,
+    routeSource === noteRouteSources.urlSync
+      ? runtimeObservabilityEventNames.noteRouteSynchronized
+      : runtimeObservabilityEventNames.noteRouteNavigationRequested,
     noteId,
     routeSource,
   );
@@ -356,8 +330,12 @@ function recordReadSuccess(
   result: RouteStoreApplyResult,
   evidence: BrowserOperationEvidence,
 ): void {
-  if (result.status !== "applied") {
+  if (result.status === "stale") {
     recordLoadResult(evidence, { staleCompletion: staleSucceeded });
+    return;
+  }
+  if (result.status !== "applied") {
+    recordLoadResult(evidence, { error: storeApplyError });
     return;
   }
   recordLoadResult(evidence, {
@@ -383,3 +361,4 @@ const storeApplyFailed: RouteStoreApplyResult = Object.freeze({
   reason: "store_apply_failed",
   status: "failed",
 });
+const storeApplyError = new Error("The note route could not be applied.");

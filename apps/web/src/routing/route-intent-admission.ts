@@ -1,6 +1,10 @@
-import { consumePendingApplication } from "./route-application-navigation.js";
 import type { PreparedRouteGate } from "./route-gate-registry.js";
 import type { HistoryAdmissionCandidate } from "./route-history-admission.js";
+import {
+  createCurrentRouteIntent,
+  createHistoryRouteIntent,
+  registerRouteIntent,
+} from "./route-intent-creation.js";
 import { executeAdmittedRouteIntent } from "./route-intent-execution.js";
 import {
   completeRouteIntent,
@@ -9,10 +13,7 @@ import {
 } from "./route-intent-outcomes.js";
 import { registerLocationConfirmation } from "./route-location-confirmation.js";
 import {
-  createControlledResult,
   isCurrentIntent,
-  nextRuntimeIdentity,
-  type PendingApplicationNavigation,
   type RouteIntent,
   type RouteTransitionRouterAdapter,
   type RouteTransitionRuntime,
@@ -24,12 +25,6 @@ import type {
   RouteTransitionOutcome,
   ValidatedLocationOccurrence,
 } from "./route-transition-types.js";
-import {
-  needsCanonicalReplacement,
-  readApplicationNavigationToken,
-  toTraversalNavigationKind,
-  validateLocationOccurrence,
-} from "./validated-route-location.js";
 
 type AdmissionDependencies = {
   readonly router: RouteTransitionRouterAdapter;
@@ -39,6 +34,7 @@ type AdmissionDependencies = {
 type PreparedAdmission = {
   readonly gate: PreparedRouteGate;
   readonly intent: RouteIntent;
+  readonly result: RouteGateResult;
 };
 
 /** Converts one TanStack blocker occurrence into an owned route intent. */
@@ -46,7 +42,7 @@ export async function admitHistoryCandidate(
   candidate: HistoryAdmissionCandidate,
   dependencies: AdmissionDependencies,
 ): Promise<{ readonly block: boolean }> {
-  const intent = createHistoryIntent(candidate, dependencies.runtime);
+  const intent = createHistoryRouteIntent(candidate, dependencies.runtime);
   if (intent === undefined) {
     return { block: true };
   }
@@ -71,124 +67,14 @@ export function admitCurrentOccurrence(
     readonly location: ValidatedLocationOccurrence;
     readonly needsCanonicalReplacement: boolean;
     readonly noteId: string | undefined;
+    readonly suppressStartupFallback?: boolean;
   },
   dependencies: AdmissionDependencies,
 ): Promise<RouteTransitionOutcome> {
-  const intent = createIntent(input, dependencies.runtime);
-  registerIntent(intent, dependencies.runtime);
+  const intent = createCurrentRouteIntent(input, dependencies.runtime);
+  registerRouteIntent(intent, dependencies.runtime);
   void prepareCurrentAdmission(intent, input.confirmation, dependencies);
   return intent.result.promise;
-}
-
-function createHistoryIntent(
-  candidate: HistoryAdmissionCandidate,
-  runtime: RouteTransitionRuntime,
-): RouteIntent | undefined {
-  runtime.generation += 1;
-  const location = validateLocationOccurrence(
-    candidate.nextLocation,
-    runtime.generation,
-  );
-  if (isApplicationAction(candidate.action)) {
-    return createApplicationEchoIntent(candidate, location, runtime);
-  }
-  return createTraversalIntent(candidate, location, runtime);
-}
-
-function createApplicationEchoIntent(
-  candidate: HistoryAdmissionCandidate,
-  location: ValidatedLocationOccurrence,
-  runtime: RouteTransitionRuntime,
-): RouteIntent | undefined {
-  const token = readApplicationNavigationToken(candidate.nextLocation);
-  if (token === undefined) {
-    return undefined;
-  }
-  const pending = consumePendingApplication(token, runtime);
-  if (pending === undefined) {
-    return undefined;
-  }
-  return bindPendingIntent({ candidate, location, pending }, runtime);
-}
-
-function bindPendingIntent(
-  input: {
-    readonly candidate: HistoryAdmissionCandidate;
-    readonly location: ValidatedLocationOccurrence;
-    readonly pending: PendingApplicationNavigation;
-  },
-  runtime: RouteTransitionRuntime,
-): RouteIntent {
-  const intent: RouteIntent = {
-    ...input.pending,
-    location: input.location,
-    needsCanonicalReplacement: needsCanonicalReplacement(
-      input.candidate.nextLocation,
-      input.location,
-    ),
-    settled: false,
-  };
-  registerIntent(intent, runtime);
-  return intent;
-}
-
-function createTraversalIntent(
-  candidate: HistoryAdmissionCandidate,
-  location: ValidatedLocationOccurrence,
-  runtime: RouteTransitionRuntime,
-): RouteIntent {
-  const intent = createIntent(
-    {
-      cause: "url_sync",
-      kind: toTraversalNavigationKind(requireTraversalAction(candidate.action)),
-      location,
-      needsCanonicalReplacement: needsCanonicalReplacement(
-        candidate.nextLocation,
-        location,
-      ),
-      noteId: location.search.note,
-    },
-    runtime,
-  );
-  registerIntent(intent, runtime);
-  return intent;
-}
-
-function requireTraversalAction(
-  action: HistoryAdmissionCandidate["action"],
-): "BACK" | "FORWARD" | "GO" {
-  if (action === "PUSH" || action === "REPLACE") {
-    throw new Error("Application history action reached traversal admission.");
-  }
-  return action;
-}
-
-function createIntent(
-  input: {
-    readonly cause: RouteGateCause;
-    readonly intentKey?: string;
-    readonly kind: RouteNavigationKind;
-    readonly location: ValidatedLocationOccurrence;
-    readonly needsCanonicalReplacement: boolean;
-    readonly noteId: string | undefined;
-  },
-  runtime: RouteTransitionRuntime,
-): RouteIntent {
-  return {
-    ...input,
-    intentKey: input.intentKey ?? nextRuntimeIdentity(runtime, "intent"),
-    result: createControlledResult<RouteTransitionOutcome>(),
-    settled: false,
-  };
-}
-
-function registerIntent(
-  intent: RouteIntent,
-  runtime: RouteTransitionRuntime,
-): void {
-  runtime.currentIntentKey = intent.intentKey;
-  runtime.activeIntents.set(intent.intentKey, intent);
-  runtime.storeRegistry.get()?.activateRouteIntent(intent.intentKey);
 }
 
 async function prepareHistoryAdmission(
@@ -204,7 +90,7 @@ async function prepareHistoryAdmission(
     void finishBlockedStale(input, prepared, dependencies.runtime);
     return { block: true };
   }
-  if (prepared.gate.result.status === "cancel") {
+  if (prepared.result.status === "cancel") {
     void finishCancellation(input, prepared, dependencies.runtime);
     return { block: true };
   }
@@ -236,12 +122,12 @@ async function prepareCurrentAdmission(
     );
     return;
   }
-  if (prepared.gate.result.status === "cancel") {
+  if (prepared.result.status === "cancel") {
     await completeRouteIntent(
       {
         gate: prepared.gate,
         intent,
-        outcome: cancellationOutcome(intent, prepared.gate.result, "not_needed"),
+        outcome: cancellationOutcome(intent, prepared.result, "not_needed"),
       },
       dependencies.runtime,
     );
@@ -257,12 +143,14 @@ async function prepareGate(
   intent: RouteIntent,
   runtime: RouteTransitionRuntime,
 ): Promise<PreparedAdmission> {
-  const gate = await runtime.gateRegistry.prepare({
+  const gate = runtime.gateRegistry.prepare({
     cause: intent.cause,
     leaseKey: gateLeaseKey(intent.intentKey),
     outgoingOwnerKey: runtime.storeRegistry.get()?.getRenderedOwnerKey(),
   });
-  return { gate, intent };
+  intent.gate = gate;
+  const result = await gate.decision;
+  return { gate, intent, result };
 }
 
 async function finishBlockedStale(
@@ -299,7 +187,7 @@ async function finishCancellation(
         intent: input.intent,
         outcome: cancellationOutcome(
           input.intent,
-          prepared.gate.result,
+          prepared.result,
           "entry_not_committed",
         ),
       },
@@ -322,17 +210,22 @@ async function finishTraversalCancellation(
   },
   runtime: RouteTransitionRuntime,
 ): Promise<void> {
-  const outcome = getTraversalCancellationOutcome(
-    input,
-    runtime,
-  );
+  const outcome = getTraversalCancellationOutcome(input, runtime);
   if (outcome.status === "failed") {
-    runtime.storeRegistry.get()?.reportHistoryUnavailable();
+    reportHistoryUnavailable(runtime);
   }
   await completeRouteIntent(
     { gate: input.prepared.gate, intent: input.intent, outcome },
     runtime,
   );
+}
+
+function reportHistoryUnavailable(runtime: RouteTransitionRuntime): void {
+  try {
+    runtime.storeRegistry.get()?.reportHistoryUnavailable();
+  } catch {
+    // Visible degradation is best effort; the route outcome must still settle.
+  }
 }
 
 function getTraversalCancellationOutcome(
@@ -351,7 +244,7 @@ function getTraversalCancellationOutcome(
   }
   return cancellationOutcome(
     input.intent,
-    input.prepared.gate.result,
+    input.prepared.result,
     "traversal_restored",
   );
 }
@@ -384,10 +277,4 @@ function historyRestoreFailedOutcome(
     status: "failed",
     surfaceEffect: "retained",
   };
-}
-
-function isApplicationAction(
-  action: HistoryAdmissionCandidate["action"],
-): boolean {
-  return action === "PUSH" || action === "REPLACE";
 }

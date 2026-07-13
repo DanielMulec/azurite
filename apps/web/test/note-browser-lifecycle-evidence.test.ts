@@ -5,7 +5,6 @@ import {
   noteRouteSources,
   requestIdSchema,
   runtimeObservabilityEventNames as events,
-  type ListNotesResponse,
 } from "@azurite/shared";
 import { WebApiError } from "../src/api-client.js";
 import { parseWebSentryConfig } from "../src/config/sentry-config.js";
@@ -93,64 +92,45 @@ describe("note-list lifecycle evidence", () => {
 });
 
 describe("stale note-list lifecycle evidence", () => {
-  it("retains the older request on a stale failed completion", async () => {
+  it("joins overlapping callers into one failed request lifecycle", async () => {
     const fake = installFakeRuntime();
-    const first = createDeferred<ListNotesResponse>();
-    const second = createDeferred<ListNotesResponse>();
-    const listNotes = vi
-      .fn<NoteBrowserApi["listNotes"]>()
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise);
+    const response = createDeferred<ReturnType<NoteBrowserApi["listNotes"]>>();
+    const listNotes = vi.fn<NoteBrowserApi["listNotes"]>(
+      () => response.promise,
+    );
     const store = createNoteBrowserStore({
       api: createApi({ listNotes }),
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
-    const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = loadTestRoute(store, undefined, navigation);
-    const newer = loadTestRoute(store, undefined, navigation);
-    second.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
-    await newer;
-    first.reject(new Error("stale failure"));
-    await older;
+    const first = store.getState().ensureNotes();
+    const second = store.getState().ensureNotes();
+    response.reject(new Error("current failure"));
+    await Promise.all([first, second]);
 
-    const firstMetadata = requireMockCall(listNotes.mock.calls, 0)[0];
-    expect(
-      eventAttributes(fake.info, events.notesListStaleIgnored),
-    ).toMatchObject({
-      "azurite.request_id": firstMetadata.requestId,
-      "azurite.result_status": "stale_ignored",
-      "azurite.stale_completion": "failed",
-      "azurite.ui_request_sequence": 1,
-    });
+    expect(first).toBe(second);
+    expect(listNotes).toHaveBeenCalledOnce();
+    expect(eventCount(fake.info, events.notesListFailed)).toBe(1);
+    expect(eventCount(fake.info, events.notesListStaleIgnored)).toBe(0);
   });
 
-  it("records a stale successful completion without replacing newer failure", async () => {
+  it("joins overlapping callers into one successful request lifecycle", async () => {
     const fake = installFakeRuntime();
-    const first = createDeferred<ListNotesResponse>();
-    const second = createDeferred<ListNotesResponse>();
-    const listNotes = vi
-      .fn<NoteBrowserApi["listNotes"]>()
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise);
+    const response = createDeferred<ReturnType<NoteBrowserApi["listNotes"]>>();
+    const listNotes = vi.fn<NoteBrowserApi["listNotes"]>(
+      () => response.promise,
+    );
     const store = createNoteBrowserStore({ api: createApi({ listNotes }) });
-    const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = loadTestRoute(store, undefined, navigation);
-    const newer = loadTestRoute(store, undefined, navigation);
-    second.reject(new Error("current failure"));
-    await newer;
-    first.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
-    await older;
+    const first = store.getState().ensureNotes();
+    const second = store.getState().ensureNotes();
+    response.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
+    await Promise.all([first, second]);
 
-    expect(
-      eventAttributes(fake.info, events.notesListStaleIgnored),
-    ).toMatchObject({
-      "azurite.result_status": "stale_ignored",
-      "azurite.stale_completion": "succeeded",
-      "azurite.ui_request_sequence": 1,
-    });
-    expect(store.getState().notesState).toMatchObject({ status: "error" });
+    expect(first).toBe(second);
+    expect(listNotes).toHaveBeenCalledOnce();
+    expect(eventCount(fake.info, events.notesListSucceeded)).toBe(1);
+    expect(eventCount(fake.info, events.notesListStaleIgnored)).toBe(0);
   });
 });
 
@@ -160,11 +140,8 @@ describe("startup note-load lifecycle evidence", () => {
     const read = createDeferred<ReturnType<NoteBrowserApi["readNote"]>>();
     const readNote = vi.fn<NoteBrowserApi["readNote"]>(() => read.promise);
     const store = createNoteBrowserStore({ api: createApi({ readNote }) });
-    let routeEcho: Promise<void> | undefined;
     const navigation = {
-      replaceSelectedNote: vi.fn((noteId: string) => {
-        routeEcho = syncTestRoute(store, noteId);
-      }),
+      replaceSelectedNote: vi.fn(),
     };
 
     const load = loadTestRoute(store, undefined, navigation);
@@ -176,7 +153,6 @@ describe("startup note-load lifecycle evidence", () => {
       note: createNote("index.md", "# Home", "sha256-home"),
     });
     await load;
-    await routeEcho;
 
     expect(eventCount(fake.info, events.noteLoadStarted)).toBe(1);
     expect(eventCount(fake.info, events.noteLoadSucceeded)).toBe(1);

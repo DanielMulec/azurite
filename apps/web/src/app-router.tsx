@@ -25,11 +25,12 @@ import {
   createRouteTransitionOwner,
   type RouteTransitionOwner,
 } from "./routing/route-transition-owner.js";
-import {
-  applicationNavigationTokenStateKey,
-} from "./routing/validated-route-location.js";
+import { applicationNavigationTokenStateKey } from "./routing/validated-route-location.js";
 
-export { parseAppLocationSearch, parseAppSearch } from "./routing/app-route-search.js";
+export {
+  parseAppLocationSearch,
+  parseAppSearch,
+} from "./routing/app-route-search.js";
 export type { AppSearch } from "./routing/app-route-search.js";
 
 const rootRoute = createRootRoute();
