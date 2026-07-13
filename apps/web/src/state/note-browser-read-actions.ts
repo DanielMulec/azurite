@@ -75,10 +75,12 @@ export async function recoverMissingAuthorizedRoute(
 ): Promise<RouteStoreApplyResult> {
   const requestSequence = context.nextNoteRequestSequence();
   if (!applyPendingRouteSelection(input.noteId, context)) {
+    context.restoreRoutePredecessor();
     return storeApplyFailed;
   }
   const request = createRequest(input, requestSequence, context);
   const result = await applyMissingDraftSafely(request);
+  restoreFailedCurrentApplication(result, request);
   recordRouteEvidence(
     runtimeObservabilityEventNames.noteRouteSynchronized,
     input.noteId,
@@ -93,12 +95,17 @@ function startAuthorizedRead(
 ): Promise<RouteStoreApplyResult> {
   const requestSequence = context.nextNoteRequestSequence();
   if (!applyPendingRouteSelection(input.noteId, context)) {
+    context.restoreRoutePredecessor();
     return Promise.resolve(storeApplyFailed);
   }
   const request = createRequest(input, requestSequence, context);
   recordSelectionRoute(input.noteId, input.routeSource);
   const promise = runBrowserOperation({
-    callback: async () => await performAuthorizedRead(request),
+    callback: async () => {
+      const result = await performAuthorizedRead(request);
+      restoreFailedCurrentApplication(result, request);
+      return result;
+    },
     evidence: request.evidence,
     eventName: runtimeObservabilityEventNames.noteLoadStarted,
     spanName: runtimeSpanNames.noteLoad,
@@ -291,6 +298,19 @@ function isCurrentRequest(request: NoteRequest): boolean {
     request.requestSequence,
     request.input.noteId,
   );
+}
+
+function restoreFailedCurrentApplication(
+  result: RouteStoreApplyResult,
+  request: NoteRequest,
+): void {
+  if (isStoreApplyFailure(result) && isCurrentRequest(request)) {
+    request.context.restoreRoutePredecessor();
+  }
+}
+
+function isStoreApplyFailure(result: RouteStoreApplyResult): boolean {
+  return result.status === "failed" && result.reason === "store_apply_failed";
 }
 
 function getCoalescedPromise(

@@ -171,10 +171,10 @@ function expectIndependentSameNoteOccurrences(
     expect.any(String),
     expect.any(String),
   ]);
-  expect(new Set(inputs.map(({ authorization }) => authorization.intentKey))).toHaveLength(
-    2,
-  );
-  expect(new Set(inputs.map(({ location }) => location.historyKey))).toHaveLength(
+  expect(
+    new Set(inputs.map(({ authorization }) => authorization.intentKey)).size,
+  ).toBe(2);
+  expect(new Set(inputs.map(({ location }) => location.historyKey)).size).toBe(
     2,
   );
 }

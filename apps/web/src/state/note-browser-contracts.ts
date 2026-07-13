@@ -78,6 +78,8 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
 /** Mutable action context shared by focused store action modules. */
 export type StoreContext = {
   readonly api: NoteBrowserApi;
+  readonly beginRouteApplication: () => void;
+  readonly commitRouteApplication: () => void;
   readonly draftPersistence: DraftPersistence;
   readonly clearActiveNoteLoad: (
     promise: Promise<RouteStoreApplyResult>,
@@ -104,6 +106,7 @@ export type StoreContext = {
   ) => string;
   readonly nextNoteRequestSequence: () => number;
   readonly nextNotesRequestSequence: () => number;
+  readonly restoreRoutePredecessor: () => void;
   readonly set: StoreApi<NoteBrowserStore>["setState"];
   readonly setActiveNoteLoad: (load: ActiveNoteLoad) => void;
   readonly setActiveNotesLoad: (load: ActiveNotesLoad) => void;

@@ -24,7 +24,7 @@ export function applyReadyRoute(
   input: NoteRouteIdentity & { readonly editor: EditorSession },
   context: StoreContext,
 ): boolean {
-  return applyStorePatchAtomically(
+  return applyCommittedRoutePatch(
     {
       ...input.statePatch,
       committedRouteView: {
@@ -46,7 +46,7 @@ export function applyMissingRoute(
   input: NoteRouteIdentity,
   context: StoreContext,
 ): boolean {
-  return applyStorePatchAtomically(
+  return applyCommittedRoutePatch(
     {
       ...input.statePatch,
       committedRouteView: {
@@ -71,7 +71,7 @@ export function applyMissingDraftRoute(
   },
   context: StoreContext,
 ): boolean {
-  return applyStorePatchAtomically(
+  return applyCommittedRoutePatch(
     {
       ...input.statePatch,
       committedRouteView: {
@@ -98,7 +98,7 @@ export function applyErrorRoute(
   input: NoteRouteIdentity & { readonly message: string },
   context: StoreContext,
 ): boolean {
-  return applyStorePatchAtomically(
+  return applyCommittedRoutePatch(
     {
       ...input.statePatch,
       committedRouteView: {
@@ -124,7 +124,7 @@ export function applyEmptyRoute(
   location: ValidatedLocationOccurrence,
   context: StoreContext,
 ): boolean {
-  return applyStorePatchAtomically(
+  return applyCommittedRoutePatch(
     {
       committedRouteView: {
         location,
@@ -167,6 +167,17 @@ export function applyStorePatchAtomically(
     restorePreviousState(previous, context);
     return false;
   }
+}
+
+function applyCommittedRoutePatch(
+  patch: RouteStatePatch,
+  context: StoreContext,
+): boolean {
+  const applied = applyStorePatchAtomically(patch, context);
+  if (applied) {
+    context.commitRouteApplication();
+  }
+  return applied;
 }
 
 function restorePreviousState(

@@ -33,6 +33,10 @@ import {
   getCoherentRouteView,
   getRenderedOwnerKey,
 } from "./note-browser-route-predicates.js";
+import {
+  createRouteApplicationRollback,
+  type RouteApplicationRollback,
+} from "./note-browser-route-rollback.js";
 
 type NoteBrowserStoreOptions = {
   readonly api?: NoteBrowserApi;
@@ -55,6 +59,7 @@ type NoteBrowserRuntime = {
   noteRequestSequence: number;
   notesRequestSequence: number;
   pendingDraftTimer: ReturnType<typeof setTimeout> | undefined;
+  readonly routeRollback: RouteApplicationRollback;
 };
 
 const defaultApi: NoteBrowserApi = {
@@ -106,6 +111,7 @@ function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
     noteRequestSequence: 0,
     notesRequestSequence: 0,
     pendingDraftTimer: undefined,
+    routeRollback: createRouteApplicationRollback(),
   };
 }
 
@@ -184,6 +190,7 @@ function configureContext(
 ): void {
   Object.assign(runtime.context, {
     api: runtime.api,
+    beginRouteApplication: () => runtime.routeRollback.begin(get()),
     clearActiveNoteLoad: (promise: ActiveNoteLoad["promise"]) => {
       if (runtime.activeNoteLoad?.promise === promise) {
         runtime.activeNoteLoad = undefined;
@@ -199,6 +206,7 @@ function configureContext(
         runtime.activeNotesLoad = undefined;
       }
     },
+    commitRouteApplication: runtime.routeRollback.commit,
     draftPersistence: runtime.draftPersistence,
     get,
     getActiveNoteLoad: () => runtime.activeNoteLoad,
@@ -217,6 +225,7 @@ function configureContext(
       nextEditorSessionKey(noteId, contentHash, runtime),
     nextNoteRequestSequence: () => incrementNoteRequestSequence(runtime),
     nextNotesRequestSequence: () => incrementNotesRequestSequence(runtime),
+    restoreRoutePredecessor: () => runtime.routeRollback.restore(get(), set),
     set,
     setActiveNoteLoad: (load: ActiveNoteLoad) => {
       runtime.activeNoteLoad = load;

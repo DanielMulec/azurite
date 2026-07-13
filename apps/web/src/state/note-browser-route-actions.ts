@@ -70,6 +70,7 @@ export function applyRouteAction(
   if (coherent !== undefined) {
     return Promise.resolve(coherent);
   }
+  context.beginRouteApplication();
   return applyIncoherentRoute(input, context);
 }
 
@@ -180,15 +181,18 @@ function applyIncoherentRoute(
   context: StoreContext,
 ): Promise<RouteStoreApplyResult> {
   if (input.noteId === undefined) {
-    return Promise.resolve(
-      applyEmptyRoute(input.location, context)
-        ? {
-            requestSequence: undefined,
-            status: "applied",
-            view: "empty",
-          }
-        : { reason: "store_apply_failed", status: "failed" },
-    );
+    const result: RouteStoreApplyResult = applyEmptyRoute(
+      input.location,
+      context,
+    )
+      ? {
+          requestSequence: undefined,
+          status: "applied",
+          view: "empty",
+        }
+      : { reason: "store_apply_failed", status: "failed" };
+    restoreFailedApplication(result, context);
+    return Promise.resolve(result);
   }
   return applyNoteRoute({ ...input, noteId: input.noteId }, context);
 }
@@ -224,6 +228,7 @@ export async function reloadSelectedNoteAction(
   if (target === undefined) {
     return { status: "stale" };
   }
+  context.beginRouteApplication();
   return await readAuthorizedNote(
     {
       authorization: {
@@ -238,6 +243,15 @@ export async function reloadSelectedNoteAction(
     },
     context,
   );
+}
+
+function restoreFailedApplication(
+  result: RouteStoreApplyResult,
+  context: StoreContext,
+): void {
+  if (result.status === "failed" && result.reason === "store_apply_failed") {
+    context.restoreRoutePredecessor();
+  }
 }
 
 function getExplicitReloadTarget(context: StoreContext):
