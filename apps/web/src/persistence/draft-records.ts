@@ -29,7 +29,7 @@ export type EditorMode = z.infer<typeof editorModeSchema>;
 export type DraftRecordValidationResult =
   | { readonly record: DraftRecord; readonly status: "valid" }
   | { readonly status: "delete" }
-  | { readonly status: "preserve" };
+  | { readonly schemaVersion: number; readonly status: "preserve" };
 
 type DraftRecordInput = Omit<
   DraftRecord,
@@ -64,7 +64,7 @@ export function validateStoredDraftRecord(
   }
 
   if (schemaVersion > draftSchemaVersion) {
-    return { status: "preserve" };
+    return { schemaVersion, status: "preserve" };
   }
 
   return validateCurrentDraftRecord(value);

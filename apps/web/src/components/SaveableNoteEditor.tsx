@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 
+import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { EditorSession } from "../state/note-browser-types.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
 
@@ -130,14 +131,7 @@ function confirmDraftDiscard(markdown: string): boolean {
 }
 
 function hasDirtyMarkdown(editor: EditorSession): boolean {
-  return (
-    normalizeEditorMarkdown(editor.currentMarkdown) !==
-    normalizeEditorMarkdown(editor.savedMarkdown)
-  );
-}
-
-function normalizeEditorMarkdown(markdown: string): string {
-  return markdown.replace(/\r\n/g, "\n");
+  return hasMarkdownDifference(editor.currentMarkdown, editor.savedMarkdown);
 }
 
 const statusText = {

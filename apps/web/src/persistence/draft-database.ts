@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 
+import { markdownEquals } from "../domain/markdown-equality.js";
 import {
   createDraftRecordId,
   type DraftRecord,
@@ -17,17 +18,49 @@ export type DraftPersistenceUnavailableReason =
 /** Result of looking up one durable browser draft. */
 export type DraftReadResult =
   | {
-      readonly draft: DraftRecord | undefined;
-      readonly status: "ok";
+      readonly clusterId: string;
+      readonly noteId: string;
+      readonly status: "absent";
     }
+  | {
+      readonly clusterId: string;
+      readonly noteId: string;
+      readonly reason: "validation_failed";
+      readonly status: "invalid_deleted";
+    }
+  | {
+      readonly draft: DraftRecord;
+      readonly status: "found_current";
+    }
+  | {
+      readonly clusterId: string;
+      readonly noteId: string;
+      readonly schemaVersion: number;
+      readonly status: "preserved_unknown";
+    }
+  | {
+      readonly clusterId: string;
+      readonly noteId: string;
+      readonly reason: DraftPersistenceUnavailableReason;
+      readonly status: "unavailable";
+    };
+
+/** Result of writing one compatible durable browser draft. */
+export type DraftWriteResult =
+  | { readonly status: "written" }
+  | { readonly schemaVersion: number; readonly status: "preserved_unknown" }
   | {
       readonly reason: DraftPersistenceUnavailableReason;
       readonly status: "unavailable";
     };
 
-/** Result of writing or clearing one durable browser draft. */
-export type DraftWriteResult =
-  | { readonly status: "ok" }
+/** Exact transactional outcome of deleting one browser draft. */
+export type DraftRecordMutationResult =
+  | { readonly status: "deleted" }
+  | { readonly status: "absent" }
+  | { readonly reason: "validation_failed"; readonly status: "invalid_deleted" }
+  | { readonly status: "not_matching" }
+  | { readonly schemaVersion: number; readonly status: "preserved_unknown" }
   | {
       readonly reason: DraftPersistenceUnavailableReason;
       readonly status: "unavailable";
@@ -58,10 +91,10 @@ export type DraftPersistence = {
   readonly deleteDraft: (
     clusterId: string,
     noteId: string,
-  ) => Promise<DraftWriteResult>;
+  ) => Promise<DraftRecordMutationResult>;
   readonly deleteDraftIfSavedSnapshotMatches: (
     snapshot: SavedDraftSnapshot,
-  ) => Promise<DraftWriteResult>;
+  ) => Promise<DraftRecordMutationResult>;
   readonly readDraft: (
     clusterId: string,
     noteId: string,
@@ -88,31 +121,35 @@ export function createDraftPersistence(
 async function deleteDraftIfSavedSnapshotMatches(
   database: AzuriteBrowserDatabase,
   snapshot: SavedDraftSnapshot,
-): Promise<DraftWriteResult> {
+): Promise<DraftRecordMutationResult> {
   const draftId = createDraftRecordId(snapshot.clusterId, snapshot.noteId);
 
   try {
-    await database.transaction("rw", database.drafts, async () => {
+    return await database.transaction("rw", database.drafts, async () => {
       const storedDraft: unknown = await database.drafts.get(draftId);
       const validation = validateStoredDraftRecord(storedDraft);
-      if (isMatchingSavedDraft(validation, snapshot)) {
-        await database.drafts.delete(draftId);
+      if (storedDraft === undefined) {
+        return { status: "absent" };
       }
+      if (validation.status === "delete") {
+        await database.drafts.delete(draftId);
+        return { reason: "validation_failed", status: "invalid_deleted" };
+      }
+      if (validation.status === "preserve") {
+        return {
+          schemaVersion: validation.schemaVersion,
+          status: "preserved_unknown",
+        };
+      }
+      if (!matchesSavedSnapshot(validation.record, snapshot)) {
+        return { status: "not_matching" };
+      }
+      await database.drafts.delete(draftId);
+      return { status: "deleted" };
     });
-    return { status: "ok" };
   } catch (error) {
-    return unavailableDraftWriteResult(classifyPersistenceError(error));
+    return unavailableDraftMutationResult(classifyPersistenceError(error));
   }
-}
-
-function isMatchingSavedDraft(
-  validation: ReturnType<typeof validateStoredDraftRecord>,
-  snapshot: SavedDraftSnapshot,
-): boolean {
-  if (validation.status !== "valid") {
-    return false;
-  }
-  return matchesSavedSnapshot(validation.record, snapshot);
 }
 
 function matchesSavedSnapshot(
@@ -122,13 +159,7 @@ function matchesSavedSnapshot(
   if (draft.baseContentHash !== snapshot.baseContentHash) {
     return false;
   }
-  return (
-    normalizeMarkdown(draft.markdown) === normalizeMarkdown(snapshot.markdown)
-  );
-}
-
-function normalizeMarkdown(markdown: string): string {
-  return markdown.replace(/\r\n/g, "\n");
+  return markdownEquals(draft.markdown, snapshot.markdown);
 }
 
 async function readDraft(
@@ -139,15 +170,27 @@ async function readDraft(
   const draftId = createDraftRecordId(clusterId, noteId);
 
   try {
-    const storedDraft = await database.drafts.get(draftId);
+    return await database.transaction("rw", database.drafts, async () => {
+      const storedDraft: unknown = await database.drafts.get(draftId);
 
-    if (storedDraft === undefined) {
-      return { draft: undefined, status: "ok" };
-    }
+      if (storedDraft === undefined) {
+        return { clusterId, noteId, status: "absent" };
+      }
 
-    return await handleStoredDraft(database, draftId, storedDraft);
+      return await handleStoredDraft(
+        database,
+        draftId,
+        storedDraft,
+        clusterId,
+        noteId,
+      );
+    });
   } catch (error) {
-    return unavailableDraftReadResult(classifyPersistenceError(error));
+    return unavailableDraftReadResult(
+      clusterId,
+      noteId,
+      classifyPersistenceError(error),
+    );
   }
 }
 
@@ -155,19 +198,31 @@ async function handleStoredDraft(
   database: AzuriteBrowserDatabase,
   draftId: string,
   storedDraft: unknown,
+  clusterId: string,
+  noteId: string,
 ): Promise<DraftReadResult> {
   const validation = validateStoredDraftRecord(storedDraft);
 
   if (validation.status === "valid") {
-    return { draft: validation.record, status: "ok" };
+    return { draft: validation.record, status: "found_current" };
   }
 
   if (validation.status === "preserve") {
-    return { draft: undefined, status: "ok" };
+    return {
+      clusterId,
+      noteId,
+      schemaVersion: validation.schemaVersion,
+      status: "preserved_unknown",
+    };
   }
 
   await database.drafts.delete(draftId);
-  return unavailableDraftReadResult("validation_failed");
+  return {
+    clusterId,
+    noteId,
+    reason: "validation_failed",
+    status: "invalid_deleted",
+  };
 }
 
 async function writeDraft(
@@ -175,8 +230,18 @@ async function writeDraft(
   draft: DraftRecord,
 ): Promise<DraftWriteResult> {
   try {
-    await database.drafts.put(draft);
-    return { status: "ok" };
+    return await database.transaction("rw", database.drafts, async () => {
+      const storedDraft: unknown = await database.drafts.get(draft.id);
+      const validation = validateStoredDraftRecord(storedDraft);
+      if (validation.status === "preserve") {
+        return {
+          schemaVersion: validation.schemaVersion,
+          status: "preserved_unknown",
+        };
+      }
+      await database.drafts.put(draft);
+      return { status: "written" };
+    });
   } catch (error) {
     return unavailableDraftWriteResult(classifyPersistenceError(error));
   }
@@ -186,24 +251,48 @@ async function deleteDraft(
   database: AzuriteBrowserDatabase,
   clusterId: string,
   noteId: string,
-): Promise<DraftWriteResult> {
+): Promise<DraftRecordMutationResult> {
+  const draftId = createDraftRecordId(clusterId, noteId);
   try {
-    await database.drafts.delete(createDraftRecordId(clusterId, noteId));
-    return { status: "ok" };
+    return await database.transaction("rw", database.drafts, async () => {
+      const storedDraft: unknown = await database.drafts.get(draftId);
+      if (storedDraft === undefined) {
+        return { status: "absent" };
+      }
+      const validation = validateStoredDraftRecord(storedDraft);
+      if (validation.status === "preserve") {
+        return {
+          schemaVersion: validation.schemaVersion,
+          status: "preserved_unknown",
+        };
+      }
+      await database.drafts.delete(draftId);
+      return validation.status === "delete"
+        ? { reason: "validation_failed", status: "invalid_deleted" }
+        : { status: "deleted" };
+    });
   } catch (error) {
-    return unavailableDraftWriteResult(classifyPersistenceError(error));
+    return unavailableDraftMutationResult(classifyPersistenceError(error));
   }
 }
 
 function unavailableDraftReadResult(
+  clusterId: string,
+  noteId: string,
   reason: DraftPersistenceUnavailableReason,
 ): DraftReadResult {
-  return { reason, status: "unavailable" };
+  return { clusterId, noteId, reason, status: "unavailable" };
 }
 
 function unavailableDraftWriteResult(
   reason: DraftPersistenceUnavailableReason,
 ): DraftWriteResult {
+  return { reason, status: "unavailable" };
+}
+
+function unavailableDraftMutationResult(
+  reason: DraftPersistenceUnavailableReason,
+): DraftRecordMutationResult {
   return { reason, status: "unavailable" };
 }
 

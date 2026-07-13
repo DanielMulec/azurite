@@ -6,6 +6,7 @@ import {
 } from "@azurite/shared";
 
 import { WebApiError } from "../api-client.js";
+import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { DraftPersistenceUnavailableReason } from "../persistence/draft-database.js";
 import type { DraftRecord } from "../persistence/draft-records.js";
 import type {
@@ -99,10 +100,7 @@ export function canSaveEditor(editor: EditorSession): boolean {
 
 /** Returns whether current markdown differs from the saved disk baseline. */
 export function hasDirtyMarkdown(editor: EditorSession): boolean {
-  return (
-    normalizeMarkdown(editor.currentMarkdown) !==
-    normalizeMarkdown(editor.savedMarkdown)
-  );
+  return hasMarkdownDifference(editor.currentMarkdown, editor.savedMarkdown);
 }
 
 /** Returns the usable cluster ID when cluster identity is ready. */
@@ -308,8 +306,4 @@ function toNoteSummary(note: NoteContentWithHash): NoteSummary {
     sizeBytes: note.sizeBytes,
     title: note.title,
   };
-}
-
-function normalizeMarkdown(markdown: string): string {
-  return markdown.replace(/\r\n/g, "\n");
 }
