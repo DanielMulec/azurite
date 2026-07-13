@@ -22,6 +22,10 @@ import {
   readyEditorPatch,
   stateOwnsEditor,
 } from "./note-browser-editor-state.js";
+import {
+  createNoChangePublication,
+  createRejectedPublication,
+} from "./note-browser-publication-results.js";
 
 /** Publishes exact accepted Markdown with synchronous snapshot admission. */
 export function publishMarkdownChange(
@@ -30,10 +34,10 @@ export function publishMarkdownChange(
 ): PublicationResult {
   const editor = getExactEditor(command.sessionKey, context);
   if (editor === undefined) {
-    return rejectedPublication(command, 0, "none", "stale_session");
+    return createRejectedPublication(command, 0, "none", "stale_session");
   }
   if (editor.currentMarkdown === command.markdown) {
-    return noChangePublication(command, editor, "authority_unchanged");
+    return createNoChangePublication(command, editor, "authority_unchanged");
   }
   const snapshot = createAuthoritySnapshot(command.markdown, editor, context);
   const prepared = context.draftCoordinator.prepareSnapshot({
@@ -44,7 +48,7 @@ export function publishMarkdownChange(
     snapshot,
   });
   if (prepared.status === "rejected") {
-    return rejectedPublication(
+    return createRejectedPublication(
       command,
       prepared.attemptedRevision,
       editor.draftDisposition,
@@ -150,7 +154,7 @@ function applyPreparedPublication(
   }
   if (!didApply) {
     context.draftCoordinator.cancelPrepared(snapshot.snapshotKey);
-    return rejectedPublication(
+    return createRejectedPublication(
       command,
       snapshot.revision,
       editor.draftDisposition,
@@ -357,42 +361,6 @@ function patchModeOnly(
       ? readyEditorPatch({ ...editor, editorMode, revision: editor.revision + 1 })
       : state,
   );
-}
-
-function noChangePublication(
-  command: PublicationCommand,
-  editor: EditorSession,
-  reason: "authority_unchanged" | "retry_reverted",
-): PublicationResult {
-  return {
-    disposition: editor.draftDisposition,
-    origin: command.origin,
-    reason,
-    revision: editor.revision,
-    sessionKey: editor.sessionKey,
-    stateEffect: "none",
-    status: "no_change",
-    trigger: command.trigger,
-  };
-}
-
-function rejectedPublication(
-  command: PublicationCommand,
-  attemptedRevision: number,
-  disposition: DraftDisposition,
-  reason: Extract<PublicationResult, { status: "rejected" }>["reason"],
-): PublicationResult {
-  return {
-    attemptedMarkdown: command.markdown,
-    attemptedRevision,
-    disposition,
-    origin: command.origin,
-    reason,
-    sessionKey: command.sessionKey,
-    stateEffect: "none",
-    status: "rejected",
-    trigger: command.trigger,
-  };
 }
 
 function getNextSaveStatus(editor: EditorSession): EditorSession["saveStatus"] {
