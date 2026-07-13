@@ -1,0 +1,41 @@
+diff --git a/dist/cjs/index.cjs b/dist/cjs/index.cjs
+index 8f88a73c3a99f58d8bda94d3c82d35a2923fb7d0..197e1584241f03f41037013126e5a9988997e095 100644
+--- a/dist/cjs/index.cjs
++++ b/dist/cjs/index.cjs
+@@ -230,7 +230,7 @@ function createBrowserHistory(opts) {
+ 					action
+ 				})) {
+ 					ignoreNextPop = true;
+-					win.history.go(1);
++					win.history.go(-delta);
+ 					history.notify(notify);
+ 					return;
+ 				}
+diff --git a/dist/esm/index.js b/dist/esm/index.js
+index f109cf460a841d00ce7492da6f4aa13de1efbf7e..5b46a9bcd100a2c8fbf6df12e710d98035c780d4 100644
+--- a/dist/esm/index.js
++++ b/dist/esm/index.js
+@@ -229,7 +229,7 @@ function createBrowserHistory(opts) {
+ 					action
+ 				})) {
+ 					ignoreNextPop = true;
+-					win.history.go(1);
++					win.history.go(-delta);
+ 					history.notify(notify);
+ 					return;
+ 				}
+diff --git a/src/index.ts b/src/index.ts
+index 705dbf0111b274d8d3a9a3ed1c96621af4e4d834..0e76c5561e60f3a839e065dd539632e70cfc54ae 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -438,7 +438,9 @@ export function createBrowserHistory(opts?: {
+           })
+           if (isBlocked) {
+             ignoreNextPop = true
+-            win.history.go(1)
++            // A blocked traversal has already moved by `delta`. Return to the
++            // exact predecessor instead of assuming every traversal was Back.
++            win.history.go(-delta)
+             history.notify(notify)
+             return
+           }
