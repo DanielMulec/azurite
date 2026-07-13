@@ -227,6 +227,53 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: Do not use router loader caching as the canonical note-content cache
   without a focused data-cache decision.
 
+### TanStack Router Navigation Blocking
+
+- URL: https://tanstack.com/router/latest/docs/guide/navigation-blocking
+- Accessed: 2026-07-13
+- Area: In-app transition admission and cancellation
+- Use when: Holding application pushes or browser-history traversal while an
+  outgoing editor session completes a required handoff.
+- Notes: TanStack Router exposes asynchronous history blockers with current and
+  next locations and supports disabling the browser `beforeunload` behavior.
+  Azurite's target-free transition gate belongs behind this history boundary,
+  before selected-note mutation or read admission.
+- Caveats: The React blocker API is documented as experimental and latest docs
+  do not replace installed-version proof. Verify boolean behavior, action
+  classification, Back/Forward/Go restoration, and entry reachability directly
+  against the locked dependency and real browsers before relying on cancellation.
+
+### TanStack Router Events
+
+- URL: https://tanstack.com/router/latest/docs/guide/router-events
+- Accessed: 2026-07-13
+- Area: Route lifecycle observation
+- Use when: Confirming that one exact history occurrence has reached router
+  resolution without treating a React effect or navigation promise as ownership.
+- Notes: The router lifecycle distinguishes navigation start from resolution and
+  exposes from/to location metadata. Azurite uses those events as observation and
+  exact-occurrence confirmation around its history-admission owner.
+- Caveats: `onBeforeNavigate` does not supply the history action and its location
+  search is not a substitute for Azurite's route-level runtime validation. Keep
+  action classification at the history boundary and validate with the existing
+  application schema before issuing product reads.
+
+### TanStack History Source
+
+- URL: https://github.com/TanStack/router/blob/main/packages/history/src/index.ts
+- Accessed: 2026-07-13
+- Area: Browser-history identity, action, blocking, and restoration
+- Use when: Implementing or upgrading Azurite's action-aware history-admission
+  adapter and its installed-version contract tests.
+- Notes: The history implementation owns per-entry keys/indexes, push/replace
+  scheduling, action-aware blocker calls, and browser pop restoration. Those are
+  the evidence boundary for preserving the real stack after cancellation; URL
+  equality alone is insufficient.
+- Caveats: Repository `main` and latest documentation can differ from Azurite's
+  installed package. Inspect the locked source and prove exact application push,
+  Back, Forward, and Go behavior in tests before store integration. Never infer
+  safe traversal rollback from a same-URL final screenshot.
+
 ### Zustand
 
 - URL: https://zustand.docs.pmnd.rs/

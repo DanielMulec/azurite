@@ -3,15 +3,16 @@
 ## Status
 
 Planned immediately after Slice 7C. Promotion to active is blocked until Slice
-7C has implemented and verified its unique route-intent owner, typed
-pre-transition gate, exact-current revalidation, coherent no-op predicate, and
-typed terminal outcome.
+7C has implemented and verified its validated action-aware history owner, typed
+pre-transition gate, rendered outgoing-session identity, route-or-reload load
+authorization, exact-current revalidation, coherent no-op predicate, and typed
+terminal outcome.
 
 The 2026-07-13 adversarial review proved that the earlier plan secretly depended
-on those route guarantees while calling route repair a non-goal. In particular,
+on those route guarantees while calling route coherence a non-goal. In particular,
 today's rendered-note-only skip can return after this slice has closed the
 outgoing controller, leaving no replacement session. A note ID alone also cannot
-identify which of two same-target history intents may repair the URL. The scope
+identify which of two same-target history intents may continue or cancel. The scope
 was therefore re-selected to `7B -> 7C -> 7D -> 7E -> 7F`.
 
 This revision also makes five previously implicit failure boundaries explicit:
@@ -131,8 +132,9 @@ save has completed successfully.
   cannot supersede a newer durability decision or a read cannot overtake pending
   work.
 - Make editor-session handoff a pre-transition gate consumed by Slice 7C's
-  route-transition owner. Slice 7C alone retains intents, targets, URL repair,
-  selected-versus-rendered coherence, and terminal route outcomes.
+  route-transition owner. Slice 7C alone retains intents, targets, history
+  admission/restoration, selected-versus-rendered coherence, and terminal route
+  outcomes.
 - Keep source editing usable while Crepe is creating or unavailable without
   calling editor APIs before readiness.
 - Keep content-dirty equality on one shared comparison contract while treating
@@ -162,7 +164,8 @@ save has completed successfully.
 - Replacing Milkdown/Crepe, adding another editor framework, or changing the
   CommonMark-plus-GFM product dialect.
 - Changing the implemented Slice 7C route owner, route identity, coherent no-op
-  predicate, URL repair policy, or terminal transition outcomes.
+  predicate, history-admission policy, load authorization, or terminal transition
+  outcomes.
 - Fixing Crepe's block `+` menu, the Android source-mode newline reversion, or
   the unexplained fresh-cluster recovered-draft observation.
 - Changing backend-unavailable copy, adding retry UI, lazy-loading the editor,
@@ -199,12 +202,13 @@ debounced edit, stale read, older write, failed cleanup, or post-Discard timer t
 outlive the exact session being handed off.
 
 Slice 7C must be a completed prerequisite before this slice is promoted; it is
-not a sibling exclusion. Its owner registers each route intent, calls this
-slice's editor gate, revalidates the intent after the gate settles, starts or
-skips the route transition, and returns the terminal route outcome. This slice
-receives the current outgoing session and gate cause only. It never receives or
-retains a target, chooses among callers, repairs a URL, or decides whether
-selected and rendered notes are coherent.
+not a sibling exclusion. Its owner validates and admits each history intent,
+passes this slice the exact rendered outgoing session, revalidates after the gate
+settles, starts or skips the route transition, restores cancelled traversal when
+required, and returns the terminal route outcome. This slice receives the current
+outgoing session and gate cause only. It never receives or retains a target,
+chooses among callers, blocks/restores history, or decides whether selected and
+rendered notes are coherent.
 
 The gate may share one in-flight commit/durability operation for the same editor
 session, but each Slice 7C call owns a unique target-free lease and independently
@@ -717,9 +721,10 @@ never decides them.
    - If an ordered required write or clean-session cleanup is `unavailable`,
      return `cancel`, leave the same Crepe instance/session/Undo history active,
      and expose the exact draft disposition/failure action. Retain that lease's
-     freeze until Slice 7C finishes/supersedes URL repair and settles it as
-     `retained`/`none`; then restore focus when possible. Slice 7C alone decides
-     whether the current URL needs replacement.
+     freeze until Slice 7C finishes/supersedes history cancellation/restoration
+     and settles it as `retained`/`none`; then restore focus when possible. Slice
+     7C alone decides whether the attempted history action commits or returns to
+     its exact predecessor.
    - If another session replaces the editor while durability is pending, the old
      result may finish its own scoped persistence but cannot invalidate,
      unfreeze, or continue through the newer session.
@@ -1113,7 +1118,8 @@ Implementation requirements:
   required write or clean-session cleanup cancels selection/history
   synchronization and unfreezes the same editor session.
 - Return only `continue` or `cancel` plus exact-session failure information to
-  Slice 7C. Do not push, replace, compare, retain, or repair URLs in this slice.
+  Slice 7C. Do not push, replace, compare, retain, block, or restore history in
+  this slice.
 - Refactor successful same-session save reconciliation so it updates the saved
   baseline, hash, note metadata, draft disposition, and status in place. It must retain
   `sessionKey`, editor mode, current Markdown, revision ownership, Crepe,
@@ -1254,7 +1260,7 @@ Implementation requirements:
   correct action and reports distinct outcomes.
 - Simulate unavailable required draft persistence for sidebar selection and
   Back/Forward, including missing cluster identity. Prove the gate returns
-  `cancel`; the Slice 7C owner performs exact-current URL handling; the same
+  `cancel`; the Slice 7C owner performs exact-current history handling; the same
   editor and Undo history are unfrozen; prior focus is restored when possible;
   dirty content retains Save; and clean `cleanup_required` content exposes Retry
   cleanup instead of an unusable Save action.
@@ -1456,8 +1462,8 @@ Baseline: `docs/reference/product-guardrails.md`.
   missing-note draft.
 - Crepe instances and controller capabilities must remain ephemeral React-owned
   runtime state, not a second product-state owner in Zustand or Dexie.
-- The editor gate must not become a second route-target owner, perform URL
-  repair, suppress Slice 7C intents, or erase existing Slice 7B evidence.
+- The editor gate must not become a second route-target owner, mutate URLs,
+  repair history, suppress Slice 7C intents, or erase existing Slice 7B evidence.
 - Discarding a conflict must restore exact disk Markdown and remain clean until
   the next real edit.
 - Existing safe URL, filesystem boundary, Sentry-disabled, request-correlation,
@@ -1650,7 +1656,7 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
   checkpoint, and Undo history through same-session rerenders and successful
   Save while making destructive handoff visibly busy, inert, exact-session, and
   durable before replacement.
-- The editor gate owns no route targets, intent identity, or URL repair. It
+- The editor gate owns no route targets, intent identity, or history handling. It
   consumes Slice 7C's gate/outcome seam, restores the exact outgoing session for
   every non-applied outcome, and never strands a controller closed or frozen.
 - Required Transitions 9–11 use one CRLF/LF-only content comparison plus separate
