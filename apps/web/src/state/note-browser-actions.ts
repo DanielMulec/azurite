@@ -6,7 +6,7 @@ export {
   updateCurrentEditor,
 } from "./note-browser-editor-actions.js";
 export {
-  loadNotesAction,
-  selectNoteAction,
-  syncRouteNoteAction,
+  applyRouteAction,
+  ensureNotesAction,
+  reloadSelectedNoteAction,
 } from "./note-browser-route-actions.js";

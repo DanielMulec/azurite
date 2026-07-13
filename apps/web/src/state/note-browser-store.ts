@@ -10,23 +10,29 @@ import {
   type DraftPersistence,
 } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type { RouteStoreExecutor } from "../routing/route-store-executor.js";
+import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import {
+  applyRouteAction,
   discardDraftAndReloadDiskVersionAction,
   discardMissingDraftAction,
-  loadNotesAction,
+  ensureNotesAction,
   persistCurrentDraft,
   saveSelectedNoteAction,
-  selectNoteAction,
-  syncRouteNoteAction,
   updateCurrentEditor,
 } from "./note-browser-actions.js";
 import type {
   ActiveNoteLoad,
   ActiveNoteSave,
+  ActiveNotesLoad,
   NoteBrowserApi,
   NoteBrowserStore,
   StoreContext,
 } from "./note-browser-contracts.js";
+import {
+  getCoherentRouteView,
+  getRenderedOwnerKey,
+} from "./note-browser-route-predicates.js";
 
 type NoteBrowserStoreOptions = {
   readonly api?: NoteBrowserApi;
@@ -35,15 +41,17 @@ type NoteBrowserStoreOptions = {
 };
 
 type NoteBrowserRuntime = {
+  activeDraftFlush: Promise<void> | undefined;
   activeNoteLoad: ActiveNoteLoad | undefined;
   readonly activeNoteSaves: Map<string, ActiveNoteSave>;
+  activeNotesLoad: ActiveNotesLoad | undefined;
   readonly api: NoteBrowserApi;
   readonly context: StoreContext;
+  currentRouteIntentKey: string | undefined;
   readonly draftPersistence: DraftPersistence;
   readonly draftWriteDelayMs: number;
   editorSessionVersion: number;
   hasPendingDraftWrite: boolean;
-  latestRouteNoteId: string | undefined;
   noteRequestSequence: number;
   notesRequestSequence: number;
   pendingDraftTimer: ReturnType<typeof setTimeout> | undefined;
@@ -60,29 +68,57 @@ export function createNoteBrowserStore(
   options: NoteBrowserStoreOptions = {},
 ): StoreApi<NoteBrowserStore> {
   const runtime = createRuntime(options);
-
   return createStore<NoteBrowserStore>((set, get) =>
     createInitialState(runtime, set, get),
   );
+}
+
+/** Exposes one store instance through the route owner's narrow executor seam. */
+export function createNoteBrowserRouteExecutor(
+  store: StoreApi<NoteBrowserStore>,
+): RouteStoreExecutor {
+  const state = store.getState();
+  return {
+    activateRouteIntent: state.activateRouteIntent,
+    applyRoute: state.applyRoute,
+    ensureNotes: state.ensureNotes,
+    getCoherentView: state.getCoherentView,
+    getRenderedOwnerKey: state.getRenderedOwnerKey,
+    reportHistoryUnavailable: state.reportHistoryUnavailable,
+  };
 }
 
 export type { NoteBrowserStore } from "./note-browser-contracts.js";
 
 function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
   return {
+    activeDraftFlush: undefined,
     activeNoteLoad: undefined,
     activeNoteSaves: new Map(),
+    activeNotesLoad: undefined,
     api: getApi(options),
     context: {} as StoreContext,
+    currentRouteIntentKey: undefined,
     draftPersistence: getDraftPersistence(options),
     draftWriteDelayMs: getDraftWriteDelayMs(options),
     editorSessionVersion: 0,
     hasPendingDraftWrite: false,
-    latestRouteNoteId: undefined,
     noteRequestSequence: 0,
     notesRequestSequence: 0,
     pendingDraftTimer: undefined,
   };
+}
+
+function getApi(options: NoteBrowserStoreOptions): NoteBrowserApi {
+  return options.api ?? defaultApi;
+}
+
+function getDraftPersistence(options: NoteBrowserStoreOptions): DraftPersistence {
+  return options.draftPersistence ?? createDraftPersistence();
+}
+
+function getDraftWriteDelayMs(options: NoteBrowserStoreOptions): number {
+  return options.draftWriteDelayMs ?? 250;
 }
 
 function createInitialState(
@@ -91,23 +127,48 @@ function createInitialState(
   get: StoreContext["get"],
 ): NoteBrowserStore {
   configureContext(runtime, set, get);
-
   return {
+    activateRouteIntent: (intentKey) => {
+      activateRouteIntent(intentKey, runtime);
+    },
+    applyRoute: async (input) =>
+      await applyRouteAction(input, runtime.context),
     clusterIdentity: undefined,
-    discardDraftAndReloadDiskVersion: () =>
-      discardDraftAndReloadDiskVersionAction(runtime.context),
-    discardMissingDraft: () => discardMissingDraftAction(runtime.context),
+    committedRouteView: undefined,
+    discardDraftAndReloadDiskVersion: async () => {
+      await discardDraftAndReloadDiskVersionAction(runtime.context);
+    },
+    discardMissingDraft: async () => {
+      await discardMissingDraftAction(runtime.context);
+    },
     draftRecoveryStatus: { status: "available" },
-    flushPendingDraft: () => flushPendingDraft(runtime),
-    loadNotes: (routeNoteId, navigation) =>
-      loadNotes(routeNoteId, navigation, runtime),
+    ensureNotes: async () => await ensureNotesAction(runtime.context),
+    flushPendingDraft: async () => {
+      await flushPendingDraft(runtime);
+    },
+    getCoherentView: (occurrence, noteId) =>
+      getCoherentRouteView(
+        { activeLoad: runtime.activeNoteLoad, noteId, occurrence },
+        get(),
+      ),
+    getRenderedOwnerKey: () => getRenderedOwnerKey(get()),
     noteState: { status: "idle" },
     notesState: { status: "idle" },
-    saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
-    selectNote: (noteId) => selectNote(noteId, runtime),
+    reportHistoryUnavailable: () => {
+      set({
+        routeHistoryStatus: {
+          message:
+            "Browser history could not confirm the previous note. Retry navigation from the current page.",
+          reason: "route_history_unavailable",
+          status: "degraded",
+        },
+      });
+    },
+    routeHistoryStatus: { status: "available" },
+    saveSelectedNote: async () => {
+      await saveSelectedNoteAction(runtime.context);
+    },
     selectedNoteId: undefined,
-    syncRouteNote: (routeNoteId, navigation) =>
-      flushThenSyncRouteNote(routeNoteId, navigation, runtime),
     updateDraftMarkdown: (markdown) => {
       updateDraftMarkdown(markdown, runtime);
     },
@@ -117,20 +178,6 @@ function createInitialState(
   };
 }
 
-function getApi(options: NoteBrowserStoreOptions): NoteBrowserApi {
-  return options.api ?? defaultApi;
-}
-
-function getDraftPersistence(
-  options: NoteBrowserStoreOptions,
-): DraftPersistence {
-  return options.draftPersistence ?? createDraftPersistence();
-}
-
-function getDraftWriteDelayMs(options: NoteBrowserStoreOptions): number {
-  return options.draftWriteDelayMs ?? 250;
-}
-
 function configureContext(
   runtime: NoteBrowserRuntime,
   set: StoreContext["set"],
@@ -138,7 +185,7 @@ function configureContext(
 ): void {
   Object.assign(runtime.context, {
     api: runtime.api,
-    clearActiveNoteLoad: (promise: Promise<void>) => {
+    clearActiveNoteLoad: (promise: ActiveNoteLoad["promise"]) => {
       if (runtime.activeNoteLoad?.promise === promise) {
         runtime.activeNoteLoad = undefined;
       }
@@ -148,17 +195,26 @@ function configureContext(
         runtime.activeNoteSaves.delete(noteId);
       }
     },
+    clearActiveNotesLoad: (promise: ActiveNotesLoad["promise"]) => {
+      if (runtime.activeNotesLoad?.promise === promise) {
+        runtime.activeNotesLoad = undefined;
+      }
+    },
     draftPersistence: runtime.draftPersistence,
     get,
-    getActiveNoteLoad: (noteId: string) =>
-      runtime.activeNoteLoad?.noteId === noteId
-        ? runtime.activeNoteLoad
-        : undefined,
+    getActiveNoteLoad: () => runtime.activeNoteLoad,
     getActiveNoteSave: (noteId: string) => runtime.activeNoteSaves.get(noteId),
-    getLatestRouteNoteId: () => runtime.latestRouteNoteId,
-    isCurrentNoteRequest: (requestSequence: number, noteId: string) =>
-      requestSequence === runtime.noteRequestSequence &&
-      get().selectedNoteId === noteId,
+    getActiveNotesLoad: () => runtime.activeNotesLoad,
+    getCurrentRouteIntentKey: () => runtime.currentRouteIntentKey,
+    isCurrentNoteRequest: (
+      authorization: NoteLoadAuthorization,
+      requestSequence: number,
+      noteId: string,
+    ) =>
+      isCurrentNoteRequest(
+        { authorization, noteId, requestSequence },
+        runtime,
+      ),
     isCurrentNotesRequest: (requestSequence: number) =>
       requestSequence === runtime.notesRequestSequence,
     nextEditorSessionKey: (noteId: string, contentHash: string) =>
@@ -172,27 +228,77 @@ function configureContext(
     setActiveNoteSave: (noteId: string, save: ActiveNoteSave) => {
       runtime.activeNoteSaves.set(noteId, save);
     },
+    setActiveNotesLoad: (load: ActiveNotesLoad) => {
+      runtime.activeNotesLoad = load;
+    },
+    setCurrentRouteIntent: (intentKey: string) => {
+      activateRouteIntent(intentKey, runtime);
+    },
   } satisfies StoreContext);
 }
 
-async function loadNotes(
-  routeNoteId: string | undefined,
-  navigation: Parameters<NoteBrowserStore["loadNotes"]>[1],
+function isCurrentNoteRequest(
+  input: {
+    readonly authorization: NoteLoadAuthorization;
+    readonly noteId: string;
+    readonly requestSequence: number;
+  },
   runtime: NoteBrowserRuntime,
-): Promise<void> {
-  setLatestRouteNoteId(routeNoteId, runtime);
-  await loadNotesAction(navigation, runtime.context);
+): boolean {
+  if (
+    input.requestSequence !== runtime.noteRequestSequence ||
+    runtime.context.get().selectedNoteId !== input.noteId
+  ) {
+    return false;
+  }
+  return isCurrentAuthorization(input.authorization, runtime);
+}
+
+function isCurrentAuthorization(
+  authorization: NoteLoadAuthorization,
+  runtime: NoteBrowserRuntime,
+): boolean {
+  if (authorization.kind === "route_intent") {
+    return runtime.currentRouteIntentKey === authorization.intentKey;
+  }
+  return (
+    runtime.activeNoteLoad?.authorization.authorizationKey ===
+    authorization.authorizationKey
+  );
 }
 
 async function flushPendingDraft(runtime: NoteBrowserRuntime): Promise<void> {
   clearPendingDraftTimer(runtime);
+  if (runtime.activeDraftFlush !== undefined) {
+    await runtime.activeDraftFlush;
+    return;
+  }
+  await startPendingDraftFlush(runtime);
+}
 
+async function startPendingDraftFlush(
+  runtime: NoteBrowserRuntime,
+): Promise<void> {
   if (!runtime.hasPendingDraftWrite) {
     return;
   }
-
   runtime.hasPendingDraftWrite = false;
-  await persistCurrentDraft(runtime.context);
+  const promise = persistCurrentDraft(runtime.context).then(() => undefined);
+  runtime.activeDraftFlush = promise;
+  try {
+    await promise;
+  } finally {
+    clearActiveDraftFlush(promise, runtime);
+  }
+}
+
+function clearActiveDraftFlush(
+  promise: Promise<void>,
+  runtime: NoteBrowserRuntime,
+): void {
+  if (runtime.activeDraftFlush === promise) {
+    runtime.activeDraftFlush = undefined;
+  }
 }
 
 function scheduleDraftWrite(runtime: NoteBrowserRuntime): void {
@@ -201,31 +307,6 @@ function scheduleDraftWrite(runtime: NoteBrowserRuntime): void {
   runtime.pendingDraftTimer = setTimeout(() => {
     void flushPendingDraft(runtime);
   }, runtime.draftWriteDelayMs);
-}
-
-async function selectNote(
-  noteId: string,
-  runtime: NoteBrowserRuntime,
-): Promise<void> {
-  await flushPendingDraft(runtime);
-  await selectNoteAction(noteId, runtime.context);
-}
-
-async function flushThenSyncRouteNote(
-  routeNoteId: string | undefined,
-  navigation: Parameters<NoteBrowserStore["syncRouteNote"]>[1],
-  runtime: NoteBrowserRuntime,
-): Promise<void> {
-  setLatestRouteNoteId(routeNoteId, runtime);
-  await flushPendingDraft(runtime);
-  await syncRouteNoteAction(routeNoteId, navigation, runtime.context);
-}
-
-function setLatestRouteNoteId(
-  routeNoteId: string | undefined,
-  runtime: NoteBrowserRuntime,
-): void {
-  runtime.latestRouteNoteId = routeNoteId;
 }
 
 function updateDraftMarkdown(
@@ -242,6 +323,17 @@ function updateEditorMode(
 ): void {
   updateCurrentEditor({ editorMode }, runtime.context);
   scheduleDraftWrite(runtime);
+}
+
+function activateRouteIntent(
+  intentKey: string,
+  runtime: NoteBrowserRuntime,
+): void {
+  if (runtime.currentRouteIntentKey === intentKey) {
+    return;
+  }
+  runtime.currentRouteIntentKey = intentKey;
+  incrementNoteRequestSequence(runtime);
 }
 
 function clearPendingDraftTimer(runtime: NoteBrowserRuntime): void {

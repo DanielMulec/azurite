@@ -26,6 +26,11 @@ import {
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
+import {
+  loadTestRoute,
+  selectTestNote,
+  syncTestRoute,
+} from "./note-browser-route-test-helpers.js";
 
 afterEach(() => {
   resetWebSentryRuntimeForTests();
@@ -41,9 +46,7 @@ describe("degraded browser correlation", () => {
     );
     const store = createNoteBrowserStore({ api: createApi({ listNotes }) });
 
-    await store
-      .getState()
-      .loadNotes(undefined, { replaceSelectedNote: vi.fn() });
+    await loadTestRoute(store, undefined, { replaceSelectedNote: vi.fn() });
 
     expect(requireMockCall(listNotes.mock.calls, 0)[0]).toEqual({});
     expect(eventCount(fake.info, events.correlationIdGenerationFailed)).toBe(1);
@@ -62,9 +65,7 @@ describe("note-list lifecycle evidence", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    await store
-      .getState()
-      .loadNotes(undefined, { replaceSelectedNote: vi.fn() });
+    await loadTestRoute(store, undefined, { replaceSelectedNote: vi.fn() });
 
     const metadata = requireMockCall(listNotes.mock.calls, 0)[0];
     expect(requestIdSchema.safeParse(metadata.requestId).success).toBe(true);
@@ -106,8 +107,8 @@ describe("stale note-list lifecycle evidence", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = store.getState().loadNotes(undefined, navigation);
-    const newer = store.getState().loadNotes(undefined, navigation);
+    const older = loadTestRoute(store, undefined, navigation);
+    const newer = loadTestRoute(store, undefined, navigation);
     second.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
     await newer;
     first.reject(new Error("stale failure"));
@@ -135,8 +136,8 @@ describe("stale note-list lifecycle evidence", () => {
     const store = createNoteBrowserStore({ api: createApi({ listNotes }) });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = store.getState().loadNotes(undefined, navigation);
-    const newer = store.getState().loadNotes(undefined, navigation);
+    const older = loadTestRoute(store, undefined, navigation);
+    const newer = loadTestRoute(store, undefined, navigation);
     second.reject(new Error("current failure"));
     await newer;
     first.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
@@ -162,11 +163,11 @@ describe("startup note-load lifecycle evidence", () => {
     let routeEcho: Promise<void> | undefined;
     const navigation = {
       replaceSelectedNote: vi.fn((noteId: string) => {
-        routeEcho = store.getState().syncRouteNote(noteId, navigation);
+        routeEcho = syncTestRoute(store, noteId);
       }),
     };
 
-    const load = store.getState().loadNotes(undefined, navigation);
+    const load = loadTestRoute(store, undefined, navigation);
     await vi.waitFor(() => {
       expect(readNote).toHaveBeenCalledOnce();
     });
@@ -196,10 +197,8 @@ describe("truthful note route-source evidence", () => {
     const fake = installFakeRuntime();
     const store = createSeededStore({ api: createApi() });
 
-    await store.getState().selectNote("index.md");
-    await store
-      .getState()
-      .syncRouteNote("Projects/azurite.md", { replaceSelectedNote: vi.fn() });
+    await selectTestNote(store, "index.md");
+    await syncTestRoute(store, "Projects/azurite.md");
 
     expect(
       eventAttributes(fake.info, events.noteRouteNavigationRequested),

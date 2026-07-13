@@ -9,6 +9,7 @@ import {
 import { createNoteBrowserStore } from "../src/state/note-browser-store.js";
 import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
 import type { EditorSession } from "../src/state/note-browser-types.js";
+import { createTestOccurrence } from "./note-browser-route-test-helpers.js";
 
 export const readyClusterIdentity = {
   clusterId: "1bdbab0a-79c5-4c6d-a6b5-30bf65a49793",
@@ -40,9 +41,17 @@ export function createLoadedStore(options: LoadedStoreOptions = {}) {
     draftPersistence: getDraftPersistenceOption(options),
   });
 
+  const editor = createReadyEditor(note, recovery);
+  const location = createTestOccurrence(note.id, 0);
   store.setState({
+    committedRouteView: {
+      location,
+      noteId: note.id,
+      renderedOwnerKey: editor.sessionKey,
+      view: "ready",
+    },
     noteState: {
-      editor: createReadyEditor(note, recovery),
+      editor,
       status: "ready",
     },
     selectedNoteId: note.id,

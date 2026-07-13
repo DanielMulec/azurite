@@ -8,24 +8,20 @@ import {
   SentryDiagnosticsPanel,
 } from "./components/SentryDiagnosticsPanel.js";
 import { readWebSentryConfig } from "./config/sentry-config.js";
+import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
 import { useNoteBrowser } from "./use-note-browser.js";
 
 type AppProps = {
   readonly devDiagnostics?: "sentry-test" | undefined;
-  readonly navigation: {
-    readonly pushSelectedNote: (noteId: string) => void;
-    readonly replaceSelectedNote: (noteId: string) => void;
-  };
-  readonly routeNoteId: string | undefined;
+  readonly transitionOwner: RouteTransitionOwner;
 };
 
 /** Root React component for the current Azurite web shell. */
 export function App({
   devDiagnostics,
-  navigation,
-  routeNoteId,
+  transitionOwner,
 }: AppProps): ReactElement {
-  const browser = useNoteBrowser({ navigation, routeNoteId });
+  const browser = useNoteBrowser(transitionOwner);
   const sentryConfig = readWebSentryConfig();
   const showSentryDiagnostics = isSentryDiagnosticsPanelEnabled(
     sentryConfig,
@@ -56,6 +52,7 @@ export function App({
           onDiscardMissingDraft={browser.discardMissingDraft}
           onMarkdownChange={browser.updateDraftMarkdown}
           noteState={browser.noteState}
+          routeHistoryStatus={browser.routeHistoryStatus}
           onSaveNote={browser.saveSelectedNote}
           onEditorModeChange={browser.updateEditorMode}
         />

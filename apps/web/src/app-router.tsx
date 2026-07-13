@@ -1,22 +1,41 @@
 import {
+  createBrowserHistory,
   createRootRoute,
   createRoute,
   createRouter,
   RouterProvider,
+  type HistoryLocation,
+  type RouterHistory,
 } from "@tanstack/react-router";
-import { noteIdSchema } from "@azurite/shared";
-import type { ReactElement } from "react";
-import { useCallback, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactElement,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 import { App } from "./App.js";
+import {
+  parseAppLocationSearch,
+  parseAppSearch,
+  type AppSearch,
+} from "./routing/app-route-search.js";
+import {
+  createRouteTransitionOwner,
+  type RouteTransitionOwner,
+} from "./routing/route-transition-owner.js";
+import {
+  applicationNavigationTokenStateKey,
+} from "./routing/validated-route-location.js";
 
-/** Typed URL search state owned by Azurite's root route. */
-export type AppSearch = {
-  readonly "azurite-dev"?: "sentry-test";
-  readonly note?: string;
-};
+export { parseAppLocationSearch, parseAppSearch } from "./routing/app-route-search.js";
+export type { AppSearch } from "./routing/app-route-search.js";
 
 const rootRoute = createRootRoute();
+const routeOwnerContext = createContext<RouteTransitionOwner | undefined>(
+  undefined,
+);
 
 /** Root route that owns Azurite's selected-note URL search state. */
 export const appRoute = createRoute({
@@ -29,35 +48,11 @@ export const appRoute = createRoute({
 const routeTree = rootRoute.addChildren([appRoute]);
 
 /** Creates one TanStack Router instance for the Azurite web shell. */
-export function createAzuriteRouter() {
-  return createRouter({ routeTree });
-}
-
-/** Parses the URL-owned note selection search state. */
-export function parseAppSearch(search: Record<string, unknown>): AppSearch {
-  const parsedNote =
-    typeof search.note === "string" ? parseSafeRouteNote(search.note) : {};
-
-  if (search["azurite-dev"] === "sentry-test") {
-    return { ...parsedNote, "azurite-dev": "sentry-test" };
-  }
-
-  return parsedNote;
-}
-
-/** Parses browser URL search text through one URL-decoding boundary. */
-export function parseAppLocationSearch(locationSearch: string): AppSearch {
-  return parseAppSearch({
-    "azurite-dev":
-      new URLSearchParams(locationSearch).get("azurite-dev") ?? undefined,
-    note: new URLSearchParams(locationSearch).get("note") ?? undefined,
+export function createAzuriteRouter(history?: RouterHistory) {
+  return createRouter({
+    ...(history === undefined ? {} : { history }),
+    routeTree,
   });
-}
-
-function parseSafeRouteNote(note: string): AppSearch {
-  const parsedNote = noteIdSchema.safeParse(note);
-
-  return parsedNote.success ? { note: parsedNote.data } : {};
 }
 
 type AzuriteRouter = ReturnType<typeof createAzuriteRouter>;
@@ -68,66 +63,99 @@ declare module "@tanstack/react-router" {
   }
 }
 
-/** React provider for Azurite's typed client router. */
+type AzuriteRouterRuntime = {
+  readonly owner: RouteTransitionOwner;
+  readonly router: AzuriteRouter;
+};
+
+/** React provider for Azurite's typed client router and transition owner. */
 export function AzuriteRouterProvider(): ReactElement {
-  const [router] = useState(createAzuriteRouter);
-
-  return <RouterProvider router={router} />;
-}
-
-function AppRoute(): ReactElement {
-  const search = appRoute.useSearch();
-  const navigate = appRoute.useNavigate();
-  const currentSearch = getCurrentSearch(search);
-  const routeNoteId = currentSearch.note;
-  const replaceSelectedNote = useCallback(
-    (noteId: string) => {
-      void navigate({
-        replace: true,
-        search: createNoteNavigationSearch(search, noteId),
-        to: "/",
-      });
+  const [runtime] = useState(createAzuriteRouterRuntime);
+  useEffect(
+    () => () => {
+      runtime.owner.dispose();
     },
-    [navigate, search],
-  );
-  const pushSelectedNote = useCallback(
-    (noteId: string) => {
-      void navigate({
-        search: createNoteNavigationSearch(search, noteId),
-        to: "/",
-      });
-    },
-    [navigate, search],
-  );
-  const navigation = useMemo(
-    () => ({ pushSelectedNote, replaceSelectedNote }),
-    [pushSelectedNote, replaceSelectedNote],
+    [runtime],
   );
 
   return (
+    <routeOwnerContext.Provider value={runtime.owner}>
+      <RouterProvider router={runtime.router} />
+    </routeOwnerContext.Provider>
+  );
+}
+
+/** Creates the production router and owner before RouterProvider renders. */
+export function createAzuriteRouterRuntime(): AzuriteRouterRuntime {
+  const history = createBrowserHistory();
+  const router = createAzuriteRouter(history);
+  const owner = createRouteTransitionOwner({
+    history,
+    router: createRouterAdapter(router),
+  });
+  return { owner, router };
+}
+
+function AppRoute(): ReactElement {
+  const search = getCurrentSearch(appRoute.useSearch());
+  return (
     <App
-      devDiagnostics={currentSearch["azurite-dev"]}
-      navigation={navigation}
-      routeNoteId={routeNoteId}
+      devDiagnostics={search["azurite-dev"]}
+      transitionOwner={useRouteTransitionOwner()}
     />
   );
 }
 
-function getCurrentSearch(search: AppSearch): AppSearch {
-  if (typeof window === "undefined") {
-    return parseAppSearch(search);
+function useRouteTransitionOwner(): RouteTransitionOwner {
+  const owner = useContext(routeOwnerContext);
+  if (owner === undefined) {
+    throw new Error("Azurite route-transition owner is unavailable.");
   }
-
-  return parseAppLocationSearch(window.location.search);
+  return owner;
 }
 
-function createNoteNavigationSearch(
-  search: AppSearch,
-  noteId: string,
-): AppSearch {
-  if (search["azurite-dev"] === "sentry-test") {
-    return { "azurite-dev": "sentry-test", note: noteId };
-  }
+function createRouterAdapter(
+  router: AzuriteRouter,
+): Parameters<typeof createRouteTransitionOwner>[0]["router"] {
+  return {
+    historyLocation: () => router.history.location,
+    navigate: async (input) => {
+      await router.navigate({
+        href: input.href,
+        replace: input.replace,
+        state: (previous) => ({
+          ...previous,
+          [applicationNavigationTokenStateKey]: input.token,
+        }),
+      });
+    },
+    subscribeHistory: (listener) =>
+      router.history.subscribe(({ location }) => {
+        listener(location);
+      }),
+    subscribeResolved: (listener) =>
+      router.subscribe("onResolved", ({ toLocation }) => {
+        listener(toHistoryLocation(toLocation));
+      }),
+  };
+}
 
-  return { note: noteId };
+function toHistoryLocation(
+  location: Parameters<
+    Parameters<AzuriteRouter["subscribe"]>[1]
+  >[0]["toLocation"],
+): HistoryLocation {
+  return {
+    hash: location.hash,
+    href: location.href,
+    pathname: location.pathname,
+    search: location.searchStr,
+    state: location.state,
+  };
+}
+
+function getCurrentSearch(search: AppSearch): AppSearch {
+  return typeof window === "undefined"
+    ? parseAppSearch(search)
+    : parseAppLocationSearch(window.location.search);
 }

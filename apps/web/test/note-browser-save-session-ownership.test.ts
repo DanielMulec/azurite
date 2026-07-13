@@ -13,6 +13,7 @@ import {
   createSeededStore,
   readyClusterIdentity,
 } from "./note-browser-store-test-helpers.js";
+import { selectTestNote } from "./note-browser-route-test-helpers.js";
 
 const failureCases = [
   {
@@ -134,12 +135,12 @@ describe("save result editor-session ownership", () => {
         api: createApi({ saveNote: vi.fn(() => saveResult.promise) }),
       });
 
-      await store.getState().selectNote("index.md");
+      await selectTestNote(store, "index.md");
       store.getState().updateDraftMarkdown("# Saved snapshot");
       const originalSession = getReadySession(store.getState().noteState);
       const save = store.getState().saveSelectedNote();
-      await store.getState().selectNote("Projects/azurite.md");
-      await store.getState().selectNote("index.md");
+      await selectTestNote(store, "Projects/azurite.md");
+      await selectTestNote(store, "index.md");
       const reopenedSession = getReadySession(store.getState().noteState);
       expect(reopenedSession.sessionKey).not.toBe(originalSession.sessionKey);
 

@@ -4,11 +4,13 @@ import type {
   DraftRecoveryStatus,
   NoteViewState,
 } from "../state/note-browser-types.js";
+import type { RouteHistoryStatus } from "../routing/route-transition-types.js";
 import { SaveableNoteEditor } from "./SaveableNoteEditor.js";
 
 type NoteEditorSurfaceProps = {
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly noteState: NoteViewState;
+  readonly routeHistoryStatus: RouteHistoryStatus;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onDiscardMissingDraft: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
@@ -29,10 +31,12 @@ export function NoteEditorSurface({
   onEditorModeChange,
   onMarkdownChange,
   onSaveNote,
+  routeHistoryStatus,
 }: NoteEditorSurfaceProps): ReactElement {
   return (
     <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
       <DraftRecoveryBanner draftRecoveryStatus={draftRecoveryStatus} />
+      <RouteHistoryBanner routeHistoryStatus={routeHistoryStatus} />
       {renderNoteState({
         draftRecoveryStatus,
         noteState,
@@ -41,6 +45,7 @@ export function NoteEditorSurface({
         onEditorModeChange,
         onMarkdownChange,
         onSaveNote,
+        routeHistoryStatus,
       })}
     </section>
   );
@@ -76,7 +81,7 @@ function SelectedNote({
   >["editor"];
 }): ReactElement {
   return (
-    <article className="mx-auto max-w-3xl">
+    <article className="mx-auto max-w-3xl" data-note-id={editor.note.id}>
       <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
         <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
           {editor.note.relativePath}
@@ -93,6 +98,21 @@ function SelectedNote({
         onSaveNote={onSaveNote}
       />
     </article>
+  );
+}
+
+function RouteHistoryBanner({
+  routeHistoryStatus,
+}: {
+  readonly routeHistoryStatus: RouteHistoryStatus;
+}): ReactElement | null {
+  if (routeHistoryStatus.status !== "degraded") {
+    return null;
+  }
+  return (
+    <p className="mx-auto mb-4 max-w-3xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+      {routeHistoryStatus.message}
+    </p>
   );
 }
 
@@ -123,7 +143,7 @@ function MissingNoteDraft({
   readonly onDiscardMissingDraft: () => Promise<void>;
 }): ReactElement {
   return (
-    <article className="mx-auto max-w-3xl">
+    <article className="mx-auto max-w-3xl" data-note-id={noteState.noteId}>
       <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
         <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
           {noteState.noteId}

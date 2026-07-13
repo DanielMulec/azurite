@@ -1,60 +1,76 @@
 import {
   noteRouteSources,
-  runtimeObservabilityAttributeNames,
   runtimeObservabilityEventNames,
   runtimeSpanNames,
 } from "@azurite/shared";
 
+import type {
+  RouteNotesResult,
+  RouteStoreApplyInput,
+  RouteStoreApplyResult,
+} from "../routing/route-store-executor.js";
 import {
   applyClusterIdentity,
   getErrorMessage,
-  isSelectedNoteReady,
-  keepRenderedNoteWhileLoading,
 } from "./note-browser-action-utils.js";
-import type {
-  RouteNavigation,
-  StoreContext,
-} from "./note-browser-contracts.js";
+import type { StoreContext } from "./note-browser-contracts.js";
 import {
   createBrowserOperationEvidence,
   recordListResult,
-  recordRouteEvidence,
   runBrowserOperation,
   staleFailed,
   staleSucceeded,
   type BrowserOperationEvidence,
 } from "./note-browser-evidence.js";
 import {
-  createNoteRequestMetadata,
-  createRequestMetadata,
-} from "./note-operation-metadata.js";
-import {
-  readSelectedNote,
-  recoverMissingRouteNote,
+  readAuthorizedNote,
+  recoverMissingAuthorizedRoute,
 } from "./note-browser-read-actions.js";
+import { getCoherentRouteView } from "./note-browser-route-predicates.js";
+import { applyEmptyRoute } from "./note-browser-route-state.js";
+import { createRequestMetadata } from "./note-operation-metadata.js";
 
-type SelectNoteOptions = {
-  readonly forceReload?: boolean;
-  readonly routeSource?: (typeof noteRouteSources)[keyof typeof noteRouteSources];
-};
-
-type RouteSyncInput = {
-  readonly context: StoreContext;
-  readonly navigation: RouteNavigation;
-  readonly notes: readonly { readonly id: string }[];
-  readonly routeNoteId: string | undefined;
-};
 type ListCompletion = {
   readonly context: StoreContext;
   readonly evidence: BrowserOperationEvidence;
   readonly requestSequence: number;
 };
 
-/** Loads note summaries and synchronizes the selected note from the URL. */
-export async function loadNotesAction(
-  navigation: RouteNavigation,
+/** Coalesces and returns the one current notes-list readiness operation. */
+export function ensureNotesAction(
   context: StoreContext,
-): Promise<void> {
+): Promise<RouteNotesResult> {
+  const active = context.getActiveNotesLoad();
+  if (active !== undefined) {
+    return active.promise;
+  }
+  const ready = readReadyNotes(context);
+  return ready === undefined ? startNotesLoad(context) : Promise.resolve(ready);
+}
+
+/** Applies one exact route intent across selection, recovery, and note reads. */
+export async function applyRouteAction(
+  input: RouteStoreApplyInput,
+  context: StoreContext,
+): Promise<RouteStoreApplyResult> {
+  if (context.getCurrentRouteIntentKey() !== input.authorization.intentKey) {
+    return { status: "stale" };
+  }
+  const coherent = getCoherentRouteView(
+    {
+      activeLoad: context.getActiveNoteLoad(),
+      noteId: input.noteId,
+      occurrence: input.location,
+    },
+    context.get(),
+  );
+  if (coherent !== undefined) {
+    return coherent;
+  }
+  return await applyIncoherentRoute(input, context);
+}
+
+function startNotesLoad(context: StoreContext): Promise<RouteNotesResult> {
   const requestSequence = context.nextNotesRequestSequence();
   const metadata = createRequestMetadata();
   const evidence = createBrowserOperationEvidence({
@@ -62,234 +78,43 @@ export async function loadNotesAction(
     requestSequence,
   });
   context.set({ notesState: { status: "loading" } });
-  return runBrowserOperation({
-    callback: async () => {
-      try {
-        const response = await context.api.listNotes(metadata);
-        if (
-          !applyListSuccess(response, { context, evidence, requestSequence })
-        ) {
-          return;
-        }
-        await syncRouteNoteAction(
-          context.getLatestRouteNoteId(),
-          navigation,
-          context,
-        );
-      } catch (error) {
-        applyListFailure(error, { context, evidence, requestSequence });
-      }
-    },
+  const promise = runBrowserOperation({
+    callback: async () =>
+      await performNotesLoad(metadata, {
+        context,
+        evidence,
+        requestSequence,
+      }),
     evidence,
     eventName: runtimeObservabilityEventNames.notesListStarted,
     spanName: runtimeSpanNames.notesList,
     startAttributes: {},
-  });
-}
-
-/** Synchronizes the selected-note state from typed route search params. */
-export async function syncRouteNoteAction(
-  routeNoteId: string | undefined,
-  navigation: RouteNavigation,
-  context: StoreContext,
-): Promise<void> {
-  const notesState = context.get().notesState;
-
-  if (notesState.status !== "ready") {
-    return;
-  }
-
-  await syncReadyRouteNote({
-    context,
-    navigation,
-    notes: notesState.data,
-    routeNoteId,
-  });
-}
-
-/** Selects and loads one note while guarding against stale responses. */
-export function selectNoteAction(
-  noteId: string,
-  context: StoreContext,
-  options?: SelectNoteOptions,
-): Promise<void> {
-  const resolvedOptions = resolveSelectNoteOptions(options);
-  const coalescedPromise = getCoalescedLoadPromise(
-    noteId,
-    resolvedOptions,
-    context,
-  );
-  if (coalescedPromise !== undefined) {
-    return coalescedPromise;
-  }
-
-  if (shouldSkipNoteSelection(noteId, context, resolvedOptions)) {
-    return Promise.resolve();
-  }
-
-  return startSelectedNoteLoad(noteId, context, resolvedOptions);
-}
-
-const emptySelectNoteOptions: SelectNoteOptions = Object.freeze({});
-
-function resolveSelectNoteOptions(
-  options: SelectNoteOptions | undefined,
-): SelectNoteOptions {
-  return options ?? emptySelectNoteOptions;
-}
-
-function startSelectedNoteLoad(
-  noteId: string,
-  context: StoreContext,
-  options: SelectNoteOptions,
-): Promise<void> {
-  const requestSequence = startNoteLoad(noteId, context);
-  const metadata = createNoteRequestMetadata();
-  const routeSource = options.routeSource ?? noteRouteSources.noteList;
-  recordSelectionRoute(noteId, routeSource);
-  const evidence = createBrowserOperationEvidence({
-    metadata,
-    noteId,
-    requestSequence,
-    routeSource,
-  });
-  const promise = runBrowserOperation({
-    callback: () => readSelectedNote(evidence, context),
-    evidence,
-    eventName: runtimeObservabilityEventNames.noteLoadStarted,
-    spanName: runtimeSpanNames.noteLoad,
-    startAttributes: {
-      [runtimeObservabilityAttributeNames.routeSource]: routeSource,
-    },
   }).finally(() => {
-    context.clearActiveNoteLoad(promise);
+    context.clearActiveNotesLoad(promise);
   });
-  context.setActiveNoteLoad({
-    metadata,
-    noteId,
-    promise,
-    requestSequence,
-    routeSource,
-  });
+  context.setActiveNotesLoad({ promise, requestSequence });
   return promise;
 }
 
-function getCoalescedLoadPromise(
-  noteId: string,
-  options: SelectNoteOptions,
-  context: StoreContext,
-): Promise<void> | undefined {
-  if (options.forceReload === true) {
-    return undefined;
+async function performNotesLoad(
+  metadata: Parameters<StoreContext["api"]["listNotes"]>[0],
+  completion: ListCompletion,
+): Promise<RouteNotesResult> {
+  try {
+    const response = await completion.context.api.listNotes(metadata);
+    return applyListSuccess(response, completion);
+  } catch (error) {
+    return applyListFailure(error, completion);
   }
-  return context.getActiveNoteLoad(noteId)?.promise;
 }
-
-async function syncReadyRouteNote(input: RouteSyncInput): Promise<void> {
-  if (input.notes.length === 0) {
-    applyEmptyNoteList(input.context);
-    return;
-  }
-
-  await syncNonEmptyRouteNote(input);
-}
-
-async function syncNonEmptyRouteNote(input: RouteSyncInput): Promise<void> {
-  if (input.routeNoteId === undefined) {
-    await selectStartupNote(input.notes, input.navigation, input.context);
-    return;
-  }
-
-  await syncExplicitRouteNote(input.routeNoteId, input.notes, input.context);
-}
-
-async function selectStartupNote(
-  notes: readonly { readonly id: string }[],
-  navigation: RouteNavigation,
-  context: StoreContext,
-): Promise<void> {
-  const firstNoteId = notes[0]?.id;
-
-  if (firstNoteId === undefined) {
-    return;
-  }
-
-  const selection = selectNoteAction(firstNoteId, context, {
-    routeSource: noteRouteSources.startupFallback,
-  });
-  navigation.replaceSelectedNote(firstNoteId);
-  await selection;
-}
-
-async function syncExplicitRouteNote(
-  noteId: string,
-  notes: readonly { readonly id: string }[],
-  context: StoreContext,
-): Promise<void> {
-  if (notes.some((note) => note.id === noteId)) {
-    await selectNoteAction(noteId, context, {
-      routeSource: noteRouteSources.urlSync,
-    });
-    return;
-  }
-
-  recordRouteEvidence(
-    runtimeObservabilityEventNames.noteRouteSynchronized,
-    noteId,
-    noteRouteSources.urlSync,
-  );
-  await recoverMissingRouteNote(noteId, context);
-}
-
-function applyEmptyNoteList(context: StoreContext): void {
-  context.set({ noteState: { status: "idle" }, selectedNoteId: undefined });
-}
-
-function shouldSkipNoteSelection(
-  noteId: string,
-  context: StoreContext,
-  options: SelectNoteOptions,
-): boolean {
-  return (
-    options.forceReload !== true &&
-    isSelectedNoteReady(noteId, context.get().noteState)
-  );
-}
-
-function startNoteLoad(noteId: string, context: StoreContext): number {
-  const requestSequence = context.nextNoteRequestSequence();
-  context.set((state) => ({
-    noteState: keepRenderedNoteWhileLoading(state.noteState),
-    selectedNoteId: noteId,
-  }));
-
-  return requestSequence;
-}
-
-function recordSelectionRoute(noteId: string, routeSource: string): void {
-  const eventName = routeEventNames[routeSource];
-  if (eventName === undefined) {
-    return;
-  }
-  recordRouteEvidence(eventName, noteId, routeSource);
-}
-
-const routeEventNames: Readonly<Record<string, string | undefined>> = {
-  [noteRouteSources.noteList]:
-    runtimeObservabilityEventNames.noteRouteNavigationRequested,
-  [noteRouteSources.startupFallback]:
-    runtimeObservabilityEventNames.noteRouteNavigationRequested,
-  [noteRouteSources.urlSync]:
-    runtimeObservabilityEventNames.noteRouteSynchronized,
-};
 
 function applyListSuccess(
   response: Awaited<ReturnType<StoreContext["api"]["listNotes"]>>,
   completion: ListCompletion,
-): boolean {
+): RouteNotesResult {
   if (!completion.context.isCurrentNotesRequest(completion.requestSequence)) {
     recordListResult(completion.evidence, { staleCompletion: staleSucceeded });
-    return false;
+    return { status: "failed" };
   }
   recordListResult(completion.evidence, {
     clusterIdentity: response.clusterIdentity,
@@ -299,16 +124,114 @@ function applyListSuccess(
   completion.context.set({
     notesState: { data: response.notes, status: "ready" },
   });
-  return true;
+  return { noteIds: response.notes.map((note) => note.id), status: "ready" };
 }
 
-function applyListFailure(error: unknown, completion: ListCompletion): void {
+function applyListFailure(
+  error: unknown,
+  completion: ListCompletion,
+): RouteNotesResult {
   if (!completion.context.isCurrentNotesRequest(completion.requestSequence)) {
     recordListResult(completion.evidence, { staleCompletion: staleFailed });
-    return;
+    return { status: "failed" };
   }
   recordListResult(completion.evidence, { error });
   completion.context.set({
     notesState: { message: getErrorMessage(error), status: "error" },
   });
+  return { status: "failed" };
+}
+
+function readReadyNotes(context: StoreContext): RouteNotesResult | undefined {
+  const notesState = context.get().notesState;
+  return notesState.status === "ready"
+    ? { noteIds: notesState.data.map((note) => note.id), status: "ready" }
+    : undefined;
+}
+
+async function applyIncoherentRoute(
+  input: RouteStoreApplyInput,
+  context: StoreContext,
+): Promise<RouteStoreApplyResult> {
+  if (input.noteId === undefined) {
+    return applyEmptyRoute(input.location, context)
+      ? {
+          requestSequence: undefined,
+          status: "applied",
+          view: "empty",
+        }
+      : { reason: "store_apply_failed", status: "failed" };
+  }
+  return await applyNoteRoute({ ...input, noteId: input.noteId }, context);
+}
+
+async function applyNoteRoute(
+  input: RouteStoreApplyInput & { readonly noteId: string },
+  context: StoreContext,
+): Promise<RouteStoreApplyResult> {
+  const readInput = {
+    authorization: input.authorization,
+    location: input.location,
+    noteId: input.noteId,
+    routeSource: input.cause,
+  };
+  return isNoteInReadyList(input.noteId, context)
+    ? await readAuthorizedNote(readInput, context)
+    : await recoverMissingAuthorizedRoute(readInput, context);
+}
+
+function isNoteInReadyList(noteId: string, context: StoreContext): boolean {
+  const notesState = context.get().notesState;
+  return (
+    notesState.status === "ready" &&
+    notesState.data.some((note) => note.id === noteId)
+  );
+}
+
+/** Forces a fresh same-note read without route or history ownership. */
+export async function reloadSelectedNoteAction(
+  context: StoreContext,
+): Promise<RouteStoreApplyResult> {
+  const target = getExplicitReloadTarget(context);
+  if (target === undefined) {
+    return { status: "stale" };
+  }
+  return await readAuthorizedNote(
+    {
+      authorization: {
+        authorizationKey: `explicit-reload-${String(context.nextNoteRequestSequence())}`,
+        kind: "explicit_reload",
+        source: "draft_discard_reload",
+      },
+      forceReload: true,
+      location: target.location,
+      noteId: target.noteId,
+      routeSource: noteRouteSources.draftDiscardReload,
+    },
+    context,
+  );
+}
+
+function getExplicitReloadTarget(context: StoreContext):
+  | {
+      readonly location: NonNullable<
+        ReturnType<StoreContext["get"]>["committedRouteView"]
+      >["location"];
+      readonly noteId: string;
+    }
+  | undefined {
+  const snapshot = context.get();
+  if (snapshot.selectedNoteId === undefined) {
+    return undefined;
+  }
+  const location = getCommittedLocation(snapshot.committedRouteView);
+  return location === undefined
+    ? undefined
+    : { location, noteId: snapshot.selectedNoteId };
+}
+
+function getCommittedLocation(
+  view: ReturnType<StoreContext["get"]>["committedRouteView"],
+) {
+  return view?.location;
 }

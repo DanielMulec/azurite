@@ -1,37 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
+import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
+import { createBaselineRouteDraftGate } from "./state/baseline-route-draft-gate.js";
 import {
+  createNoteBrowserRouteExecutor,
   createNoteBrowserStore,
-  type NoteBrowserStore,
 } from "./state/note-browser-store.js";
 import type {
   DraftRecoveryStatus,
   LoadableNotes,
   NoteViewState,
 } from "./state/note-browser-types.js";
-
-type NoteBrowserNavigation = {
-  readonly pushSelectedNote: (noteId: string) => void;
-  readonly replaceSelectedNote: (noteId: string) => void;
-};
-
-type UseNoteBrowserInput = {
-  readonly navigation: NoteBrowserNavigation;
-  readonly routeNoteId: string | undefined;
-};
+import type { RouteHistoryStatus } from "./routing/route-transition-types.js";
 
 type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
-
-type NoteBrowserSelectors = Omit<NoteBrowserState, "selectNote"> & {
-  readonly selectNoteInStore: NoteBrowserStore["selectNote"];
-};
-
-type RouteEffectInput = {
-  readonly routeNavigation: Pick<NoteBrowserNavigation, "replaceSelectedNote">;
-  readonly routeNoteId: string | undefined;
-  readonly store: NoteBrowserStoreApi;
-};
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
@@ -40,6 +23,7 @@ export type NoteBrowserState = {
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly noteState: NoteViewState;
   readonly notesState: LoadableNotes;
+  readonly routeHistoryStatus: RouteHistoryStatus;
   readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
@@ -47,56 +31,43 @@ export type NoteBrowserState = {
   readonly updateEditorMode: (editorMode: "markdown" | "wysiwyg") => void;
 };
 
-/** Connects React route state to the note browser store. */
-export function useNoteBrowser({
-  navigation,
-  routeNoteId,
-}: UseNoteBrowserInput): NoteBrowserState {
+/** Connects the route owner and React UI to one note-browser store. */
+export function useNoteBrowser(
+  transitionOwner: RouteTransitionOwner,
+): NoteBrowserState {
   const [store] = useState(createNoteBrowserStore);
-  const routeNavigation = useRouteNavigation(navigation);
-  const selectors = useNoteBrowserSelectors(store);
-  const selectNote = usePushSelectingNote(
-    navigation,
-    store,
-    selectors.selectNoteInStore,
-  );
-  const routeEffectInput = useMemo(
-    () => ({
-      routeNavigation,
-      routeNoteId,
-      store,
-    }),
-    [routeNavigation, routeNoteId, store],
-  );
-
-  useRouteDrivenNoteLoading(routeEffectInput);
+  useRouteRuntimeRegistration(store, transitionOwner);
   useDraftLifecycleFlush(store);
-
-  return {
-    discardDraftAndReloadDiskVersion:
-      selectors.discardDraftAndReloadDiskVersion,
-    discardMissingDraft: selectors.discardMissingDraft,
-    draftRecoveryStatus: selectors.draftRecoveryStatus,
-    noteState: selectors.noteState,
-    notesState: selectors.notesState,
-    saveSelectedNote: selectors.saveSelectedNote,
-    selectNote,
-    selectedNoteId: selectors.selectedNoteId,
-    updateDraftMarkdown: selectors.updateDraftMarkdown,
-    updateEditorMode: selectors.updateEditorMode,
-  };
-}
-
-function useRouteNavigation(navigation: NoteBrowserNavigation) {
-  return useMemo(
-    () => ({ replaceSelectedNote: navigation.replaceSelectedNote }),
-    [navigation.replaceSelectedNote],
+  const state = useNoteBrowserSelectors(store);
+  const selectNote = useCallback(
+    (noteId: string) => {
+      void transitionOwner.selectNote(noteId);
+    },
+    [transitionOwner],
   );
+
+  return { ...state, selectNote };
 }
 
-function useNoteBrowserSelectors(
+function useRouteRuntimeRegistration(
   store: NoteBrowserStoreApi,
-): NoteBrowserSelectors {
+  transitionOwner: RouteTransitionOwner,
+): void {
+  useEffect(() => {
+    const unregisterGate = transitionOwner.registerGate(
+      createBaselineRouteDraftGate(store),
+    );
+    const unregisterExecutor = transitionOwner.registerStoreExecutor(
+      createNoteBrowserRouteExecutor(store),
+    );
+    return () => {
+      unregisterExecutor();
+      unregisterGate();
+    };
+  }, [store, transitionOwner]);
+}
+
+function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
   return {
     discardDraftAndReloadDiskVersion: useStore(
       store,
@@ -106,35 +77,12 @@ function useNoteBrowserSelectors(
     draftRecoveryStatus: useStore(store, (state) => state.draftRecoveryStatus),
     noteState: useStore(store, (state) => state.noteState),
     notesState: useStore(store, (state) => state.notesState),
+    routeHistoryStatus: useStore(store, (state) => state.routeHistoryStatus),
     saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
-    selectNoteInStore: useStore(store, (state) => state.selectNote),
     selectedNoteId: useStore(store, (state) => state.selectedNoteId),
     updateDraftMarkdown: useStore(store, (state) => state.updateDraftMarkdown),
     updateEditorMode: useStore(store, (state) => state.updateEditorMode),
   };
-}
-
-function useRouteDrivenNoteLoading(input: RouteEffectInput): void {
-  const didLoadNotesRef = useRef(false);
-  const loadNotes = useStore(input.store, (state) => state.loadNotes);
-  const syncRouteNote = useStore(input.store, (state) => state.syncRouteNote);
-
-  useEffect(() => {
-    if (didLoadNotesRef.current) {
-      return;
-    }
-
-    didLoadNotesRef.current = true;
-    void loadNotes(input.routeNoteId, input.routeNavigation);
-  }, [didLoadNotesRef, input, loadNotes]);
-
-  useEffect(() => {
-    if (!didLoadNotesRef.current) {
-      return;
-    }
-
-    void syncRouteNote(input.routeNoteId, input.routeNavigation);
-  }, [didLoadNotesRef, input, syncRouteNote]);
 }
 
 function useDraftLifecycleFlush(store: NoteBrowserStoreApi): void {
@@ -150,34 +98,9 @@ function useDraftLifecycleFlush(store: NoteBrowserStoreApi): void {
 
     document.addEventListener("visibilitychange", flushWhenHidden);
     window.addEventListener("pagehide", flushDraft);
-
     return () => {
       document.removeEventListener("visibilitychange", flushWhenHidden);
       window.removeEventListener("pagehide", flushDraft);
     };
   }, [store]);
-}
-
-function usePushSelectingNote(
-  navigation: NoteBrowserNavigation,
-  store: NoteBrowserStoreApi,
-  selectNoteInStore: NoteBrowserStore["selectNote"],
-): (noteId: string) => void {
-  return useCallback(
-    (noteId: string) => {
-      const previousSelectedNoteId = store.getState().selectedNoteId;
-
-      void selectNoteInStore(noteId).then(() => {
-        const currentSelectedNoteId = store.getState().selectedNoteId;
-
-        if (
-          currentSelectedNoteId === noteId &&
-          previousSelectedNoteId !== noteId
-        ) {
-          navigation.pushSelectedNote(noteId);
-        }
-      });
-    },
-    [navigation, selectNoteInStore, store],
-  );
 }

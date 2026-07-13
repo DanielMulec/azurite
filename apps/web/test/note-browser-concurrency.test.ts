@@ -16,6 +16,11 @@ import {
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
+import {
+  loadTestRoute,
+  selectTestNote,
+  syncTestRoute,
+} from "./note-browser-route-test-helpers.js";
 
 describe("note load operation ownership", () => {
   it("coalesces startup replacement and its same-note URL echo", async () => {
@@ -28,11 +33,11 @@ describe("note load operation ownership", () => {
     let routeEcho: Promise<void> | undefined;
     const navigation = {
       replaceSelectedNote: vi.fn((noteId: string) => {
-        routeEcho = store.getState().syncRouteNote(noteId, navigation);
+      routeEcho = syncTestRoute(store, noteId);
       }),
     };
 
-    const load = store.getState().loadNotes(undefined, navigation);
+    const load = loadTestRoute(store, undefined, navigation);
     await vi.waitFor(() => {
       expect(readNote).toHaveBeenCalledOnce();
     });
@@ -67,8 +72,8 @@ describe("overlapping note-list ownership", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    const older = store.getState().loadNotes(undefined, navigation);
-    const newer = store.getState().loadNotes(undefined, navigation);
+    const older = loadTestRoute(store, undefined, navigation);
+    const newer = loadTestRoute(store, undefined, navigation);
     second.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
     await newer;
     first.reject(new Error("stale failure"));
@@ -80,8 +85,8 @@ describe("overlapping note-list ownership", () => {
     listNotes
       .mockReturnValueOnce(third.promise)
       .mockReturnValueOnce(fourth.promise);
-    const olderSuccess = store.getState().loadNotes(undefined, navigation);
-    const newerFailure = store.getState().loadNotes(undefined, navigation);
+    const olderSuccess = loadTestRoute(store, undefined, navigation);
+    const newerFailure = loadTestRoute(store, undefined, navigation);
     fourth.reject(new Error("current failure"));
     await newerFailure;
     third.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
@@ -160,7 +165,7 @@ describe("saved draft reconciliation after navigation", () => {
     store.getState().updateDraftMarkdown("# Saved elsewhere");
     await store.getState().flushPendingDraft();
     const save = store.getState().saveSelectedNote();
-    await store.getState().selectNote("Projects/azurite.md");
+    await selectTestNote(store, "Projects/azurite.md");
 
     deferred.resolve({
       clusterIdentity: readyClusterIdentity,
@@ -194,7 +199,7 @@ describe("newer draft reconciliation after navigation", () => {
       markdown: "# Newer recovery",
       updatedAt: "2026-07-11T12:00:00.000Z",
     });
-    await store.getState().selectNote("Projects/azurite.md");
+    await selectTestNote(store, "Projects/azurite.md");
 
     deferred.resolve({
       clusterIdentity: readyClusterIdentity,
@@ -220,7 +225,7 @@ describe("overlapping different-note saves", () => {
     const store = createLoadedStore({ api: createApi({ saveNote }) });
     store.getState().updateDraftMarkdown("# Home save");
     const first = store.getState().saveSelectedNote();
-    await store.getState().selectNote("Projects/azurite.md");
+    await selectTestNote(store, "Projects/azurite.md");
     store.getState().updateDraftMarkdown("# Project save");
     const second = store.getState().saveSelectedNote();
 

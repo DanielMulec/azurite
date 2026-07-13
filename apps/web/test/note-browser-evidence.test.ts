@@ -18,6 +18,7 @@ import {
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
+import { selectTestNote } from "./note-browser-route-test-helpers.js";
 
 afterEach(() => {
   resetWebSentryRuntimeForTests();
@@ -36,8 +37,8 @@ describe("overlapping browser evidence", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    const staleLoad = store.getState().selectNote("index.md");
-    const currentLoad = store.getState().selectNote("Projects/azurite.md");
+    const staleLoad = selectTestNote(store, "index.md");
+    const currentLoad = selectTestNote(store, "Projects/azurite.md");
     project.resolve({
       clusterIdentity: readyClusterIdentity,
       note: createNote("Projects/azurite.md", "# Project", "sha256-project"),
@@ -83,8 +84,8 @@ describe("stale failed browser evidence", () => {
     );
     const store = createSeededStore({ api: createApi({ readNote }) });
 
-    const staleLoad = store.getState().selectNote("index.md");
-    const currentLoad = store.getState().selectNote("Projects/azurite.md");
+    const staleLoad = selectTestNote(store, "index.md");
+    const currentLoad = selectTestNote(store, "Projects/azurite.md");
     project.resolve({
       clusterIdentity: readyClusterIdentity,
       note: createNote("Projects/azurite.md", "# Project", "sha256-project"),

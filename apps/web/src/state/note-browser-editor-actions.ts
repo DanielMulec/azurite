@@ -1,5 +1,4 @@
 import {
-  noteRouteSources,
   runtimeObservabilityAttributeNames,
   runtimeObservabilityEventNames,
   runtimeSpanNames,
@@ -26,7 +25,7 @@ import {
   type BrowserOperationEvidence,
 } from "./note-browser-evidence.js";
 import { createNoteRequestMetadata } from "./note-operation-metadata.js";
-import { selectNoteAction } from "./note-browser-route-actions.js";
+import { reloadSelectedNoteAction } from "./note-browser-route-actions.js";
 import {
   applySaveFailure,
   applySaveResponse,
@@ -166,10 +165,7 @@ export async function discardDraftAndReloadDiskVersionAction(
 
   const noteId = noteState.editor.note.id;
   await clearDraftForNote(noteId, context);
-  await selectNoteAction(noteId, context, {
-    forceReload: true,
-    routeSource: noteRouteSources.draftDiscardReload,
-  });
+  await reloadSelectedNoteAction(context);
 }
 
 /** Deletes a recovered draft for a note that no longer exists on disk. */
