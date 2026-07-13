@@ -199,6 +199,44 @@ describe("missing-note terminal Discard", () => {
   });
 });
 
+describe("protected missing-note recovery", () => {
+  it("rejects a direct Discard call for a future-version record", async () => {
+    const deleteDraft = vi.fn<DraftPersistence["deleteDraft"]>();
+    const memory = createMemoryDraftPersistence([]);
+    const store = createNoteBrowserStore({
+      api: createApi(),
+      draftPersistence: { ...memory.persistence, deleteDraft },
+    });
+    store.setState({
+      noteState: {
+        draft: {
+          editorMode: "markdown",
+          markdown: "# Preserved by a newer build",
+          updatedAt: "2026-07-08T10:00:00.000Z",
+        },
+        draftDisposition: "preserved_unknown",
+        draftEpoch: 1,
+        noteId: "deleted.md",
+        persistenceIssue: undefined,
+        preservedSchemaVersion: 7,
+        renderedOwnerKey: "deleted.md:missing-draft:1",
+        status: "missing-draft",
+      },
+    });
+
+    await expect(
+      store.getState().discardDraftAndReloadDiskVersion(),
+    ).resolves.toBeUndefined();
+
+    expect(deleteDraft).not.toHaveBeenCalled();
+    expect(store.getState().noteState).toMatchObject({
+      draftDisposition: "preserved_unknown",
+      preservedSchemaVersion: 7,
+      status: "missing-draft",
+    });
+  });
+});
+
 function getEditor(store: ReturnType<typeof createLoadedStore>) {
   const state = store.getState().noteState;
   if (state.status !== "ready") {
