@@ -1,3 +1,5 @@
+import type { StoreApi } from "zustand/vanilla";
+
 import type { RouteTransitionGate } from "../routing/route-transition-types.js";
 import type { NoteBrowserStore } from "./note-browser-contracts.js";
 
@@ -31,4 +33,3 @@ function recordThrownDraftFlush(store: StoreApi<NoteBrowserStore>): void {
     // Production navigation remains fail-open even when a subscriber throws.
   }
 }
-import type { StoreApi } from "zustand/vanilla";

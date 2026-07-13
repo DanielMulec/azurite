@@ -14,11 +14,7 @@ import {
 import { createTestRouteExecutor } from "./route-store-executor-test-helper.js";
 
 describe("route owner navigation rejection", () => {
-  it.each([
-    "reject_before_echo",
-    "reject_after_echo",
-    "throw_sync",
-  ] as const)(
+  it.each(["reject_before_echo", "reject_after_echo", "throw_sync"] as const)(
     "settles %s without applying the rejected target",
     async (mode) => {
       const harness = createRouteOwnerHarness();
@@ -51,7 +47,10 @@ describe("route owner application fault containment", () => {
     const failing = createTestRouteExecutor({ activateRouteIntent });
     harness.owner.registerStoreExecutor(failing.executor);
     const settle = vi.fn<RouteTransitionGate["settle"]>();
-    harness.owner.registerGate({ prepare: () => ({ status: "continue" }), settle });
+    harness.owner.registerGate({
+      prepare: () => ({ status: "continue" }),
+      settle,
+    });
 
     await expect(harness.owner.selectNote("b.md")).resolves.toMatchObject({
       noteId: "b.md",
