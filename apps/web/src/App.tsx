@@ -53,11 +53,12 @@ export function App({
             browser.discardDraftAndReloadDiskVersion
           }
           onDiscardMissingDraft={browser.discardMissingDraft}
-          onMarkdownChange={browser.updateDraftMarkdown}
+          onPublishMarkdown={browser.publishMarkdownChange}
           noteState={browser.noteState}
           routeHistoryStatus={browser.routeHistoryStatus}
           onSaveNote={browser.saveSelectedNote}
           onEditorModeChange={browser.updateEditorMode}
+          sessionGate={browser.editorSessionGate}
         />
       </div>
     </main>

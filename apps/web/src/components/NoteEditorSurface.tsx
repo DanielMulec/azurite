@@ -5,6 +5,11 @@ import type {
   NoteViewState,
 } from "../state/note-browser-types.js";
 import type { RouteHistoryStatus } from "../routing/route-transition-types.js";
+import type {
+  PublicationCommand,
+  PublicationResult,
+} from "../domain/markdown-authority-types.js";
+import type { EditorSessionGate } from "./editor-session-gate.js";
 import { SaveableNoteEditor } from "./SaveableNoteEditor.js";
 
 type NoteEditorSurfaceProps = {
@@ -14,8 +19,11 @@ type NoteEditorSurfaceProps = {
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onDiscardMissingDraft: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
-  readonly onMarkdownChange: (markdown: string) => void;
+  readonly onPublishMarkdown: (
+    command: PublicationCommand,
+  ) => PublicationResult;
   readonly onSaveNote: () => Promise<void>;
+  readonly sessionGate: EditorSessionGate;
 };
 type NonReadyNote = Exclude<
   NoteViewState,
@@ -29,9 +37,10 @@ export function NoteEditorSurface({
   onDiscardDraftAndReloadDiskVersion,
   onDiscardMissingDraft,
   onEditorModeChange,
-  onMarkdownChange,
+  onPublishMarkdown,
   onSaveNote,
   routeHistoryStatus,
+  sessionGate,
 }: NoteEditorSurfaceProps): ReactElement {
   return (
     <section className="min-h-[32rem] border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5 shadow-sm md:min-h-[calc(100vh-7rem)] md:p-8">
@@ -43,9 +52,10 @@ export function NoteEditorSurface({
         onDiscardDraftAndReloadDiskVersion,
         onDiscardMissingDraft,
         onEditorModeChange,
-        onMarkdownChange,
+        onPublishMarkdown,
         onSaveNote,
         routeHistoryStatus,
+        sessionGate,
       })}
     </section>
   );
@@ -72,8 +82,9 @@ function SelectedNote({
   editor,
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
-  onMarkdownChange,
+  onPublishMarkdown,
   onSaveNote,
+  sessionGate,
 }: NoteEditorSurfaceProps & {
   readonly editor: Extract<
     NoteViewState,
@@ -94,8 +105,9 @@ function SelectedNote({
         editor={editor}
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
         onEditorModeChange={onEditorModeChange}
-        onMarkdownChange={onMarkdownChange}
+        onPublishMarkdown={onPublishMarkdown}
         onSaveNote={onSaveNote}
+        sessionGate={sessionGate}
       />
     </article>
   );

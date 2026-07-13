@@ -1,135 +1,70 @@
-import { Crepe } from "@milkdown/crepe";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
-import { replaceAll } from "@milkdown/kit/utils";
 import type { ReactElement, RefObject } from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useId } from "react";
 
-type EditorMode = "source" | "wysiwyg";
-type StoredEditorMode = "markdown" | "wysiwyg";
+import type {
+  PublicationCommand,
+  PublicationResult,
+} from "../domain/markdown-authority-types.js";
+import type { EditorMode } from "../persistence/draft-records.js";
+import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+import type { CrepeRuntimeFactory } from "./crepe-runtime.js";
+import type { EditorSessionGate } from "./editor-session-gate.js";
+import { useMilkdownEditorController } from "./use-milkdown-editor-controller.js";
 
-type MilkdownEditorProps = {
-  readonly initialMode: StoredEditorMode;
+export type MilkdownEditorProps = {
+  readonly createRuntime?: CrepeRuntimeFactory;
+  readonly initialDisposition: DraftDisposition;
   readonly initialMarkdown: string;
-  readonly noteId: string;
-  readonly onEditorModeChange?: (editorMode: StoredEditorMode) => void;
-  readonly onMarkdownChange?: (markdown: string) => void;
+  readonly initialMode: EditorMode;
+  readonly initialRevision: number;
+  readonly onEditorModeChange: (editorMode: EditorMode) => void;
+  readonly onPublishMarkdown: (
+    command: PublicationCommand,
+  ) => PublicationResult;
+  readonly sessionGate: EditorSessionGate;
+  readonly sessionKey: string;
   readonly title: string;
 };
 
-type MilkdownEditorControllerInput = {
-  readonly initialMode: StoredEditorMode;
-  readonly initialMarkdown: string;
-  readonly noteId: string;
-  readonly onEditorModeChange: MilkdownEditorProps["onEditorModeChange"];
-  readonly onMarkdownChange: MilkdownEditorProps["onMarkdownChange"];
-};
+/** Editable Crepe surface whose lifetime is one exact editor session. */
+export function MilkdownEditor(props: MilkdownEditorProps): ReactElement {
+  return <MilkdownEditorSession key={props.sessionKey} {...props} />;
+}
 
-/** Editable Milkdown and Crepe surface for one selected markdown note. */
-export function MilkdownEditor({
-  initialMode,
-  initialMarkdown,
-  noteId,
-  onEditorModeChange,
-  onMarkdownChange,
-  title,
-}: MilkdownEditorProps): ReactElement {
-  const editor = useMilkdownEditorController({
-    initialMarkdown,
-    initialMode,
-    noteId,
-    onEditorModeChange,
-    onMarkdownChange,
-  });
+function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
+  const sourceInputId = useId();
+  const editor = useMilkdownEditorController(props);
 
   return (
-    <div className="azurite-editor-surface">
+    <div className="azurite-editor-surface" data-editor-session={props.sessionKey}>
       <EditorModeToolbar
+        isReady={editor.isEditorReady}
         isSourceMode={editor.isSourceMode}
         onShowSource={editor.showSourceMode}
         onShowWysiwyg={editor.showWysiwygMode}
       />
-      <EditorStatus error={editor.editorError} isReady={editor.isEditorReady} />
+      <EditorStatus
+        error={editor.editorError}
+        hasPublicationRetry={editor.hasPublicationRetry}
+        isReady={editor.isEditorReady}
+        onRetry={editor.retryPublication}
+      />
       <EditorModeBody
         isSourceMode={editor.isSourceMode}
-        onSourceChange={editor.updateMarkdown}
+        onSourceChange={editor.updateSourceMarkdown}
         rootRef={editor.rootRef}
-        sourceInputId={editor.sourceInputId}
+        sourceInputId={sourceInputId}
         sourceMarkdown={editor.sourceMarkdown}
-        title={title}
+        title={props.title}
       />
     </div>
   );
 }
 
-function useMilkdownEditorController({
-  initialMode,
-  initialMarkdown,
-  noteId,
-  onEditorModeChange,
-  onMarkdownChange,
-}: MilkdownEditorControllerInput) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const crepeRef = useRef<Crepe | null>(null);
-  const sourceInputId = useId();
-  const [editorError, setEditorError] = useState<string | undefined>();
-  const [isEditorReady, setIsEditorReady] = useState(false);
-  const [mode, setMode] = useState<EditorMode>(toLocalEditorMode(initialMode));
-  const [sourceMarkdown, setSourceMarkdown] = useState(initialMarkdown);
-  const updateMode = useCallback(
-    (nextMode: EditorMode) => {
-      setMode(nextMode);
-      onEditorModeChange?.(toStoredEditorMode(nextMode));
-    },
-    [onEditorModeChange],
-  );
-  const updateMarkdown = useCallback(
-    (markdown: string) => {
-      setSourceMarkdown(markdown);
-      onMarkdownChange?.(markdown);
-    },
-    [onMarkdownChange],
-  );
-
-  useEffect(() => {
-    return createCrepeEditor({
-      initialMarkdown,
-      initialMode: toLocalEditorMode(initialMode),
-      onEditorError: setEditorError,
-      onMarkdownChange: updateMarkdown,
-      onReady: setIsEditorReady,
-      root: rootRef.current,
-      setMode: updateMode,
-      target: crepeRef,
-    });
-  }, [initialMarkdown, initialMode, noteId, updateMarkdown, updateMode]);
-
-  const isSourceMode = mode === "source";
-
-  return {
-    editorError,
-    isEditorReady,
-    isSourceMode,
-    rootRef,
-    showSourceMode: () => {
-      updateMarkdown(getCurrentMarkdown(crepeRef.current));
-      updateMode("source");
-    },
-    showWysiwygMode: () => {
-      applySourceMarkdown(crepeRef.current, sourceMarkdown);
-      updateMode("wysiwyg");
-    },
-    sourceInputId,
-    sourceMarkdown,
-    updateMarkdown,
-  };
-}
-
-function EditorModeToolbar({
-  isSourceMode,
-  onShowSource,
-  onShowWysiwyg,
-}: {
+function EditorModeToolbar(props: {
+  readonly isReady: boolean;
   readonly isSourceMode: boolean;
   readonly onShowSource: () => void;
   readonly onShowWysiwyg: () => void;
@@ -142,54 +77,48 @@ function EditorModeToolbar({
         role="group"
       >
         <EditorModeButton
-          isActive={!isSourceMode}
+          disabled={!props.isReady}
+          isActive={!props.isSourceMode}
           label="WYSIWYG"
-          onClick={onShowWysiwyg}
+          onClick={props.onShowWysiwyg}
         />
         <EditorModeButton
-          isActive={isSourceMode}
+          disabled={false}
+          isActive={props.isSourceMode}
           label="Markdown"
-          onClick={onShowSource}
+          onClick={props.onShowSource}
         />
       </div>
     </div>
   );
 }
 
-function EditorStatus({
-  error,
-  isReady,
-}: {
+function EditorStatus(props: {
   readonly error: string | undefined;
+  readonly hasPublicationRetry: boolean;
   readonly isReady: boolean;
+  readonly onRetry: () => void;
 }): ReactElement | null {
-  if (error !== undefined) {
+  if (props.error !== undefined) {
     return (
-      <p className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-        {error}
-      </p>
+      <div className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p>{props.error}</p>
+        {props.hasPublicationRetry ? (
+          <button className="mt-2 underline" onClick={props.onRetry} type="button">
+            Retry editor change
+          </button>
+        ) : null}
+      </div>
     );
   }
-
-  if (!isReady) {
-    return (
-      <p className="mb-4 text-sm text-[var(--azurite-muted)]">
-        Preparing editor...
-      </p>
-    );
-  }
-
-  return null;
+  return props.isReady ? null : (
+    <p className="mb-4 text-sm text-[var(--azurite-muted)]">
+      Preparing editor...
+    </p>
+  );
 }
 
-function EditorModeBody({
-  isSourceMode,
-  onSourceChange,
-  rootRef,
-  sourceInputId,
-  sourceMarkdown,
-  title,
-}: {
+function EditorModeBody(props: {
   readonly isSourceMode: boolean;
   readonly onSourceChange: (markdown: string) => void;
   readonly rootRef: RefObject<HTMLDivElement | null>;
@@ -200,183 +129,50 @@ function EditorModeBody({
   return (
     <>
       <div
-        aria-hidden={isSourceMode}
-        className={isSourceMode ? "hidden" : undefined}
+        aria-hidden={props.isSourceMode}
+        className={props.isSourceMode ? "hidden" : undefined}
         data-testid="milkdown-editor-root"
-        ref={rootRef}
+        ref={props.rootRef}
       />
-      {isSourceMode ? (
-        <SourceMarkdownEditor
-          inputId={sourceInputId}
-          markdown={sourceMarkdown}
-          onChange={onSourceChange}
-          title={title}
-        />
+      {props.isSourceMode ? (
+        <div>
+          <label className="sr-only" htmlFor={props.sourceInputId}>
+            Markdown source for {props.title}
+          </label>
+          <textarea
+            className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)] outline-none focus:border-[var(--azurite-accent)]"
+            id={props.sourceInputId}
+            onChange={(event) => {
+              props.onSourceChange(event.currentTarget.value);
+            }}
+            spellCheck={false}
+            value={props.sourceMarkdown}
+          />
+        </div>
       ) : null}
     </>
   );
 }
 
-function SourceMarkdownEditor({
-  inputId,
-  markdown,
-  onChange,
-  title,
-}: {
-  readonly inputId: string;
-  readonly markdown: string;
-  readonly onChange: (markdown: string) => void;
-  readonly title: string;
-}): ReactElement {
-  return (
-    <div>
-      <label className="sr-only" htmlFor={inputId}>
-        Markdown source for {title}
-      </label>
-      <textarea
-        className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)] outline-none focus:border-[var(--azurite-accent)]"
-        id={inputId}
-        onChange={(event) => {
-          onChange(event.currentTarget.value);
-        }}
-        spellCheck={false}
-        value={markdown}
-      />
-    </div>
-  );
-}
-
-function EditorModeButton({
-  isActive,
-  label,
-  onClick,
-}: {
+function EditorModeButton(props: {
+  readonly disabled: boolean;
   readonly isActive: boolean;
   readonly label: string;
   readonly onClick: () => void;
 }): ReactElement {
   return (
     <button
-      aria-pressed={isActive}
+      aria-pressed={props.isActive}
       className={
-        isActive
+        props.isActive
           ? "bg-[var(--azurite-selected)] px-3 py-1.5 text-sm font-medium text-[var(--azurite-selected-text)]"
-          : "px-3 py-1.5 text-sm font-medium text-[var(--azurite-muted)] hover:bg-[var(--azurite-hover)] hover:text-[var(--azurite-text)]"
+          : "px-3 py-1.5 text-sm font-medium text-[var(--azurite-muted)] hover:bg-[var(--azurite-hover)] hover:text-[var(--azurite-text)] disabled:cursor-not-allowed disabled:opacity-50"
       }
-      onClick={onClick}
+      disabled={props.disabled}
+      onClick={props.onClick}
       type="button"
     >
-      {label}
+      {props.label}
     </button>
   );
-}
-
-function createCrepeEditor({
-  initialMode,
-  initialMarkdown,
-  onEditorError,
-  onMarkdownChange,
-  onReady,
-  root,
-  setMode,
-  target,
-}: {
-  readonly initialMode: EditorMode;
-  readonly initialMarkdown: string;
-  readonly onEditorError: (message: string | undefined) => void;
-  readonly onMarkdownChange: (markdown: string) => void;
-  readonly onReady: (isReady: boolean) => void;
-  readonly root: HTMLDivElement | null;
-  readonly setMode: (mode: EditorMode) => void;
-  readonly target: RefObject<Crepe | null>;
-}): () => void {
-  let isActive = true;
-  onEditorError(undefined);
-  onMarkdownChange(initialMarkdown);
-  onReady(false);
-  setMode(initialMode);
-  target.current = null;
-  if (root === null) {
-    onEditorError("The editor root was not available.");
-    return noop;
-  }
-
-  const crepe = createConfiguredCrepe({
-    initialMarkdown,
-    onMarkdownChange,
-    root,
-    shouldAcceptUpdate: () => isActive,
-  });
-
-  void crepe.create().then(
-    () => {
-      if (!isActive) {
-        destroyCrepe(crepe);
-        return;
-      }
-
-      target.current = crepe;
-      onReady(true);
-    },
-    () => {
-      if (isActive) {
-        onEditorError("The Milkdown editor could not be created.");
-      }
-      destroyCrepe(crepe);
-    },
-  );
-
-  return () => {
-    isActive = false;
-    target.current = null;
-    destroyCrepe(crepe);
-  };
-}
-
-function createConfiguredCrepe({
-  initialMarkdown,
-  onMarkdownChange,
-  root,
-  shouldAcceptUpdate,
-}: {
-  readonly initialMarkdown: string;
-  readonly onMarkdownChange: (markdown: string) => void;
-  readonly root: HTMLDivElement;
-  readonly shouldAcceptUpdate: () => boolean;
-}): Crepe {
-  root.replaceChildren();
-  const crepe = new Crepe({
-    defaultValue: initialMarkdown,
-    root,
-  });
-  crepe.on((listener) => {
-    listener.markdownUpdated((_context, markdown) => {
-      if (shouldAcceptUpdate()) {
-        onMarkdownChange(markdown);
-      }
-    });
-  });
-  return crepe;
-}
-
-function getCurrentMarkdown(crepe: Crepe | null): string {
-  return crepe?.getMarkdown() ?? "";
-}
-
-function applySourceMarkdown(crepe: Crepe | null, markdown: string): void {
-  crepe?.editor.action(replaceAll(markdown, true));
-}
-
-function destroyCrepe(crepe: Crepe): void {
-  void crepe.destroy().catch(noop);
-}
-
-function noop(): void {}
-
-function toLocalEditorMode(editorMode: StoredEditorMode): EditorMode {
-  return editorMode === "markdown" ? "source" : "wysiwyg";
-}
-
-function toStoredEditorMode(editorMode: EditorMode): StoredEditorMode {
-  return editorMode === "source" ? "markdown" : "wysiwyg";
 }

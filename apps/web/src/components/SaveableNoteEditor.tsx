@@ -1,16 +1,24 @@
 import type { ReactElement } from "react";
 
+import type {
+  PublicationCommand,
+  PublicationResult,
+} from "../domain/markdown-authority-types.js";
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import { canSaveEditor } from "../state/note-browser-action-utils.js";
 import type { EditorSession } from "../state/note-browser-types.js";
+import type { EditorSessionGate } from "./editor-session-gate.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
 
 type SaveableNoteEditorProps = {
   readonly editor: EditorSession;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
-  readonly onMarkdownChange: (markdown: string) => void;
+  readonly onPublishMarkdown: (
+    command: PublicationCommand,
+  ) => PublicationResult;
   readonly onSaveNote: () => Promise<void>;
+  readonly sessionGate: EditorSessionGate;
 };
 
 /** Editable note surface with store-owned save and recovery state. */
@@ -18,8 +26,9 @@ export function SaveableNoteEditor({
   editor,
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
-  onMarkdownChange,
+  onPublishMarkdown,
   onSaveNote,
+  sessionGate,
 }: SaveableNoteEditorProps): ReactElement {
   const isDirty = hasDirtyMarkdown(editor);
 
@@ -29,15 +38,22 @@ export function SaveableNoteEditor({
         editor={editor}
         isDirty={isDirty}
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
-        onSave={onSaveNote}
+        onSave={async () => {
+          const commit = sessionGate.commitCurrent("manual_save");
+          if (commit?.status !== "failed") {
+            await onSaveNote();
+          }
+        }}
       />
       <MilkdownEditor
-        key={editor.sessionKey}
+        initialDisposition={editor.draftDisposition}
         initialMarkdown={editor.currentMarkdown}
         initialMode={editor.editorMode}
-        noteId={editor.note.id}
+        initialRevision={editor.revision}
         onEditorModeChange={onEditorModeChange}
-        onMarkdownChange={onMarkdownChange}
+        onPublishMarkdown={onPublishMarkdown}
+        sessionGate={sessionGate}
+        sessionKey={editor.sessionKey}
         title={editor.note.title}
       />
     </>

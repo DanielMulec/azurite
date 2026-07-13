@@ -154,9 +154,8 @@ function createInitialState(
     },
     draftRecoveryStatus: { status: "available" },
     ensureNotes: () => ensureNotesAction(runtime.context),
-    flushPendingDraft: async () => {
-      await flushEditorDurability("explicit_flush", runtime.context);
-    },
+    flushPendingDraft: async (cause = "explicit_flush") =>
+      await flushEditorDurability(cause, runtime.context),
     getCoherentView: (occurrence, noteId) =>
       getCoherentRouteView(
         { activeLoad: runtime.activeNoteLoad, noteId, occurrence },

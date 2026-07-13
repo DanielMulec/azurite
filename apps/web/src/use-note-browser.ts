@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
+import {
+  createEditorSessionGate,
+  type EditorSessionGate,
+} from "./components/editor-session-gate.js";
+import type {
+  PublicationCommand,
+  PublicationResult,
+} from "./domain/markdown-authority-types.js";
 import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
 import type { RouteTransitionGate } from "./routing/route-transition-types.js";
-import { createBaselineRouteDraftGate } from "./state/baseline-route-draft-gate.js";
 import {
   createNoteBrowserRouteExecutor,
   createNoteBrowserStore,
@@ -17,9 +24,10 @@ import type { RouteHistoryStatus } from "./routing/route-transition-types.js";
 
 type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
 
-/** Factory injected only when an acceptance entry replaces the production gate. */
+/** Acceptance-only decorator around the production editor gate. */
 export type NoteBrowserRouteGateFactory = (
   store: NoteBrowserStoreApi,
+  productionGate: RouteTransitionGate,
 ) => RouteTransitionGate;
 
 /** State and actions for the editable note browsing screen. */
@@ -27,9 +35,13 @@ export type NoteBrowserState = {
   readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly discardMissingDraft: () => Promise<void>;
   readonly draftRecoveryStatus: DraftRecoveryStatus;
+  readonly editorSessionGate: EditorSessionGate;
   readonly noteState: NoteViewState;
   readonly notesState: LoadableNotes;
   readonly routeHistoryStatus: RouteHistoryStatus;
+  readonly publishMarkdownChange: (
+    command: PublicationCommand,
+  ) => PublicationResult;
   readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
@@ -40,11 +52,17 @@ export type NoteBrowserState = {
 /** Connects the route owner and React UI to one note-browser store. */
 export function useNoteBrowser(
   transitionOwner: RouteTransitionOwner,
-  createRouteGate: NoteBrowserRouteGateFactory = createBaselineRouteDraftGate,
+  createRouteGate?: NoteBrowserRouteGateFactory,
 ): NoteBrowserState {
   const [store] = useState(createNoteBrowserStore);
-  useRouteRuntimeRegistration(store, transitionOwner, createRouteGate);
-  useDraftLifecycleFlush(store);
+  const [editorSessionGate] = useState(() => createEditorSessionGate(store));
+  useRouteRuntimeRegistration(
+    store,
+    transitionOwner,
+    editorSessionGate,
+    createRouteGate,
+  );
+  useDraftLifecycleFlush(editorSessionGate);
   const state = useNoteBrowserSelectors(store);
   const selectNote = useCallback(
     (noteId: string) => {
@@ -53,16 +71,19 @@ export function useNoteBrowser(
     [transitionOwner],
   );
 
-  return { ...state, selectNote };
+  return { ...state, editorSessionGate, selectNote };
 }
 
 function useRouteRuntimeRegistration(
   store: NoteBrowserStoreApi,
   transitionOwner: RouteTransitionOwner,
-  createRouteGate: NoteBrowserRouteGateFactory,
+  editorSessionGate: EditorSessionGate,
+  createRouteGate: NoteBrowserRouteGateFactory | undefined,
 ): void {
   useEffect(() => {
-    const unregisterGate = transitionOwner.registerGate(createRouteGate(store));
+    const productionGate = editorSessionGate.routeGate;
+    const gate = createRouteGate?.(store, productionGate) ?? productionGate;
+    const unregisterGate = transitionOwner.registerGate(gate);
     const unregisterExecutor = transitionOwner.registerStoreExecutor(
       createNoteBrowserRouteExecutor(store),
     );
@@ -70,7 +91,7 @@ function useRouteRuntimeRegistration(
       unregisterExecutor();
       unregisterGate();
     };
-  }, [createRouteGate, store, transitionOwner]);
+  }, [createRouteGate, editorSessionGate, store, transitionOwner]);
 }
 
 function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
@@ -83,6 +104,10 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
     draftRecoveryStatus: useStore(store, (state) => state.draftRecoveryStatus),
     noteState: useStore(store, (state) => state.noteState),
     notesState: useStore(store, (state) => state.notesState),
+    publishMarkdownChange: useStore(
+      store,
+      (state) => state.publishMarkdownChange,
+    ),
     routeHistoryStatus: useStore(store, (state) => state.routeHistoryStatus),
     saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
     selectedNoteId: useStore(store, (state) => state.selectedNoteId),
@@ -91,22 +116,25 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
   };
 }
 
-function useDraftLifecycleFlush(store: NoteBrowserStoreApi): void {
+function useDraftLifecycleFlush(editorSessionGate: EditorSessionGate): void {
   useEffect(() => {
-    const flushDraft = () => {
-      void store.getState().flushPendingDraft();
+    const flushDraft = (cause: "pagehide" | "visibilitychange") => {
+      void editorSessionGate.commitLifecycle(cause);
     };
     const flushWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        flushDraft();
+        flushDraft("visibilitychange");
       }
+    };
+    const flushOnPageHide = () => {
+      flushDraft("pagehide");
     };
 
     document.addEventListener("visibilitychange", flushWhenHidden);
-    window.addEventListener("pagehide", flushDraft);
+    window.addEventListener("pagehide", flushOnPageHide);
     return () => {
       document.removeEventListener("visibilitychange", flushWhenHidden);
-      window.removeEventListener("pagehide", flushDraft);
+      window.removeEventListener("pagehide", flushOnPageHide);
     };
-  }, [store]);
+  }, [editorSessionGate]);
 }

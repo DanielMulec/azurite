@@ -14,6 +14,10 @@ import type {
 import type { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type {
+  DurabilityCause,
+  DurabilityResult,
+} from "../persistence/draft-workflow-types.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import type {
   RouteStoreApplyInput,
@@ -70,7 +74,9 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   ) => Promise<RouteStoreApplyResult>;
   readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly discardMissingDraft: () => Promise<void>;
-  readonly flushPendingDraft: () => Promise<void>;
+  readonly flushPendingDraft: (
+    cause?: DurabilityCause,
+  ) => Promise<DurabilityResult>;
   readonly ensureNotes: () => Promise<RouteNotesResult>;
   readonly getCoherentView: RouteStoreExecutor["getCoherentView"];
   readonly getRenderedOwnerKey: RouteStoreExecutor["getRenderedOwnerKey"];
