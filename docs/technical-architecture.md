@@ -120,8 +120,9 @@ The current route boundary has one classified timing defect: a note that is
 still rendered while another route intent loads can be mistaken for the current
 selection. Under overlapping Back/Forward navigation, URL, rendered article,
 and sidebar `aria-current` can therefore diverge. Slice 7C owns the durable
-selected-intent versus rendered-projection repair; editor-fidelity slices must
-not absorb it.
+selected-intent versus rendered-projection repair and typed pre-transition
+gate. Slice 7D may register editor durability through that gate but must not
+create another route-intent owner.
 
 ## API And Contract Boundaries
 
@@ -198,7 +199,7 @@ terminology migration. Keep durable identity separate from resolution history;
 do not add a transient `missing` identity state to current note responses.
 
 Introduce this resolution result earlier only if Slice 7E or its immediate
-editor-correctness follow-up proves that created, reused, or copied cluster
+Slice 7F editor-correctness follow-up proves that created, reused, or copied cluster
 identity is required to explain the fresh-cluster recovered-draft behavior.
 
 The current core error taxonomy is sufficient for existing note read and manual
@@ -241,8 +242,8 @@ The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
 loading the rich editor. Slice 7B is complete. Default the loading boundary's
-delivery until after Slice 7D fidelity, Slice 7E
-diagnostics, and the mandatory editor-correctness follow-up so those repairs and
+delivery until after active Slice 7C route coherence, Slice 7D fidelity, Slice
+7E diagnostics, and the mandatory Slice 7F editor-correctness follow-up so those repairs and
 their QA observe the current editor lifecycle before its loading order changes.
 
 A focused future performance slice must measure development and built-preview
@@ -341,7 +342,7 @@ Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from
 `docs/reference/product-guardrails.md` still applies.
 
-After Slice 7E and its mandatory editor-correctness follow-up, a focused Daily
+After Slice 7E and its mandatory Slice 7F editor-correctness follow-up, a focused Daily
 Observability Operating Profile may establish three explicit modes:
 
 - disabled, which retains the current zero-SDK-runtime baseline;
@@ -384,7 +385,7 @@ that genuinely needs them:
 - PWA service-worker and offline behavior;
 - authentication and hardened Tailscale hosting;
 - a measured lightweight daily Sentry operating profile after Slice 7E and the
-  mandatory editor-correctness follow-up;
+  mandatory Slice 7F editor-correctness follow-up;
 - production distribution and update strategy;
 - release source-map upload and production observability policy;
 - CI provider and required checks;

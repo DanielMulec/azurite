@@ -6,9 +6,9 @@
 - Reporter: Daniel
 - Environment: Pixel 6, Android Chrome, Tailscale MagicDNS Azurite URL
 - QA context: historical Slice 7A physical-phone and mobile-Replay verification
-- Current disposition: required first product fix after Slice 7E; use Slice 7B
-  correlation, Slice 7D Markdown authority, and Slice 7E semantic diagnostics
-  to define the durable fix
+- Current disposition: required Slice 7F, the first product fix after Slice 7E;
+  use Slice 7B correlation, Slice 7C route ownership, Slice 7D Markdown
+  authority, and Slice 7E semantic diagnostics to define the durable fix
 
 ## Context
 
@@ -74,11 +74,13 @@ defect. Slice 7E diagnostics should make the recovery transition explainable.
   does not test or accept Android source input.
 - Slice 7E adds the Milkdown/Crepe, Markdown source, Zustand, and Dexie semantic
   evidence needed to determine why the newline and draft states change.
-- The product fix is the required first delivery after Slice 7E. Its focused
-  editor-correctness slice must use the 7A runtime, 7B correlation, 7D Markdown
-  authority, and 7E semantic evidence to identify and repair the durable
-  behavior boundary. No unrelated feature slice should intervene, and
-  completing 7B, 7D, or 7E must not be reported as fixing this finding.
+- Slice 7C fixes the separate route-selection race and provides the transition
+  owner that Slice 7D editor handoff consumes; it does not fix Android input.
+- Slice 7F is the required first delivery after Slice 7E. It must use the 7A
+  runtime, 7B correlation, 7C route owner, 7D Markdown authority, and 7E
+  semantic evidence to identify and repair the durable behavior boundary. No
+  unrelated feature slice may intervene, and completing 7B through 7E must not
+  be reported as fixing this finding.
 
 ## Verification Needed
 

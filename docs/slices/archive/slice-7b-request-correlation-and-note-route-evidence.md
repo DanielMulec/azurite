@@ -27,9 +27,11 @@ surface mobile evidence, not to waive those gates.
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
 and historical physical-phone runtime evidence is now an implemented dependency,
-not a future prerequisite. Slice 7D is the next active product slice in
-`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
-Slice 7E remains planned after it in
+not a future prerequisite. The 2026-07-13 adversarial resequencing made Slice
+7C the next active product slice in
+`docs/slices/active/slice-7c-url-selection-and-history-coherence.md`. Slice 7D
+and Slice 7E follow in
+`docs/slices/planned/slice-7d-markdown-fidelity-and-honest-dirty-state.md` and
 `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 
 The historical physical-phone session recorded the mobile Markdown newline
@@ -1398,16 +1400,23 @@ Start without enabled Sentry configuration and prove:
   event names, desktop/phone outcomes, and any implementation-time plan change.
 - The completed repository state is clean and pushed to `origin/main`.
 
-## Immediate Handoff To Slice 7D
+## Immediate Handoff To Slice 7C
 
-After the repair, classification, and closing synthetic QA run close Slice 7B,
-promote
-`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
-Slice 7D may rely on repaired exact-session save-result ownership, current
-content-hash conflict behavior, exact draft cleanup, and the correlated note
-workflow. It owns only projection-versus-authoritative Markdown fidelity; it
-must not absorb route selection, block-menu interaction, backend recovery copy,
-or bundle loading.
+The 2026-07-13 adversarial review superseded the original direct 7B-to-7D
+handoff. Promote
+`docs/slices/active/slice-7c-url-selection-and-history-coherence.md` first.
+Slice 7C may rely on the correlated request/operation evidence and owns the
+pre-existing route-selection race, unique route intent, and typed gate/outcome
+seam required by Slice 7D.
+
+## Handoff To Slice 7D
+
+After Slice 7C is implemented and archived, Slice 7D may rely on its route owner
+plus 7B's repaired exact-session save-result ownership, current content-hash
+conflict behavior, exact draft cleanup, and correlated note workflow. Slice 7D
+owns projection-versus-authoritative Markdown fidelity and draft durability; it
+must not become a second route-intent owner or absorb block-menu interaction,
+backend recovery copy, or bundle loading.
 
 ## Handoff To Slice 7E
 
@@ -1458,6 +1467,7 @@ matrix, authenticated Sentry views, and finding classifications. Concisely:
   workflow to the correlated Fastify save and report no unexpected issue;
 - Fastify remains loopback-only and unreachable directly over Tailscale;
 - the Back/sidebar race predates 7B and has a separate Slice 7C owner;
-- Slice 7D is refreshed against this completed baseline and promoted next.
+- the 2026-07-13 resequencing promotes Slice 7C before planned Slice 7D so the
+  editor handoff can consume an implemented route owner.
 
 There are no unresolved Slice 7B implementation or acceptance questions.

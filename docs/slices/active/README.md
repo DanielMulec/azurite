@@ -1,14 +1,13 @@
 # Active Product Slice
 
-Slice 7D, Markdown Fidelity And Honest Dirty State, is the single active product
-slice. It was promoted on 2026-07-12 after Slice 7B's save repairs, final
-desktop/Pixel 6 acceptance matrix, authenticated Sentry proof, and archive all
-completed.
+Slice 7C, URL Selection And History Coherence, is the single active product
+slice. It was promoted on 2026-07-13 after adversarial review proved its
+route-intent owner is a prerequisite for safe Slice 7D editor handoff.
 
-Slice 7D owns exact authoritative Markdown, honest dirty state, editor
-synchronization versus accepted edits, transition durability, and regression
-proof for untouched and deliberately edited Markdown. The pre-existing
-Back/sidebar race remains separate in planned Slice 7C and must not expand 7D.
+Slice 7C owns unique navigation intent, selected-versus-rendered coherence,
+active-load admission, pre-transition gate invocation, exact-current URL repair,
+and terminal route outcomes. Planned Slice 7D consumes that seam but does not
+become a second route owner.
 
 If more than one file here claims `Proposed` or `Active` status, stop and resolve
 the ownership conflict before implementation. Supporting architecture should be

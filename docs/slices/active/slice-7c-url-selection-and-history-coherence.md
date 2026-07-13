@@ -119,40 +119,153 @@ and continuation decisions.
 
 | Term | Meaning |
 | --- | --- |
-| Route intent | One immutable navigation occurrence with a unique `intentKey`, target note ID or startup fallback, source, and location identity. Repeated visits to the same note are distinct intents. |
+| Route intent | One immutable navigation occurrence with `intentKey`, monotonic generation, target (`note` with ID or `startup_fallback`), existing Slice 7B route source/operation evidence, location occurrence when known, and optional application-navigation token. Repeated visits to the same note or history entry are distinct intents. |
 | Current route intent | The latest intent registered synchronously from router or list navigation. Only this intent may continue into selected-note mutation or repair its own URL. |
+| Application-navigation token | A unique token attached to TanStack Router history state for one list push, startup replace, or cancellation repair. A pending-token registry recognizes exactly one expected echo; a consumed token encountered by later Back/Forward creates a new intent. |
+| Location occurrence | The router's destination location key plus an Azurite generation allocated on `onBeforeNavigate`. A same-location React rerender creates no intent; every actual traversal does, even when it revisits a stored location/token. |
+| Committed route state | The most recent terminal coherent route/view descriptor, or `none` before one exists. For a ready editor it retains identity only and restores from the live exact session, never from a stale Markdown copy. It is the only cancellation repair target. |
 | Selected note | The note ID owned by the current live store transition. It can differ temporarily from the rendered note. |
 | Rendered note | The ready editor retained as a visual projection while a replacement loads. It does not own current route intent merely because its ID matches a target. |
 | Active load | One note read tagged with request sequence and the exact route intent that authorized it. It may be reused only when it still belongs to the current intent and selected note. |
-| Pre-transition gate | A registered callback that receives the immutable current intent and returns `continue` or `cancel`. It may protect outgoing state but cannot retain or choose targets. |
-| Transition outcome | A typed terminal result for an intent: `applied`, `coherent_noop`, `superseded`, `cancelled`, or `failed`. Callers and future editor handoff use it to release temporary state safely. |
+| Pre-transition gate | One replaceable runtime capability with `prepare` and `settle` operations. `prepare` receives only cause plus outgoing owner identity, never target/location/intent. It returns a result and per-call lease. The route owner binds that lease to the intent and calls `settle` exactly once. |
+| Gate lease | A unique target-free token for one gate call. Calls may share one underlying flush/durability promise, but independent leases/ref-counting prevent a stale intent from releasing a freeze still used by a current intent. |
+| Transition predecessor | The committed route/view descriptor captured for an intent. A current cancellation invalidates its admitted load, restores the still-live committed selection/view, and repairs to that committed URL; a stale cancellation changes nothing. |
+| Transition outcome | One exact terminal result for an intent. It includes intent/target identity, status-specific fields, and this intent's surface effect. Gate settlement and Slice 7B evidence consume the result; they never infer it from `Promise<void>`. |
+
+### Exact Result Contracts
+
+Implementation type names may differ only if this section is refreshed before
+code changes. Variant membership, ownership, and state effects are fixed:
+
+```ts
+type RouteGateCause = "note_list" | "startup_fallback" | "url_sync";
+
+type RouteGatePrepareInput = {
+  cause: RouteGateCause;
+  outgoingOwnerKey: string | undefined;
+};
+
+type RouteGateResult =
+  | { status: "continue"; leaseKey: string }
+  | {
+      status: "cancel";
+      leaseKey: string;
+      reason:
+        | "prerequisite_failed"
+        | "prerequisite_unavailable"
+        | "outgoing_owner_lost";
+    };
+
+type RouteTransitionOutcome =
+  | {
+      status: "applied";
+      intentKey: string;
+      noteId: string;
+      requestSequence: number;
+      view: "ready" | "missing" | "missing_draft";
+      surfaceEffect: "replaced";
+    }
+  | {
+      status: "coherent_noop";
+      intentKey: string;
+      noteId: string;
+      surfaceEffect: "retained";
+    }
+  | {
+      status: "superseded";
+      intentKey: string;
+      noteId: string | undefined;
+      phase:
+        | "awaiting_location"
+        | "awaiting_gate"
+        | "awaiting_notes"
+        | "awaiting_read"
+        | "awaiting_repair";
+      surfaceEffect: "none";
+    }
+  | {
+      status: "cancelled";
+      intentKey: string;
+      noteId: string | undefined;
+      reason: RouteGateResult & { status: "cancel" };
+      repair: "not_needed" | "replaced" | "superseded";
+      surfaceEffect: "retained";
+    }
+  | {
+      status: "failed";
+      intentKey: string;
+      noteId: string | undefined;
+      reason:
+        | "navigation_rejected"
+        | "repair_rejected"
+        | "notes_list_failed"
+        | "note_read_failed";
+      surfaceEffect: "retained" | "replaced_by_error";
+    };
+```
+
+The gate `settle` input is `{ leaseKey, outcome }`. It receives no route target
+other than the outcome's public note identity and cannot continue, repair, or
+choose navigation. Registering a new gate replaces only future `prepare` calls;
+existing leases settle on the capability that created them. Unregistration
+installs a no-op gate. A thrown or rejected `prepare` becomes
+`cancel/prerequisite_failed`; a thrown/rejected `settle` is contained and cannot
+alter the already-decided route outcome.
 
 ### Required Transitions
 
 1. **Intent registration**
-   - Register one unique intent synchronously before draft flush, editor commit,
-     note read, or another asynchronous prerequisite begins.
-   - Derive router-owned intent identity from a location/history identity when
-     available and add a monotonic Azurite generation so distinct occurrences
-     remain distinguishable even when note ID and search text match.
-   - Register list selection before pushing its URL. Carry the same intent
-     through the resulting router synchronization instead of creating a second
-     competing intent for that echo.
-   - Startup fallback replacement likewise retains one intent through its URL
-     echo and must not issue a duplicate read.
+   - Construct the transition owner beside the router, subscribe synchronously
+     to the installed TanStack Router `onBeforeNavigate` lifecycle before
+     rendering `RouterProvider`, and pass the owner to the application/store
+     boundary. This replaces passive `useEffect` as the route-intent boundary.
+   - Seed the initial location exactly once if it predates subscription. Queue it
+     until the store executor registers; later same-location rerenders do
+     nothing.
+   - A note-list click registers its intent and token before calling `navigate`.
+     Navigate/push the URL first; do not mutate selected note or admit a read
+     until that exact location resolves. Startup fallback uses replace with the
+     same protocol.
+   - Put the token in typed history state and a pending registry keyed by token.
+     `onBeforeNavigate` consumes an unconsumed pending token as the echo of its
+     existing intent without promoting a stale intent. A token found later by
+     Back/Forward is already consumed and therefore receives a fresh generation
+     and `intentKey`.
+   - Await/observe router resolution before selected-note mutation. Navigation
+     rejection settles `failed/navigation_rejected`, removes the pending token,
+     and leaves product state unchanged. Registry entries are removed on echo,
+     rejection, supersession, or owner disposal; no timeout is product control.
+   - A cancellation repair uses its own repair token. Its echo performs no gate
+     or note action and cannot create a competing intent. Repair rejection is a
+     visible `failed/repair_rejected` result; it is never reported as cancelled
+     coherence.
 
 2. **Pre-transition gate**
-   - Invoke the gate only after registration and before selected-note mutation or
-     note-read admission.
+   - After registration/location resolution, first return `coherent_noop` when
+     URL, selected note, ready/missing view, and request ownership already agree.
+     A no-op performs no gate, draft flush, load, or second evidence operation.
+   - Otherwise invoke `prepare` before selected-note mutation or read admission.
+     Bind its unique lease to the intent outside the gate. Invoke `settle`
+     exactly once for every returned lease on every terminal path.
    - Re-check that the exact intent is current after every awaited prerequisite.
      A stale `continue`, `cancel`, success, or failure cannot act on a newer
      intent.
-   - A `cancel` leaves the outgoing note selected and rendered. Repair a URL
-     that already moved only when the exact cancelled intent is still current;
-     use replacement, never push, and never overwrite a newer intent.
-   - Slice 7C adapts the existing draft flush to this result contract. Slice 7D
-     may extend the gate internally, but route ownership and revalidation remain
-     here.
+   - The Slice 7C adapter gives today's draft flush explicit in-flight ownership:
+     overlapping callers share the same pending flush result, new edits during
+     it remain pending and are drained before `continue`, unavailable results
+     map to `prerequisite_unavailable`, thrown work maps to
+     `prerequisite_failed`, and cleanup occurs in `finally`. No second intent can
+     observe “nothing pending” while a required flush is unresolved.
+   - A current `cancel` invalidates the intent's admitted load, restores the
+     latest live committed predecessor without copying stale editor Markdown,
+     and repairs to its committed URL with replace. If no committed state exists,
+     clear the note search parameter and retain the appropriate idle/list-error
+     surface. Never resurrect a superseded load.
+   - Re-check currency before repair and after its echo. A stale cancellation
+     settles `superseded` and cannot restore selection or overwrite a newer URL.
+   - Slice 7D may replace the no-op/draft gate with editor publication and
+     durability internally, but it uses this target-free lease/settlement
+     contract and cannot change route ownership.
 
 3. **Selection and load admission**
    - Mutate `selectedNoteId` only for the exact current intent.
@@ -163,22 +276,39 @@ and continuation decisions.
    - Reuse an active same-note promise only if its request sequence, selected
      note, and authorizing intent still own the current transition. Otherwise
      start a new current load even when the target ID is identical.
+   - A current explicit route is recovered as missing/missing-draft even when
+     the ready note list is empty. Only an undefined route plus an empty list
+     settles the empty idle state. Startup fallback exists only for an undefined
+     route plus a non-empty list.
+   - Remove list-completion synchronization through a mutable
+     `latestRouteNoteId` ref. List success resumes only the exact current intent;
+     list failure settles that waiting intent as `failed/notes_list_failed`.
 
 4. **Completion and cleanup**
-   - Apply a read success, read failure, missing-note recovery, or active-load
-     cleanup only when both request sequence and route intent remain current.
-   - An older completion may clear only the active-load record it created.
-   - Return an explicit transition outcome on every path, including coherent
-     no-op and supersession. No caller may infer replacement from a resolved
-     `Promise<void>`.
-   - The final coherent state has URL target, `selectedNoteId`, rendered editor
-     note, sidebar `aria-current`, and accepted request ownership on one note.
+   - Apply read success, failure, or missing-note recovery to product state only
+     when both request sequence and route intent remain current. An exact stale
+     completion still clears the active-load record it created; cleanup authority
+     is record identity, not permission to mutate current state.
+   - A ready, missing, or missing-draft application settles `applied`. Draft-read
+     unavailability may degrade recovery while still applying the disk/missing
+     view; it is not mislabeled as a route read failure. A current API read
+     failure installs the target-owned error surface and settles
+     `failed/note_read_failed` with `replaced_by_error`.
+   - A superseded intent settles at the first post-await currency check with the
+     exact phase. Its late load/evidence may settle independently as stale but
+     cannot create another route outcome.
+   - For a ready result, URL target, `selectedNoteId`, rendered editor,
+     `aria-current`, request sequence, and intent agree. For missing/error/empty
+     results, URL and selected/view target agree and no unrelated sidebar item is
+     current. These are the exhaustive final view states; the contract does not
+     require a ready editor where none exists.
 
 5. **Lifecycle timing**
-   - Do not rely solely on a passive `useEffect` that runs after an already
-     committed render to establish current intent. The router adapter must expose
-     location identity and register the intent at the earliest synchronous
-     boundary available to the application transition.
+   - `onBeforeNavigate` is the committed registration boundary. It records the
+     intent and calls target-free gate `prepare` synchronously enough for Slice
+     7D to commit/freeze the outgoing editor before route rendering. Awaited gate
+     work continues outside the router callback; the owner joins it with router
+     resolution before store admission.
    - Event callbacks, router synchronization, and store actions share the same
      owner rather than keeping separate latest-note refs.
 
