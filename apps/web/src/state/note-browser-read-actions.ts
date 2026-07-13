@@ -207,13 +207,17 @@ async function applyLoadedNote(
   request: NoteRequest,
 ): Promise<RouteStoreApplyResult> {
   const note = response.note;
-  const draftApplication = await readRouteDraft(note.id, request.context);
+  const draftApplication = await readRouteDraft(
+    note.id,
+    response.clusterIdentity,
+    request.context,
+  );
   if (!isCurrentRequest(request)) {
     return { status: "stale" };
   }
   const editor = createEditorSession(
     note,
-    draftApplication.draft,
+    draftApplication,
     request.context,
   );
   const clusterPatch = getClusterIdentityPatch(

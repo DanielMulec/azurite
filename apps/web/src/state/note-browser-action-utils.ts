@@ -8,10 +8,11 @@ import {
 import { WebApiError } from "../api-client.js";
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { DraftPersistenceUnavailableReason } from "../persistence/draft-database.js";
+import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import type { DraftRecord } from "../persistence/draft-records.js";
+import type { RouteDraftApplication } from "./note-browser-route-drafts.js";
 import type {
   DraftRecoveryStatus,
-  DraftRecoveryKind,
   EditorSession,
   LoadableNotes,
   NoteBrowserSnapshot,
@@ -58,21 +59,32 @@ export function getClusterIdentityPatch(
 /** Creates a resolved editor session after note and draft recovery load. */
 export function createEditorSession(
   note: NoteContentWithHash,
-  draft: DraftRecord | undefined,
+  draftApplication: RouteDraftApplication,
   context: Pick<StoreContext, "nextEditorSessionKey">,
 ): EditorSession {
-  const recovery = getDraftRecovery(note, draft);
+  const draft = draftApplication.draft;
+  const draftDisposition = getDraftDisposition(note, draftApplication);
+  const sessionKey = context.nextEditorSessionKey(note.id, note.contentHash);
 
   return {
     baseContentHash: getBaseContentHash(note, draft),
     currentMarkdown: getCurrentMarkdown(note, draft),
+    draftDisposition,
+    draftEpoch: 0,
+    durableSnapshotKey: undefined,
     editorMode: getEditorMode(draft),
+    lastSnapshotKey: undefined,
     note,
-    recovery,
+    persistenceIssue: createInitialPersistenceIssue(
+      note.id,
+      sessionKey,
+      draftApplication,
+    ),
+    preservedSchemaVersion: draftApplication.preservedSchemaVersion,
     revision: 0,
     savedMarkdown: note.markdown,
-    saveStatus: getInitialSaveStatus(recovery),
-    sessionKey: context.nextEditorSessionKey(note.id, note.contentHash),
+    saveStatus: getInitialSaveStatus(draftDisposition),
+    sessionKey,
   };
 }
 
@@ -274,27 +286,55 @@ function getEditorMode(
 }
 
 function getInitialSaveStatus(
-  recovery: DraftRecoveryKind,
+  disposition: EditorSession["draftDisposition"],
 ): EditorSession["saveStatus"] {
-  return recovery === "conflict" ? "conflict" : "idle";
+  return disposition === "conflict" ? "conflict" : "idle";
 }
 
 function isEditorSaveBlocked(editor: EditorSession): boolean {
   return (
     blockedSaveStatuses.includes(editor.saveStatus) ||
-    editor.recovery === "conflict"
+    editor.draftDisposition === "conflict"
   );
 }
 
-function getDraftRecovery(
+function getDraftDisposition(
   note: NoteContentWithHash,
-  draft: DraftRecord | undefined,
-): DraftRecoveryKind {
-  if (draft === undefined) {
-    return "none";
+  application: RouteDraftApplication,
+): EditorSession["draftDisposition"] {
+  if (application.draft === undefined) {
+    return application.disposition;
   }
 
-  return draft.baseContentHash === note.contentHash ? "draft" : "conflict";
+  return application.draft.baseContentHash === note.contentHash
+    ? "recovered"
+    : "conflict";
+}
+
+function createInitialPersistenceIssue(
+  noteId: string,
+  sessionKey: string,
+  application: RouteDraftApplication,
+) {
+  if (
+    application.failure === undefined ||
+    application.disposition === "preserved_unknown"
+  ) {
+    return undefined;
+  }
+  return createDraftPersistenceIssue({
+    clusterId: undefined,
+    draftEpoch: 0,
+    failure: application.failure,
+    noteId,
+    operation: "recovery_read",
+    ownerKey: sessionKey,
+    retryAction:
+      application.disposition === "recovery_read_unavailable"
+        ? "retry_browser_recovery"
+        : undefined,
+    sessionKey,
+  });
 }
 
 function toNoteSummary(note: NoteContentWithHash): NoteSummary {

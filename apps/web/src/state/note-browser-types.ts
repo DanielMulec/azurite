@@ -10,6 +10,10 @@ import type {
 } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type {
+  DraftDisposition,
+  DraftPersistenceIssue,
+} from "../persistence/draft-workflow-types.js";
+import type {
   CommittedRouteView,
   RouteHistoryStatus,
 } from "../routing/route-transition-types.js";
@@ -42,16 +46,18 @@ export type NoteViewState =
 /** Save lifecycle state for the current editor session. */
 export type SaveStatus = "conflict" | "failed" | "idle" | "saving";
 
-/** Recovery status for a draft restored from browser persistence. */
-export type DraftRecoveryKind = "conflict" | "draft" | "none";
-
 /** Store-owned editor session resolved before Milkdown mounts. */
 export type EditorSession = {
   readonly baseContentHash: string;
   readonly currentMarkdown: string;
+  readonly draftDisposition: DraftDisposition;
+  readonly draftEpoch: number;
+  readonly durableSnapshotKey: string | undefined;
   readonly editorMode: EditorMode;
+  readonly lastSnapshotKey: string | undefined;
   readonly note: NoteContentWithHash;
-  readonly recovery: DraftRecoveryKind;
+  readonly persistenceIssue: DraftPersistenceIssue | undefined;
+  readonly preservedSchemaVersion: number | undefined;
   readonly revision: number;
   readonly savedMarkdown: string;
   readonly saveStatus: SaveStatus;

@@ -24,6 +24,15 @@ export type PublicationTrigger =
   | "pagehide"
   | "explicit_retry";
 
+/** Exact-session input for one accepted authority publication. */
+export type PublicationCommand = {
+  readonly markdown: string;
+  readonly origin: ChangeOrigin;
+  readonly resolution: AuthorityResolution;
+  readonly sessionKey: string;
+  readonly trigger: PublicationTrigger;
+};
+
 /** Typed acknowledgement of one exact-session authority command. */
 export type PublicationResult =
   | {

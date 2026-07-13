@@ -7,6 +7,11 @@ import type {
 } from "@azurite/shared";
 import type { StoreApi } from "zustand/vanilla";
 
+import type {
+  PublicationCommand,
+  PublicationResult,
+} from "../domain/markdown-authority-types.js";
+import type { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
@@ -69,6 +74,12 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly ensureNotes: () => Promise<RouteNotesResult>;
   readonly getCoherentView: RouteStoreExecutor["getCoherentView"];
   readonly getRenderedOwnerKey: RouteStoreExecutor["getRenderedOwnerKey"];
+  readonly publishMarkdownChange: (
+    command: PublicationCommand,
+  ) => PublicationResult;
+  readonly retryBrowserRecovery: () => Promise<void>;
+  readonly retryDraftCleanup: () => Promise<void>;
+  readonly retryDraftPersistence: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly reportHistoryUnavailable: RouteStoreExecutor["reportHistoryUnavailable"];
   readonly updateDraftMarkdown: (markdown: string) => void;
@@ -81,6 +92,7 @@ export type StoreContext = {
   readonly beginRouteApplication: () => void;
   readonly commitRouteApplication: () => void;
   readonly draftPersistence: DraftPersistence;
+  readonly draftCoordinator: DraftPersistenceCoordinator;
   readonly clearActiveNoteLoad: (
     promise: Promise<RouteStoreApplyResult>,
   ) => void;
@@ -104,6 +116,7 @@ export type StoreContext = {
     noteId: string,
     contentHash: string,
   ) => string;
+  readonly nextSnapshotKey: (sessionKey: string, revision: number) => string;
   readonly nextNoteRequestSequence: () => number;
   readonly nextNotesRequestSequence: () => number;
   readonly restoreRoutePredecessor: () => void;

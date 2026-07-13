@@ -22,7 +22,11 @@ type MissingRouteReadInput = {
 export async function applyMissingRouteRead(
   input: MissingRouteReadInput,
 ): Promise<RouteStoreApplyResult> {
-  const application = await readRouteDraft(input.noteId, input.context);
+  const application = await readRouteDraft(
+    input.noteId,
+    getMissingRouteClusterIdentity(input.context),
+    input.context,
+  );
   if (!input.isCurrent()) {
     return { status: "stale" };
   }
@@ -33,6 +37,15 @@ export async function applyMissingRouteRead(
         application.draft,
         application.statePatch,
       );
+}
+
+function getMissingRouteClusterIdentity(context: StoreContext) {
+  return (
+    context.get().clusterIdentity ?? {
+      reason: "metadata_unavailable" as const,
+      status: "unavailable" as const,
+    }
+  );
 }
 
 function applyMissingWithoutDraft(
