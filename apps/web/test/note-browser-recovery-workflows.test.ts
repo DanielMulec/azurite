@@ -167,6 +167,42 @@ describe("successful Save cleanup retry", () => {
       memory.read(readyClusterIdentity.clusterId, "index.md"),
     ).toBeUndefined();
   });
+
+  it("retains the exact obligation after a coordinator rejection", async () => {
+    const draft = createTestDraft({
+      baseContentHash: "sha256-old",
+      markdown: "# Home",
+    });
+    const memory = createMemoryDraftPersistence([draft]);
+    const deleteSaved = vi
+      .fn<DraftPersistence["deleteDraftIfSavedSnapshotMatches"]>()
+      .mockRejectedValueOnce(new Error("queue task failed"))
+      .mockImplementation(memory.persistence.deleteDraftIfSavedSnapshotMatches);
+    const saveNote = vi.fn(createApi().saveNote);
+    const store = createLoadedStore({
+      api: createApi({ saveNote }),
+      draftPersistence: {
+        ...memory.persistence,
+        deleteDraftIfSavedSnapshotMatches: deleteSaved,
+      },
+      recovery: "draft",
+    });
+
+    await store.getState().saveSelectedNote();
+    expect(getEditor(store)).toMatchObject({
+      draftDisposition: "cleanup_required",
+      persistenceIssue: {
+        failure: { reason: "queue_task_failed", source: "coordinator" },
+        retryAction: "retry_draft_cleanup",
+      },
+    });
+
+    await store.getState().retryDraftCleanup();
+
+    expect(getEditor(store).draftDisposition).toBe("none");
+    expect(saveNote).toHaveBeenCalledOnce();
+    expect(deleteSaved).toHaveBeenCalledTimes(2);
+  });
 });
 
 function createPersistence(patch: Partial<DraftPersistence>): DraftPersistence {

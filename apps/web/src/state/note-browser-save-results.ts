@@ -38,6 +38,7 @@ export async function applySaveResponse(
   const hadNewerEdit = !isSameSaveSnapshot(currentEditor, input.editor);
   applySuccessfulSave(input, reconciliation);
   if (hadNewerEdit) {
+    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     await admitPostSaveDraftSnapshot(input.context);
   }
 }
@@ -79,12 +80,12 @@ function applySuccessfulSave(
     }
     const editor = state.noteState.editor;
     const sameSnapshot = isSameSaveSnapshot(editor, input.editor);
-    const draftPatch = getSaveDraftPatch(
+    const draftPatch = getSaveDraftPatch({
+      clusterIdentity: input.clusterIdentity,
       editor,
-      input.clusterIdentity,
-      reconciliation,
+      result: reconciliation,
       sameSnapshot,
-    );
+    });
     return {
       noteState: {
         editor: {
@@ -102,28 +103,44 @@ function applySuccessfulSave(
   });
 }
 
-function getSaveDraftPatch(
-  editor: EditorSession,
-  clusterIdentity: ClusterIdentity,
-  result: CoordinatedDraftMutationResult | undefined,
-  sameSnapshot: boolean,
+type SaveDraftPatchInput = {
+  readonly clusterIdentity: ClusterIdentity;
+  readonly editor: EditorSession;
+  readonly result: CoordinatedDraftMutationResult | undefined;
+  readonly sameSnapshot: boolean;
+};
+
+function getSaveDraftPatch(input: SaveDraftPatchInput): Partial<EditorSession> {
+  if (isProtectedDisposition(input.editor.draftDisposition)) {
+    return getProtectedSaveDraftPatch(input);
+  }
+  return getCompatibleSaveDraftPatch(input);
+}
+
+function getProtectedSaveDraftPatch(
+  input: SaveDraftPatchInput,
 ): Partial<EditorSession> {
-  if (isProtectedDisposition(editor.draftDisposition)) {
-    return {
-      lastSnapshotKey: sameSnapshot ? undefined : editor.lastSnapshotKey,
-      persistenceIssue: getProtectedSaveIssue(editor),
-    };
+  return {
+    lastSnapshotKey: input.sameSnapshot
+      ? undefined
+      : input.editor.lastSnapshotKey,
+    persistenceIssue: getProtectedSaveIssue(input.editor),
+  };
+}
+
+function getCompatibleSaveDraftPatch(
+  input: SaveDraftPatchInput,
+): Partial<EditorSession> {
+  if (!input.sameSnapshot) {
+    return getNewerEditPatch(input.editor, input.result);
   }
-  if (!sameSnapshot) {
-    return getNewerEditPatch(editor, result);
-  }
-  if (result === undefined) {
-    return getUntargetedCleanupPatch(editor, clusterIdentity);
+  if (input.result === undefined) {
+    return getUntargetedCleanupPatch(input.editor, input.clusterIdentity);
   }
   return getExactCleanupPatch(
-    editor,
-    result,
-    getReadyClusterId(clusterIdentity),
+    input.editor,
+    input.result,
+    getReadyClusterId(input.clusterIdentity),
   );
 }
 
@@ -132,11 +149,7 @@ function getExactCleanupPatch(
   result: CoordinatedDraftMutationResult,
   clusterId: string | undefined,
 ): Partial<EditorSession> {
-  if (
-    result.status === "deleted" ||
-    result.status === "absent" ||
-    result.status === "invalid_deleted"
-  ) {
+  if (isSaveCleanupComplete(result)) {
     return resolvedDraftPatch;
   }
   if (result.status === "preserved_unknown") {
@@ -148,6 +161,23 @@ function getExactCleanupPatch(
       preservedSchemaVersion: result.schemaVersion,
     };
   }
+  return getUnresolvedSaveCleanupPatch(editor, result, clusterId);
+}
+
+function getUnresolvedSaveCleanupPatch(
+  editor: EditorSession,
+  result: Exclude<
+    CoordinatedDraftMutationResult,
+    {
+      readonly status:
+        | "absent"
+        | "deleted"
+        | "invalid_deleted"
+        | "preserved_unknown";
+    }
+  >,
+  clusterId: string | undefined,
+): Partial<EditorSession> {
   if (result.status === "not_matching") {
     return { persistenceIssue: undefined };
   }
@@ -220,14 +250,16 @@ function createCleanupFailurePatch(
 async function reconcileSavedDraft(
   input: SaveResponseInput,
 ): Promise<CoordinatedDraftMutationResult | undefined> {
-  if (isProtectedDisposition(input.editor.draftDisposition)) {
+  if (doesNotNeedSaveCleanup.has(input.editor.draftDisposition)) {
     input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     return undefined;
   }
-  if (input.editor.draftDisposition === "none") {
-    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
-    return undefined;
-  }
+  return await reconcileCompatibleSavedDraft(input);
+}
+
+async function reconcileCompatibleSavedDraft(
+  input: SaveResponseInput,
+): Promise<CoordinatedDraftMutationResult | undefined> {
   const snapshot = {
     baseContentHash: input.editor.baseContentHash,
     markdown: input.editor.currentMarkdown,
@@ -242,10 +274,29 @@ async function reconcileSavedDraft(
     clusterId,
     ...snapshot,
   });
-  if (result.status !== "unavailable") {
+  if (isTerminalSaveCleanup(result)) {
     input.context.draftCleanupRetries.delete(input.editor.sessionKey);
   }
   return result;
+}
+
+function isSaveCleanupComplete(
+  result: CoordinatedDraftMutationResult,
+): result is Extract<
+  CoordinatedDraftMutationResult,
+  { readonly status: "absent" | "deleted" | "invalid_deleted" }
+> {
+  return (
+    result.status === "deleted" ||
+    result.status === "absent" ||
+    result.status === "invalid_deleted"
+  );
+}
+
+function isTerminalSaveCleanup(
+  result: CoordinatedDraftMutationResult,
+): boolean {
+  return terminalSaveCleanupStatuses.has(result.status);
 }
 
 function getProtectedSaveIssue(
@@ -276,3 +327,19 @@ const resolvedDraftPatch: Partial<EditorSession> = Object.freeze({
   persistenceIssue: undefined,
   preservedSchemaVersion: undefined,
 });
+
+const doesNotNeedSaveCleanup = new Set<EditorSession["draftDisposition"]>([
+  "none",
+  "preserved_unknown",
+  "recovery_read_unavailable",
+]);
+
+const terminalSaveCleanupStatuses = new Set<
+  CoordinatedDraftMutationResult["status"]
+>([
+  "absent",
+  "deleted",
+  "invalid_deleted",
+  "not_matching",
+  "preserved_unknown",
+]);
