@@ -131,11 +131,13 @@ does not add intrusive unload confirmation UX. Verification that claims reload
 recovery must first observe the exact draft as durable.
 
 A failed draft write never consumes its retry obligation. The exact immutable
-snapshot remains `generated_pending`, its typed failure remains visible, and an
-explicit `Retry draft persistence` action re-admits that snapshot through the
-same per-note coordinator without requiring another content edit. A newer
-accepted revision supersedes the failed snapshot. This slice does not create an
-unbounded background retry loop.
+snapshot retains its applicable disposition, its exact typed issue remains
+visible, and an explicit `Retry draft persistence` action re-admits that snapshot
+through the same coordinator without requiring another content edit. A generated
+ordinary record remains `generated_pending`; recovered/conflict record truth is
+not erased by a failed update. A newer accepted revision or mode snapshot
+supersedes the failed snapshot. This slice does not create an unbounded
+background retry loop.
 
 Draft persistence is an ordered workflow, not write-only serialization. Reads,
 debounced snapshots that have been scheduled but not yet queued, writes,
@@ -1698,9 +1700,11 @@ Implementation requirements:
   same-key work still runs, scheduled slots cannot resurrect stale work, and
   idle coordinator entries return to zero.
 - For write rejection specifically, prove the exact failed snapshot remains
-  retryable and visible as `generated_pending`; invoke `Retry draft persistence`
-  without another edit and prove the same revision becomes durable. Repeat with
-  a newer edit before retry and prove only the newer snapshot may win.
+  retryable with its applicable disposition and exact issue; for generated work
+  it remains `generated_pending`. Invoke `Retry draft persistence` without
+  another edit and prove the same revision becomes durable. Repeat with a newer
+  edit and a newer mode snapshot before retry and prove only the newest admitted
+  snapshot may win.
 - Prove a pristine clean session performs no speculative draft deletion, while a
   session that durably wrote and then reverted completes its ordered deletion
   before destructive handoff reports `clean`.
