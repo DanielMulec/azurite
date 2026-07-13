@@ -49,7 +49,9 @@ describe("Markdown authority creation", () => {
     );
     expect(harness.publish).toHaveBeenCalledOnce();
   });
+});
 
+describe("Markdown authority creation failures", () => {
   it("falls back to exact source when creation fails", () => {
     const harness = createHarness();
 
@@ -63,6 +65,26 @@ describe("Markdown authority creation", () => {
     });
     expect(harness.modes).toEqual(["markdown"]);
     expect(harness.publish).not.toHaveBeenCalled();
+  });
+
+  it("keeps the creation failure visible while source editing remains accepted", () => {
+    const harness = createHarness();
+    harness.controller.markFailed("Creation failed.");
+
+    expect(
+      harness.controller.publishSource("# Exact after failure"),
+    ).toMatchObject({
+      publication: { status: "acknowledged" },
+    });
+    expect(harness.controller.getSnapshot()).toMatchObject({
+      editorError: "Creation failed.",
+      lifecycle: "failed",
+      sourceMarkdown: "# Exact after failure",
+    });
+    expect(harness.controller.showWysiwyg()).toMatchObject({
+      reason: "editor_not_ready",
+      status: "failed",
+    });
   });
 });
 
@@ -133,6 +155,29 @@ describe("Markdown authority accepted changes", () => {
 });
 
 describe("Markdown authority failure ownership", () => {
+  it("restores an availability failure after publication retry succeeds", () => {
+    let reject = true;
+    const harness = createHarness({
+      publishResult: (command, revision) =>
+        reject ? rejected(command, revision) : acknowledged(command, revision),
+    });
+    harness.controller.markFailed("Creation failed.");
+    harness.controller.publishSource("# Retry after failure");
+    expect(harness.controller.getSnapshot()).toMatchObject({
+      editorError: "The latest editor change has not been acknowledged.",
+      hasPublicationRetry: true,
+    });
+
+    reject = false;
+    harness.controller.retryPublication();
+
+    expect(harness.controller.getSnapshot()).toMatchObject({
+      editorError: "Creation failed.",
+      hasPublicationRetry: false,
+      sourceMarkdown: "# Retry after failure",
+    });
+  });
+
   it("retains a rejected value and publishes it once through explicit retry", () => {
     let reject = true;
     const harness = createHarness({
@@ -159,7 +204,9 @@ describe("Markdown authority failure ownership", () => {
       hasPublicationRetry: false,
     });
   });
+});
 
+describe("Markdown authority retry cancellation", () => {
   it("cancels a rejected source retry when visible input returns to authority", () => {
     const harness = createHarness({
       publishResult: (command, revision) => rejected(command, revision),

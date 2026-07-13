@@ -30,6 +30,7 @@ import type {
   AuthorityControllerInput,
   MarkdownAuthorityState,
 } from "./markdown-authority-controller-types.js";
+import { MarkdownAuthorityStateOwner } from "./markdown-authority-state-owner.js";
 import {
   callAuthorityPublication,
   createCommitFailure,
@@ -45,7 +46,7 @@ import {
  */
 export class MarkdownAuthorityController {
   readonly #input: AuthorityControllerInput;
-  readonly #listeners = new Set<() => void>();
+  readonly #state: MarkdownAuthorityStateOwner;
   #acknowledgedAuthority: string;
   #acknowledgedProjection: string | undefined;
   #checkpoint: AuthorityCheckpoint | undefined;
@@ -55,20 +56,19 @@ export class MarkdownAuthorityController {
   #isSynchronizing = false;
   #retry: AuthorityRetryCandidate | undefined;
   #revision: number;
-  #state: MarkdownAuthorityState;
 
   constructor(input: AuthorityControllerInput) {
     this.#input = input;
     this.#acknowledgedAuthority = input.initialMarkdown;
     this.#disposition = input.initialDisposition;
     this.#revision = input.initialRevision;
-    this.#state = {
+    this.#state = new MarkdownAuthorityStateOwner({
       editorError: undefined,
       hasPublicationRetry: false,
       lifecycle: "creating",
       mode: input.initialMode,
       sourceMarkdown: input.initialMarkdown,
-    };
+    });
   }
 
   /** Exact editor-session identity owned by this controller. */
@@ -77,19 +77,15 @@ export class MarkdownAuthorityController {
   }
 
   /** Returns the current immutable render snapshot. */
-  getSnapshot = (): MarkdownAuthorityState => this.#state;
+  getSnapshot = (): MarkdownAuthorityState => this.#state.getSnapshot();
 
   /** Subscribes React or tests to local controller state. */
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener);
-    return () => {
-      this.#listeners.delete(listener);
-    };
-  };
+  subscribe = (listener: () => void): (() => void) =>
+    this.#state.subscribe(listener);
 
   /** Completes Crepe creation without publishing its serialized projection. */
   markReady(): SynchronizationResult {
-    if (this.#state.lifecycle !== "creating") {
+    if (this.#state.current.lifecycle !== "creating") {
       return createSynchronizationFailure(
         "creation",
         "stale_session",
@@ -115,12 +111,12 @@ export class MarkdownAuthorityController {
       {
         acknowledgedAuthority: this.#acknowledgedAuthority,
         initialMarkdown: this.#input.initialMarkdown,
-        mode: this.#state.mode,
+        mode: this.#state.current.mode,
       },
       projection,
     );
     this.#acknowledgedProjection = getCheckpointProjection(this.#checkpoint);
-    this.#patch({ editorError: undefined, lifecycle: "ready" });
+    this.#state.clearAvailability({ lifecycle: "ready" });
     return createSynchronizationSuccess({
       cause: "creation",
       exactAuthority: this.#acknowledgedAuthority,
@@ -131,11 +127,10 @@ export class MarkdownAuthorityController {
 
   /** Falls back to exact editable source without inventing a content change. */
   markFailed(message: string): void {
-    if (this.#state.lifecycle === "destroyed") {
+    if (this.#state.current.lifecycle === "destroyed") {
       return;
     }
-    this.#patch({
-      editorError: message,
+    this.#state.setAvailabilityFailure(message, {
       lifecycle: "failed",
       mode: "markdown",
     });
@@ -146,7 +141,7 @@ export class MarkdownAuthorityController {
   destroy(): void {
     this.#frozen = true;
     this.#patch({ lifecycle: "destroyed" });
-    this.#listeners.clear();
+    this.#state.clearListeners();
   }
 
   /** Prevents accepted changes while a destructive handoff owns the surface. */
@@ -172,8 +167,8 @@ export class MarkdownAuthorityController {
       frozen: this.#frozen,
       isPublishing: this.#isPublishing,
       isSynchronizing: this.#isSynchronizing,
-      lifecycle: this.#state.lifecycle,
-      mode: this.#state.mode,
+      lifecycle: this.#state.current.lifecycle,
+      mode: this.#state.current.mode,
     });
     if (reason !== undefined) {
       return { reason, status: "ignored" };
@@ -195,8 +190,8 @@ export class MarkdownAuthorityController {
   commit(cause: CommitCause): CommitResult {
     const immediate = getImmediateCommitResult({
       cause,
-      lifecycle: this.#state.lifecycle,
-      mode: this.#state.mode,
+      lifecycle: this.#state.current.lifecycle,
+      mode: this.#state.current.mode,
       revision: this.#revision,
       sessionKey: this.sessionKey,
     });
@@ -236,7 +231,7 @@ export class MarkdownAuthorityController {
 
   /** Commits WYSIWYG and activates exact source only when that commit succeeds. */
   showSource(): CommitResult {
-    if (this.#state.mode === "markdown") {
+    if (this.#state.current.mode === "markdown") {
       return createControllerCommitNoChange(
         {
           cause: "mode_switch",
@@ -260,10 +255,10 @@ export class MarkdownAuthorityController {
 
   /** Synchronizes exact source into ready Crepe before revealing WYSIWYG. */
   showWysiwyg(): SynchronizationResult {
-    if (this.#state.mode === "wysiwyg") {
+    if (this.#state.current.mode === "wysiwyg") {
       return createSynchronizationNoChange(this.sessionKey);
     }
-    if (this.#state.lifecycle !== "ready") {
+    if (this.#state.current.lifecycle !== "ready") {
       return createSynchronizationFailure(
         "source_to_wysiwyg",
         "editor_not_ready",
@@ -283,7 +278,7 @@ export class MarkdownAuthorityController {
         projection,
       };
       this.#acknowledgedProjection = projection;
-      this.#patch({ editorError: undefined, mode: "wysiwyg" });
+      this.#state.clearAvailability({ mode: "wysiwyg" });
       this.#input.onModeChange("wysiwyg");
       return createSynchronizationSuccess({
         cause: "source_to_wysiwyg",
@@ -292,9 +287,9 @@ export class MarkdownAuthorityController {
         sessionKey: this.sessionKey,
       });
     } catch {
-      this.#patch({
-        editorError: "The rich editor could not apply the Markdown source.",
-      });
+      this.#state.setAvailabilityFailure(
+        "The rich editor could not apply the Markdown source.",
+      );
       return createSynchronizationFailure(
         "source_to_wysiwyg",
         "document_replace_failed",
@@ -309,7 +304,7 @@ export class MarkdownAuthorityController {
     candidate: AuthorityRetryCandidate,
     trigger: PublicationTrigger,
   ): AcceptedChangeResult {
-    if (isControllerUnavailable(this.#frozen, this.#state.lifecycle)) {
+    if (isControllerUnavailable(this.#frozen, this.#state.current.lifecycle)) {
       return { reason: "lifecycle", status: "ignored" };
     }
     const reverted = createRetryReversion({
@@ -323,7 +318,7 @@ export class MarkdownAuthorityController {
     });
     if (reverted !== undefined) {
       this.#retry = undefined;
-      this.#patch({ editorError: undefined, hasPublicationRetry: false });
+      this.#state.settlePublication({ hasPublicationRetry: false });
       return reverted;
     }
     return this.#publishPreparedCandidate(candidate, trigger);
@@ -384,17 +379,13 @@ export class MarkdownAuthorityController {
     this.#revision = accepted.revision;
     this.#disposition = accepted.disposition;
     this.#retry = undefined;
-    this.#patch({
-      editorError: undefined,
+    this.#state.settlePublication({
       hasPublicationRetry: false,
       sourceMarkdown: candidate.markdown,
     });
   }
 
   #patch(patch: Partial<MarkdownAuthorityState>): void {
-    this.#state = { ...this.#state, ...patch };
-    for (const listener of this.#listeners) {
-      listener();
-    }
+    this.#state.patch(patch);
   }
 }
