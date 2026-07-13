@@ -1,11 +1,10 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { apiErrorCodes, type SaveNoteInput } from "@azurite/shared";
 import {
   createContentHash,
-  KeyedTaskCoordinator,
   NoteResolutionError,
   NoteWriteError,
   writeWorkspaceNote,
@@ -126,36 +125,6 @@ describe("writeWorkspaceNote safe errors", () => {
         code: apiErrorCodes.invalidNoteId,
       } satisfies Partial<NoteResolutionError>);
     });
-  });
-});
-
-describe("KeyedTaskCoordinator", () => {
-  it("releases failed keys and removes them when idle", async () => {
-    const coordinator = new KeyedTaskCoordinator();
-    await expect(
-      coordinator.run("note", () => Promise.reject(new Error("failed"))),
-    ).rejects.toThrow("failed");
-    await expect(
-      coordinator.run("note", () => Promise.resolve("recovered")),
-    ).resolves.toBe("recovered");
-    expect(coordinator.activeKeyCount).toBe(0);
-  });
-
-  it("does not globally serialize different keys", async () => {
-    const coordinator = new KeyedTaskCoordinator();
-    let releaseFirst!: () => void;
-    const firstGate = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    });
-    const first = coordinator.run("first", () => firstGate);
-    const secondTask = vi.fn(() => Promise.resolve("second"));
-    const second = coordinator.run("second", secondTask);
-
-    await expect(second).resolves.toBe("second");
-    expect(secondTask).toHaveBeenCalledTimes(1);
-    releaseFirst();
-    await first;
-    expect(coordinator.activeKeyCount).toBe(0);
   });
 });
 

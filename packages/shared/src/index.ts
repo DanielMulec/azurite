@@ -4,5 +4,6 @@ export * from "./cluster.js";
 export * from "./correlation.js";
 export * from "./development-observability.js";
 export * from "./health.js";
+export * from "./keyed-task-coordinator.js";
 export * from "./notes.js";
 export * from "./runtime-observability.js";
