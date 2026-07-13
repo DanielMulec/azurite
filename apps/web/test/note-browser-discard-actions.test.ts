@@ -49,7 +49,9 @@ describe("typed terminal Discard", () => {
       draftDisposition: "none",
     });
   });
+});
 
+describe("failed terminal Discard", () => {
   it("restores the same editor under a fresh epoch after deletion failure", async () => {
     const memory = createMemoryDraftPersistence([createTestDraft()]);
     const deleteDraft = vi
@@ -88,7 +90,9 @@ describe("typed terminal Discard", () => {
     ).resolves.toMatchObject({ closedEpoch: 1, status: "completed" });
     expect(deleteDraft).toHaveBeenCalledTimes(2);
   });
+});
 
+describe("future-version terminal Discard", () => {
   it("preserves a future record discovered transactionally and removes Discard", async () => {
     const memory = createMemoryDraftPersistence([createTestDraft()]);
     const deleteDraft = vi.fn<DraftPersistence["deleteDraft"]>(() =>
@@ -123,7 +127,9 @@ describe("typed terminal Discard", () => {
     expect(deleteDraft).toHaveBeenCalledOnce();
     expect(readNote).not.toHaveBeenCalled();
   });
+});
 
+describe("superseded terminal Discard", () => {
   it("does not reload through a replacement owner after deletion settles", async () => {
     const deletion =
       createDeferred<ReturnType<DraftPersistence["deleteDraft"]>>();

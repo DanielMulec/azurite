@@ -258,16 +258,15 @@ function createReadyEditor(
   recovery: "conflict" | "draft" | "none",
 ): EditorSession {
   const draftDisposition = recovery === "draft" ? "recovered" : recovery;
+  const recoveredSnapshotKey = getRecoveredSnapshotKey(draftDisposition);
   return {
     baseContentHash: getBaseContentHash(note, recovery),
     currentMarkdown: note.markdown,
     draftDisposition,
     draftEpoch: 0,
-    durableSnapshotKey:
-      draftDisposition === "none" ? undefined : "recovered-record",
+    durableSnapshotKey: recoveredSnapshotKey,
     editorMode: "wysiwyg",
-    lastSnapshotKey:
-      draftDisposition === "none" ? undefined : "recovered-record",
+    lastSnapshotKey: recoveredSnapshotKey,
     note,
     persistenceIssue: undefined,
     preservedSchemaVersion: undefined,
@@ -276,6 +275,12 @@ function createReadyEditor(
     saveStatus: getSaveStatus(recovery),
     sessionKey: "index.md:sha256-home:1",
   };
+}
+
+function getRecoveredSnapshotKey(
+  disposition: EditorSession["draftDisposition"],
+): string | undefined {
+  return disposition === "none" ? undefined : "recovered-record";
 }
 
 function getBaseContentHash(

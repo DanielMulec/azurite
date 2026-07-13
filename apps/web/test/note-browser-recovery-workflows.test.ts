@@ -56,7 +56,9 @@ describe("browser recovery retry", () => {
       renderedOwnerKey: getEditor(store).sessionKey,
     });
   });
+});
 
+describe("dirty browser recovery retry", () => {
   it("cannot replace exact dirty authority with a late recovery read", async () => {
     const readDraft = vi.fn<DraftPersistence["readDraft"]>(() =>
       Promise.resolve({
@@ -167,7 +169,9 @@ describe("successful Save cleanup retry", () => {
       memory.read(readyClusterIdentity.clusterId, "index.md"),
     ).toBeUndefined();
   });
+});
 
+describe("successful Save queue cleanup retry", () => {
   it("retains the exact obligation after a coordinator rejection", async () => {
     const draft = createTestDraft({
       baseContentHash: "sha256-old",
