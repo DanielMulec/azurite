@@ -16,6 +16,7 @@ import type {
 import {
   createCommitFailure,
   createCommitNoChange,
+  createRetryReverted,
   createSynchronizationFailure,
   createSynchronizationNoChange,
   toCommitResult,
@@ -300,7 +301,13 @@ export class MarkdownAuthorityController {
       this.#patch({ editorError: undefined, hasPublicationRetry: false });
       return {
         markdown: candidate.markdown,
-        publication: this.#retryReverted(candidate, trigger),
+        publication: createRetryReverted({
+          disposition: this.#disposition,
+          origin: candidate.origin,
+          revision: this.#revision,
+          sessionKey: this.sessionKey,
+          trigger,
+        }),
         status: "processed",
       };
     }
@@ -378,22 +385,6 @@ export class MarkdownAuthorityController {
           origin: "wysiwyg_document",
           resolution: "serialized_projection",
         };
-  }
-
-  #retryReverted(
-    candidate: RetryCandidate,
-    trigger: PublicationTrigger,
-  ): PublicationResult {
-    return {
-      disposition: this.#disposition,
-      origin: candidate.origin,
-      reason: "retry_reverted",
-      revision: this.#revision,
-      sessionKey: this.sessionKey,
-      stateEffect: "none",
-      status: "no_change",
-      trigger,
-    };
   }
 
   #patch(patch: Partial<MarkdownAuthorityState>): void {

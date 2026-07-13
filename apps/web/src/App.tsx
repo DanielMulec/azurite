@@ -58,6 +58,9 @@ export function App({
           routeHistoryStatus={browser.routeHistoryStatus}
           onSaveNote={browser.saveSelectedNote}
           onEditorModeChange={browser.updateEditorMode}
+          onRetryBrowserRecovery={browser.retryBrowserRecovery}
+          onRetryDraftCleanup={browser.retryDraftCleanup}
+          onRetryDraftPersistence={browser.retryDraftPersistence}
           sessionGate={browser.editorSessionGate}
         />
       </div>

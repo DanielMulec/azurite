@@ -120,12 +120,17 @@ function getSaveDraftPatch(
   if (result === undefined) {
     return getUntargetedCleanupPatch(editor, clusterIdentity);
   }
-  return getExactCleanupPatch(editor, result);
+  return getExactCleanupPatch(
+    editor,
+    result,
+    getReadyClusterId(clusterIdentity),
+  );
 }
 
 function getExactCleanupPatch(
   editor: EditorSession,
   result: DraftRecordMutationResult,
+  clusterId: string | undefined,
 ): Partial<EditorSession> {
   if (
     result.status === "deleted" ||
@@ -146,10 +151,11 @@ function getExactCleanupPatch(
   if (result.status === "not_matching") {
     return { persistenceIssue: undefined };
   }
-  return createCleanupFailurePatch(editor, {
-    reason: result.reason,
-    source: "persistence",
-  });
+  return createCleanupFailurePatch(
+    editor,
+    { reason: result.reason, source: "persistence" },
+    clusterId,
+  );
 }
 
 function getUntargetedCleanupPatch(
@@ -160,10 +166,11 @@ function getUntargetedCleanupPatch(
     return resolvedDraftPatch;
   }
   if (clusterIdentity.status === "unavailable") {
-    return createCleanupFailurePatch(editor, {
-      reason: clusterIdentity.reason,
-      source: "cluster_identity",
-    });
+    return createCleanupFailurePatch(
+      editor,
+      { reason: clusterIdentity.reason, source: "cluster_identity" },
+      undefined,
+    );
   }
   return { persistenceIssue: undefined };
 }
@@ -184,11 +191,12 @@ function getNewerEditPatch(
 function createCleanupFailurePatch(
   editor: EditorSession,
   failure: Parameters<typeof createDraftPersistenceIssue>[0]["failure"],
+  clusterId: string | undefined,
 ): Partial<EditorSession> {
   return {
     draftDisposition: "cleanup_required",
     persistenceIssue: createDraftPersistenceIssue({
-      clusterId: editor.persistenceIssue?.clusterId,
+      clusterId,
       draftEpoch: editor.draftEpoch,
       failure,
       noteId: editor.note.id,
@@ -206,18 +214,31 @@ async function reconcileSavedDraft(
   input: SaveResponseInput,
 ): Promise<DraftRecordMutationResult | undefined> {
   if (isProtectedDisposition(input.editor.draftDisposition)) {
+    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     return undefined;
   }
-  const clusterId = getReadyClusterId(input.clusterIdentity);
-  if (clusterId === undefined || input.editor.draftDisposition === "none") {
+  if (input.editor.draftDisposition === "none") {
+    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     return undefined;
   }
-  return await input.context.draftCoordinator.cleanupSavedSnapshot({
+  const snapshot = {
     baseContentHash: input.editor.baseContentHash,
-    clusterId,
     markdown: input.editor.currentMarkdown,
     noteId: input.editor.note.id,
+  };
+  input.context.draftCleanupRetries.remember(input.editor.sessionKey, snapshot);
+  const clusterId = getReadyClusterId(input.clusterIdentity);
+  if (clusterId === undefined) {
+    return undefined;
+  }
+  const result = await input.context.draftCoordinator.cleanupSavedSnapshot({
+    clusterId,
+    ...snapshot,
   });
+  if (result.status !== "unavailable") {
+    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
+  }
+  return result;
 }
 
 function getProtectedSaveIssue(

@@ -330,7 +330,7 @@ function createInitialPersistenceIssue(
     return undefined;
   }
   return createDraftPersistenceIssue({
-    clusterId: undefined,
+    clusterId: application.clusterId,
     draftEpoch: 0,
     failure: application.failure,
     noteId,

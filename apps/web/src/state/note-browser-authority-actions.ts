@@ -121,7 +121,11 @@ export async function retryDraftPersistenceAction(
     context.draftCoordinator.bindSessionCluster(editor.sessionKey, clusterId);
   }
   if (editor.lastSnapshotKey === snapshotKey) {
-    await context.draftCoordinator.retrySnapshot(snapshotKey);
+    if (editor.persistenceIssue?.failure.source === "cluster_identity") {
+      await context.draftCoordinator.flushSnapshot(snapshotKey);
+    } else {
+      await context.draftCoordinator.retrySnapshot(snapshotKey);
+    }
   }
 }
 
@@ -162,6 +166,7 @@ function applyPreparedPublication(
     );
   }
   context.draftCoordinator.commitPrepared(snapshot.snapshotKey);
+  context.draftCleanupRetries.delete(editor.sessionKey);
   return {
     completion: subscriberThrew ? "subscriber_threw_after_apply" : "normal",
     disposition: snapshot.disposition,

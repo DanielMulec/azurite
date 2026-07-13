@@ -12,11 +12,13 @@ import type {
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
 import type { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
+import type { DraftCleanupRetryRegistry } from "../persistence/draft-cleanup-retry-registry.js";
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type {
   DurabilityCause,
   DurabilityResult,
+  RecoveryReadResult,
 } from "../persistence/draft-workflow-types.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import type {
@@ -83,7 +85,7 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly publishMarkdownChange: (
     command: PublicationCommand,
   ) => PublicationResult;
-  readonly retryBrowserRecovery: () => Promise<void>;
+  readonly retryBrowserRecovery: () => Promise<RecoveryReadResult>;
   readonly retryDraftCleanup: () => Promise<void>;
   readonly retryDraftPersistence: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
@@ -99,6 +101,7 @@ export type StoreContext = {
   readonly commitRouteApplication: () => void;
   readonly draftPersistence: DraftPersistence;
   readonly draftCoordinator: DraftPersistenceCoordinator;
+  readonly draftCleanupRetries: DraftCleanupRetryRegistry;
   readonly clearActiveNoteLoad: (
     promise: Promise<RouteStoreApplyResult>,
   ) => void;

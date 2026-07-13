@@ -10,6 +10,7 @@ import {
   type DraftPersistence,
 } from "../persistence/draft-database.js";
 import { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
+import { DraftCleanupRetryRegistry } from "../persistence/draft-cleanup-retry-registry.js";
 import type { RouteStoreExecutor } from "../routing/route-store-executor.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import {
@@ -25,6 +26,8 @@ import {
   updateEditorModeWithSnapshot,
 } from "./note-browser-authority-actions.js";
 import { flushEditorDurability } from "./note-browser-durability-actions.js";
+import { retryBrowserRecoveryAction } from "./note-browser-recovery-actions.js";
+import { retryDraftCleanupAction } from "./note-browser-cleanup-actions.js";
 import type {
   ActiveNoteLoad,
   ActiveNoteSave,
@@ -57,6 +60,7 @@ type NoteBrowserRuntime = {
   currentRouteIntentKey: string | undefined;
   readonly draftPersistence: DraftPersistence;
   readonly draftCoordinator: DraftPersistenceCoordinator;
+  readonly draftCleanupRetries: DraftCleanupRetryRegistry;
   editorSessionVersion: number;
   noteRequestSequence: number;
   notesRequestSequence: number;
@@ -110,6 +114,7 @@ function createRuntime(options: NoteBrowserStoreOptions): NoteBrowserRuntime {
       delayMs: getDraftWriteDelayMs(options),
       persistence: draftPersistence,
     }),
+    draftCleanupRetries: new DraftCleanupRetryRegistry(),
     draftPersistence,
     editorSessionVersion: 0,
     noteRequestSequence: 0,
@@ -177,8 +182,11 @@ function createInitialState(
       });
     },
     routeHistoryStatus: { status: "available" },
-    retryBrowserRecovery: async () => {},
-    retryDraftCleanup: async () => {},
+    retryBrowserRecovery: async () =>
+      await retryBrowserRecoveryAction(runtime.context),
+    retryDraftCleanup: async () => {
+      await retryDraftCleanupAction(runtime.context);
+    },
     retryDraftPersistence: async () => {
       await retryDraftPersistenceAction(runtime.context);
     },
@@ -231,6 +239,7 @@ function configureContext(
     },
     draftPersistence: runtime.draftPersistence,
     draftCoordinator: runtime.draftCoordinator,
+    draftCleanupRetries: runtime.draftCleanupRetries,
     get,
     getActiveNoteLoad: () => runtime.activeNoteLoad,
     getActiveNoteSave: (noteId: string) => runtime.activeNoteSaves.get(noteId),

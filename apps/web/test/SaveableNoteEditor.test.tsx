@@ -143,6 +143,9 @@ function renderEditor(options: RenderEditorOptions = {}): void {
       onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
       onEditorModeChange={getEditorModeAction(options)}
       onPublishMarkdown={getPublisher(options)}
+      onRetryBrowserRecovery={() => Promise.resolve()}
+      onRetryDraftCleanup={() => Promise.resolve()}
+      onRetryDraftPersistence={() => Promise.resolve()}
       onSaveNote={getSaveAction(options)}
       sessionGate={createTestEditorSessionGate()}
     />,

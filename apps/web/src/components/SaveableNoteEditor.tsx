@@ -17,6 +17,9 @@ type SaveableNoteEditorProps = {
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly onRetryBrowserRecovery: () => Promise<unknown>;
+  readonly onRetryDraftCleanup: () => Promise<void>;
+  readonly onRetryDraftPersistence: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 };
@@ -27,6 +30,9 @@ export function SaveableNoteEditor({
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
   onPublishMarkdown,
+  onRetryBrowserRecovery,
+  onRetryDraftCleanup,
+  onRetryDraftPersistence,
   onSaveNote,
   sessionGate,
 }: SaveableNoteEditorProps): ReactElement {
@@ -44,6 +50,9 @@ export function SaveableNoteEditor({
             await onSaveNote();
           }
         }}
+        onRetryBrowserRecovery={onRetryBrowserRecovery}
+        onRetryDraftCleanup={onRetryDraftCleanup}
+        onRetryDraftPersistence={onRetryDraftPersistence}
         sessionGate={sessionGate}
       />
       <MilkdownEditor
@@ -66,12 +75,18 @@ function SaveToolbar({
   editor,
   isDirty,
   onDiscardDraftAndReloadDiskVersion,
+  onRetryBrowserRecovery,
+  onRetryDraftCleanup,
+  onRetryDraftPersistence,
   onSave,
   sessionGate,
 }: {
   readonly editor: EditorSession;
   readonly isDirty: boolean;
   readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onRetryBrowserRecovery: () => Promise<unknown>;
+  readonly onRetryDraftCleanup: () => Promise<void>;
+  readonly onRetryDraftPersistence: () => Promise<void>;
   readonly onSave: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 }): ReactElement {
@@ -102,6 +117,12 @@ function SaveToolbar({
               Discard draft and reload disk version
             </button>
           ) : null}
+          <DraftRetryButton
+            editor={editor}
+            onRetryBrowserRecovery={onRetryBrowserRecovery}
+            onRetryDraftCleanup={onRetryDraftCleanup}
+            onRetryDraftPersistence={onRetryDraftPersistence}
+          />
           <button
             className="w-fit border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-3 py-1.5 text-sm font-medium text-[var(--azurite-text)] hover:bg-[var(--azurite-hover)] disabled:cursor-not-allowed disabled:text-[var(--azurite-muted)]"
             disabled={!canSaveEditor(editor)}
@@ -115,6 +136,35 @@ function SaveToolbar({
         </div>
       </div>
     </div>
+  );
+}
+
+function DraftRetryButton(props: {
+  readonly editor: EditorSession;
+  readonly onRetryBrowserRecovery: () => Promise<unknown>;
+  readonly onRetryDraftCleanup: () => Promise<void>;
+  readonly onRetryDraftPersistence: () => Promise<void>;
+}): ReactElement | null {
+  const action = props.editor.persistenceIssue?.retryAction;
+  if (action === undefined || action === "retry_discard") {
+    return null;
+  }
+  return (
+    <button
+      className="w-fit border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+      onClick={() => {
+        if (action === "retry_browser_recovery") {
+          void props.onRetryBrowserRecovery();
+        } else if (action === "retry_draft_cleanup") {
+          void props.onRetryDraftCleanup();
+        } else {
+          void props.onRetryDraftPersistence();
+        }
+      }}
+      type="button"
+    >
+      {retryActionLabels[action]}
+    </button>
   );
 }
 
@@ -161,3 +211,9 @@ const draftDispositionStatusText = {
   recovered: "Recovered unsaved draft",
   recovery_read_unavailable: "Browser recovery could not be read",
 } satisfies Record<EditorSession["draftDisposition"], string | undefined>;
+
+const retryActionLabels = {
+  retry_browser_recovery: "Retry browser recovery",
+  retry_draft_cleanup: "Retry draft cleanup",
+  retry_draft_persistence: "Retry draft persistence",
+} as const;

@@ -42,6 +42,9 @@ export type NoteBrowserState = {
   readonly publishMarkdownChange: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly retryBrowserRecovery: () => Promise<unknown>;
+  readonly retryDraftCleanup: () => Promise<void>;
+  readonly retryDraftPersistence: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
@@ -109,6 +112,15 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
       (state) => state.publishMarkdownChange,
     ),
     routeHistoryStatus: useStore(store, (state) => state.routeHistoryStatus),
+    retryBrowserRecovery: useStore(
+      store,
+      (state) => state.retryBrowserRecovery,
+    ),
+    retryDraftCleanup: useStore(store, (state) => state.retryDraftCleanup),
+    retryDraftPersistence: useStore(
+      store,
+      (state) => state.retryDraftPersistence,
+    ),
     saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
     selectedNoteId: useStore(store, (state) => state.selectedNoteId),
     updateDraftMarkdown: useStore(store, (state) => state.updateDraftMarkdown),

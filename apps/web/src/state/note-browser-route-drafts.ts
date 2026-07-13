@@ -16,6 +16,7 @@ import type {
 
 /** Draft lookup result prepared for one atomic terminal route mutation. */
 export type RouteDraftApplication = {
+  readonly clusterId: string | undefined;
   readonly draft: DraftRecord | undefined;
   readonly disposition: DraftDisposition;
   readonly failure: DraftFailureDetail | undefined;
@@ -32,6 +33,7 @@ export async function readRouteDraft(
   const clusterId = getReadyClusterId(clusterIdentity);
   if (clusterId === undefined) {
     return {
+      clusterId: undefined,
       disposition: "recovery_read_unavailable",
       draft: undefined,
       failure: {
@@ -54,6 +56,7 @@ export async function readRouteDraft(
   const result = await context.draftCoordinator.readDraft(clusterId, noteId);
   if (result.status === "unavailable") {
     return {
+      clusterId,
       disposition: "recovery_read_unavailable",
       draft: undefined,
       failure: { reason: result.reason, source: "persistence" },
@@ -65,6 +68,7 @@ export async function readRouteDraft(
   }
   if (result.status === "preserved_unknown") {
     return {
+      clusterId,
       disposition: "preserved_unknown",
       draft: undefined,
       failure: { reason: "preserved_unknown", source: "record" },
@@ -74,6 +78,7 @@ export async function readRouteDraft(
   }
   if (result.status === "found_current") {
     return {
+      clusterId,
       disposition: "recovered",
       draft: result.draft,
       failure: undefined,
@@ -82,6 +87,7 @@ export async function readRouteDraft(
     };
   }
   return {
+    clusterId,
     disposition: "none",
     draft: undefined,
     failure:
@@ -92,9 +98,8 @@ export async function readRouteDraft(
     statePatch:
       result.status === "invalid_deleted"
         ? {
-            draftRecoveryStatus: getDegradedDraftRecoveryStatus(
-              "validation_failed",
-            ),
+            draftRecoveryStatus:
+              getDegradedDraftRecoveryStatus("validation_failed"),
           }
         : {},
   };

@@ -23,6 +23,9 @@ type NoteEditorSurfaceProps = {
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly onRetryBrowserRecovery: () => Promise<unknown>;
+  readonly onRetryDraftCleanup: () => Promise<void>;
+  readonly onRetryDraftPersistence: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 };
@@ -39,6 +42,9 @@ export function NoteEditorSurface({
   onDiscardMissingDraft,
   onEditorModeChange,
   onPublishMarkdown,
+  onRetryBrowserRecovery,
+  onRetryDraftCleanup,
+  onRetryDraftPersistence,
   onSaveNote,
   routeHistoryStatus,
   sessionGate,
@@ -54,6 +60,9 @@ export function NoteEditorSurface({
         onDiscardMissingDraft,
         onEditorModeChange,
         onPublishMarkdown,
+        onRetryBrowserRecovery,
+        onRetryDraftCleanup,
+        onRetryDraftPersistence,
         onSaveNote,
         routeHistoryStatus,
         sessionGate,
@@ -84,6 +93,9 @@ function SelectedNote({
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
   onPublishMarkdown,
+  onRetryBrowserRecovery,
+  onRetryDraftCleanup,
+  onRetryDraftPersistence,
   onSaveNote,
   sessionGate,
 }: NoteEditorSurfaceProps & {
@@ -123,6 +135,9 @@ function SelectedNote({
           }
           onEditorModeChange={onEditorModeChange}
           onPublishMarkdown={onPublishMarkdown}
+          onRetryBrowserRecovery={onRetryBrowserRecovery}
+          onRetryDraftCleanup={onRetryDraftCleanup}
+          onRetryDraftPersistence={onRetryDraftPersistence}
           onSaveNote={onSaveNote}
           sessionGate={sessionGate}
         />

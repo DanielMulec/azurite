@@ -1,10 +1,28 @@
 import type {
+  ChangeOrigin,
   CommitCause,
   CommitResult,
   PublicationResult,
   PublicationTrigger,
   SynchronizationResult,
 } from "../domain/markdown-authority-types.js";
+import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+
+/** Creates the no-op that clears a rejected change reverted by visible input. */
+export function createRetryReverted(input: {
+  readonly disposition: DraftDisposition;
+  readonly origin: ChangeOrigin;
+  readonly revision: number;
+  readonly sessionKey: string;
+  readonly trigger: PublicationTrigger;
+}): PublicationResult {
+  return {
+    ...input,
+    reason: "retry_reverted",
+    stateEffect: "none",
+    status: "no_change",
+  };
+}
 
 /** Creates a typed commit no-op without touching editor authority. */
 export function createCommitNoChange(

@@ -16,6 +16,10 @@ import type {
   DraftMutationSnapshot,
   SnapshotPreparationResult,
 } from "./draft-workflow-types.js";
+import {
+  clearDraftTimer,
+  getDraftEpochKey,
+} from "./draft-scheduling-helpers.js";
 
 /** Result of executing, coalescing, or blocking one immutable snapshot. */
 export type DraftSnapshotResult =
@@ -238,7 +242,7 @@ export class DraftPersistenceCoordinator {
 
   /** Permanently rejects callbacks from one owner epoch. */
   closeEpoch(ownerKey: string, draftEpoch: number): void {
-    this.#closedEpochs.add(getEpochKey(ownerKey, draftEpoch));
+    this.#closedEpochs.add(getDraftEpochKey(ownerKey, draftEpoch));
   }
 
   #getPreparationRejection(
@@ -275,7 +279,7 @@ export class DraftPersistenceCoordinator {
     const key = getSnapshotQueueKey(slot.snapshot);
     const previous = this.#scheduled.get(key);
     if (previous !== undefined) {
-      clearScheduledTimer(previous);
+      clearDraftTimer(previous);
       this.#settle(previous, { status: "superseded" });
     }
     const scheduled: ScheduledSlot = { ...slot, timer: undefined };
@@ -292,7 +296,7 @@ export class DraftPersistenceCoordinator {
       return;
     }
     this.#scheduled.delete(key);
-    clearScheduledTimer(slot);
+    clearDraftTimer(slot);
     void this.#keyedTasks
       .run(key, async () => await this.#execute(slot))
       .then(
@@ -341,7 +345,7 @@ export class DraftPersistenceCoordinator {
     for (const [key, slot] of this.#scheduled) {
       if (predicate(slot)) {
         this.#scheduled.delete(key);
-        clearScheduledTimer(slot);
+        clearDraftTimer(slot);
         this.#settle(slot, { status: "superseded" });
       }
     }
@@ -377,7 +381,7 @@ export class DraftPersistenceCoordinator {
 
   #isClosed(snapshot: DraftMutationSnapshot): boolean {
     return this.#closedEpochs.has(
-      getEpochKey(snapshot.sessionKey, snapshot.draftEpoch),
+      getDraftEpochKey(snapshot.sessionKey, snapshot.draftEpoch),
     );
   }
 }
@@ -388,15 +392,4 @@ function createReceipt(): SnapshotReceipt {
     resolveReceipt = resolve;
   });
   return { promise, resolve: resolveReceipt, settled: false };
-}
-
-function getEpochKey(ownerKey: string, draftEpoch: number): string {
-  return `${ownerKey}\u0000${String(draftEpoch)}`;
-}
-
-function clearScheduledTimer(slot: ScheduledSlot): void {
-  if (slot.timer !== undefined) {
-    clearTimeout(slot.timer);
-    slot.timer = undefined;
-  }
 }

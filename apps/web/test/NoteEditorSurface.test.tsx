@@ -101,6 +101,9 @@ function renderSurface(
       onDiscardMissingDraft={getDiscardMissingDraftAction(options)}
       onEditorModeChange={() => {}}
       onPublishMarkdown={createAcknowledgingPublisher()}
+      onRetryBrowserRecovery={() => Promise.resolve()}
+      onRetryDraftCleanup={() => Promise.resolve()}
+      onRetryDraftPersistence={() => Promise.resolve()}
       onSaveNote={() => Promise.resolve()}
       routeHistoryStatus={{ status: "available" }}
       sessionGate={createTestEditorSessionGate()}
