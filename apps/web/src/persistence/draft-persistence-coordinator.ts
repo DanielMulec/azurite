@@ -2,11 +2,20 @@ import { KeyedTaskCoordinator } from "@azurite/shared";
 
 import type {
   DraftPersistence,
-  DraftReadResult,
   DraftRecordMutationResult,
   DraftWriteResult,
   SavedDraftSnapshot,
 } from "./draft-database.js";
+import {
+  runCoordinatedDraftMutation,
+  runCoordinatedDraftRead,
+  type CoordinatedDraftMutationResult,
+  type CoordinatedDraftReadResult,
+} from "./draft-coordinated-operations.js";
+export type {
+  CoordinatedDraftMutationResult,
+  CoordinatedDraftReadResult,
+} from "./draft-coordinated-operations.js";
 import {
   executeDraftSnapshot,
   getDraftQueueKey,
@@ -33,7 +42,7 @@ export type DraftSnapshotResult =
       readonly reason: Extract<
         DraftWriteResult | DraftRecordMutationResult,
         { readonly status: "unavailable" }
-      >["reason"];
+      >["reason"] | "queue_task_failed";
       readonly status: "unavailable";
     }
   | { readonly status: "superseded" }
@@ -94,6 +103,16 @@ export class DraftPersistenceCoordinator {
   /** Number of identity-blocked session snapshots retained in memory. */
   get unboundSnapshotCount(): number {
     return this.#unbound.size;
+  }
+
+  /** Number of inactive, scheduled, unbound, or retryable snapshot slots. */
+  get pendingSnapshotCount(): number {
+    return (
+      this.#prepared.size +
+      this.#scheduled.size +
+      this.#unbound.size +
+      this.#failed.size
+    );
   }
 
   /** Admits an inactive immutable snapshot before its Zustand revision applies. */
@@ -196,22 +215,29 @@ export class DraftPersistenceCoordinator {
   }
 
   /** Reads one record after all scheduled and queued same-note work. */
-  async readDraft(clusterId: string, noteId: string): Promise<DraftReadResult> {
+  async readDraft(
+    clusterId: string,
+    noteId: string,
+  ): Promise<CoordinatedDraftReadResult> {
     const key = getDraftQueueKey(clusterId, noteId);
     this.#startScheduled(key);
-    return await this.#keyedTasks.run(
+    return await runCoordinatedDraftRead(
+      this.#keyedTasks,
       key,
-      async () => await this.#persistence.readDraft(clusterId, noteId),
+      clusterId,
+      noteId,
+      this.#persistence,
     );
   }
 
   /** Conditionally reconciles a successful Save behind earlier note work. */
   async cleanupSavedSnapshot(
     snapshot: SavedDraftSnapshot,
-  ): Promise<DraftRecordMutationResult> {
+  ): Promise<CoordinatedDraftMutationResult> {
     const key = getDraftQueueKey(snapshot.clusterId, snapshot.noteId);
     this.#startScheduled(key);
-    return await this.#keyedTasks.run(
+    return await runCoordinatedDraftMutation(
+      this.#keyedTasks,
       key,
       async () =>
         await this.#persistence.deleteDraftIfSavedSnapshotMatches(snapshot),
@@ -224,7 +250,7 @@ export class DraftPersistenceCoordinator {
     readonly draftEpoch: number;
     readonly noteId: string;
     readonly ownerKey: string;
-  }): Promise<DraftRecordMutationResult> {
+  }): Promise<CoordinatedDraftMutationResult> {
     this.closeEpoch(input.ownerKey, input.draftEpoch);
     this.#cancelMatching(
       (slot) =>
@@ -233,7 +259,8 @@ export class DraftPersistenceCoordinator {
         slot.snapshot.draftEpoch === input.draftEpoch,
     );
     const key = getDraftQueueKey(input.clusterId, input.noteId);
-    return await this.#keyedTasks.run(
+    return await runCoordinatedDraftMutation(
+      this.#keyedTasks,
       key,
       async () =>
         await this.#persistence.deleteDraft(input.clusterId, input.noteId),
@@ -304,7 +331,10 @@ export class DraftPersistenceCoordinator {
           this.#settle(slot, result);
         },
         () => {
-          this.#settle(slot, { reason: "write_failed", status: "unavailable" });
+          this.#settle(slot, {
+            reason: "queue_task_failed",
+            status: "unavailable",
+          });
         },
       );
   }

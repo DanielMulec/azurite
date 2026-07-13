@@ -1,6 +1,6 @@
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
-import type { DraftRecordMutationResult } from "../persistence/draft-database.js";
+import type { CoordinatedDraftMutationResult } from "../persistence/draft-persistence-coordinator.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
 
@@ -35,7 +35,7 @@ export async function retryDraftCleanupAction(
 
 function applyCleanupRetryResult(
   sessionKey: string,
-  result: DraftRecordMutationResult,
+  result: CoordinatedDraftMutationResult,
   clusterId: string,
   context: StoreContext,
 ): void {
@@ -71,6 +71,23 @@ function applyCleanupRetryResult(
       return readyPatch({
         ...editor,
         persistenceIssue: createCleanupIssue(editor, clusterId, result.reason),
+      });
+    }
+    if (result.status === "queue_failed") {
+      return readyPatch({
+        ...editor,
+        persistenceIssue: createDraftPersistenceIssue({
+          clusterId,
+          draftEpoch: editor.draftEpoch,
+          failure: { reason: result.reason, source: "coordinator" },
+          noteId: editor.note.id,
+          operation: "cleanup",
+          ownerKey: editor.sessionKey,
+          retryAction: "retry_draft_cleanup",
+          revision: editor.revision,
+          sessionKey: editor.sessionKey,
+          snapshotKey: editor.lastSnapshotKey,
+        }),
       });
     }
     context.draftCleanupRetries.delete(sessionKey);
@@ -158,7 +175,7 @@ function readyPatch(
   return { noteState: { editor, status: "ready" as const } };
 }
 
-function isDeletionComplete(result: DraftRecordMutationResult): boolean {
+function isDeletionComplete(result: CoordinatedDraftMutationResult): boolean {
   return (
     result.status === "deleted" ||
     result.status === "absent" ||

@@ -129,10 +129,14 @@ function createWriteIssue(
   snapshot: DraftMutationSnapshot,
   reason: Extract<DraftSnapshotResult, { status: "unavailable" }>["reason"],
 ) {
+  const failure =
+    reason === "queue_task_failed"
+      ? { reason, source: "coordinator" as const }
+      : { reason, source: "persistence" as const };
   return createDraftPersistenceIssue({
     clusterId: snapshot.clusterId,
     draftEpoch: snapshot.draftEpoch,
-    failure: { reason, source: "persistence" },
+    failure,
     noteId: snapshot.noteId,
     operation: snapshot.cause === "mode_change" ? "mode_write" : "content_write",
     ownerKey: snapshot.sessionKey,

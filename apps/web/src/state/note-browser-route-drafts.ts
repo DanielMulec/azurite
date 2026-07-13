@@ -66,6 +66,16 @@ export async function readRouteDraft(
       },
     };
   }
+  if (result.status === "queue_failed") {
+    return {
+      clusterId,
+      disposition: "recovery_read_unavailable",
+      draft: undefined,
+      failure: { reason: result.reason, source: "coordinator" },
+      preservedSchemaVersion: undefined,
+      statePatch: {},
+    };
+  }
   if (result.status === "preserved_unknown") {
     return {
       clusterId,

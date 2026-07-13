@@ -1,6 +1,6 @@
 import type { ClusterIdentity, NoteContentWithHash } from "@azurite/shared";
 
-import type { DraftRecordMutationResult } from "../persistence/draft-database.js";
+import type { CoordinatedDraftMutationResult } from "../persistence/draft-persistence-coordinator.js";
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import {
   applyClusterIdentity,
@@ -68,7 +68,7 @@ export function applySaveFailure(input: {
 
 function applySuccessfulSave(
   input: SaveResponseInput,
-  reconciliation: DraftRecordMutationResult | undefined,
+  reconciliation: CoordinatedDraftMutationResult | undefined,
 ): void {
   input.context.set((state) => {
     if (
@@ -105,7 +105,7 @@ function applySuccessfulSave(
 function getSaveDraftPatch(
   editor: EditorSession,
   clusterIdentity: ClusterIdentity,
-  result: DraftRecordMutationResult | undefined,
+  result: CoordinatedDraftMutationResult | undefined,
   sameSnapshot: boolean,
 ): Partial<EditorSession> {
   if (isProtectedDisposition(editor.draftDisposition)) {
@@ -129,7 +129,7 @@ function getSaveDraftPatch(
 
 function getExactCleanupPatch(
   editor: EditorSession,
-  result: DraftRecordMutationResult,
+  result: CoordinatedDraftMutationResult,
   clusterId: string | undefined,
 ): Partial<EditorSession> {
   if (
@@ -150,6 +150,13 @@ function getExactCleanupPatch(
   }
   if (result.status === "not_matching") {
     return { persistenceIssue: undefined };
+  }
+  if (result.status === "queue_failed") {
+    return createCleanupFailurePatch(
+      editor,
+      { reason: result.reason, source: "coordinator" },
+      clusterId,
+    );
   }
   return createCleanupFailurePatch(
     editor,
@@ -177,7 +184,7 @@ function getUntargetedCleanupPatch(
 
 function getNewerEditPatch(
   editor: EditorSession,
-  result: DraftRecordMutationResult | undefined,
+  result: CoordinatedDraftMutationResult | undefined,
 ): Partial<EditorSession> {
   if (result?.status === "preserved_unknown") {
     return {
@@ -212,7 +219,7 @@ function createCleanupFailurePatch(
 
 async function reconcileSavedDraft(
   input: SaveResponseInput,
-): Promise<DraftRecordMutationResult | undefined> {
+): Promise<CoordinatedDraftMutationResult | undefined> {
   if (isProtectedDisposition(input.editor.draftDisposition)) {
     input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     return undefined;

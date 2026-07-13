@@ -5,7 +5,7 @@ import {
 } from "@azurite/shared";
 
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
-import type { DraftRecordMutationResult } from "../persistence/draft-database.js";
+import type { CoordinatedDraftMutationResult } from "../persistence/draft-persistence-coordinator.js";
 import {
   canSaveEditor,
   getReadyClusterId,
@@ -204,7 +204,7 @@ function applyMissingAfterDiscard(noteId: string, context: StoreContext): void {
 
 function restoreEditorAfterDiscardResult(
   editor: EditorSession,
-  result: DraftRecordMutationResult,
+  result: CoordinatedDraftMutationResult,
   context: StoreContext,
 ): void {
   if (result.status === "preserved_unknown") {
@@ -266,7 +266,7 @@ function restoreMissingAfterDiscardResult(
     ReturnType<StoreContext["get"]>["noteState"],
     { status: "missing-draft" }
   >,
-  result: DraftRecordMutationResult,
+  result: CoordinatedDraftMutationResult,
   context: StoreContext,
 ): void {
   const failure = getMutationFailure(result);
@@ -321,8 +321,11 @@ function createDiscardIssue(
 }
 
 function getMutationFailure(
-  result: DraftRecordMutationResult,
+  result: CoordinatedDraftMutationResult,
 ): Parameters<typeof createDraftPersistenceIssue>[0]["failure"] | undefined {
+  if (result.status === "queue_failed") {
+    return { reason: result.reason, source: "coordinator" };
+  }
   if (result.status === "unavailable") {
     return { reason: result.reason, source: "persistence" };
   }
@@ -344,7 +347,7 @@ function clusterIdentityFailure(
   };
 }
 
-function isDeletionComplete(result: DraftRecordMutationResult): boolean {
+function isDeletionComplete(result: CoordinatedDraftMutationResult): boolean {
   return (
     result.status === "deleted" ||
     result.status === "absent" ||
