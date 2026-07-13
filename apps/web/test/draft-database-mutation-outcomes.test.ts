@@ -61,19 +61,19 @@ describe("transactional conditional mutation outcomes", () => {
     );
 
     await expect(
-      deleteSaved(persistence, "absent.md", "# Draft"),
+      deleteSaved({ markdown: "# Draft", noteId: "absent.md", persistence }),
     ).resolves.toEqual({ status: "absent" });
     await expect(
-      deleteSaved(persistence, "invalid.md", "# Draft"),
+      deleteSaved({ markdown: "# Draft", noteId: "invalid.md", persistence }),
     ).resolves.toEqual({
       reason: "validation_failed",
       status: "invalid_deleted",
     });
     await expect(
-      deleteSaved(persistence, "different.md", "# Draft"),
+      deleteSaved({ markdown: "# Draft", noteId: "different.md", persistence }),
     ).resolves.toEqual({ status: "not_matching" });
     await expect(
-      deleteSaved(persistence, "matching.md", "# Draft"),
+      deleteSaved({ markdown: "# Draft", noteId: "matching.md", persistence }),
     ).resolves.toEqual({ status: "deleted" });
   });
 });
@@ -106,7 +106,12 @@ describe("future-version mutation protection", () => {
       persistence.writeDraft(createDraft(noteId, "# Older build write")),
     ).resolves.toEqual({ schemaVersion: 7, status: "preserved_unknown" });
     await expect(
-      deleteSaved(persistence, noteId, "# Future payload\n", "sha256-future"),
+      deleteSaved({
+        baseContentHash: "sha256-future",
+        markdown: "# Future payload\n",
+        noteId,
+        persistence,
+      }),
     ).resolves.toEqual({ schemaVersion: 7, status: "preserved_unknown" });
     await expect(persistence.deleteDraft(clusterId, noteId)).resolves.toEqual({
       schemaVersion: 7,
@@ -127,7 +132,11 @@ describe("mutation unavailability", () => {
       persistence.deleteDraft(clusterId, draft.noteId),
     ).resolves.toEqual({ reason: "quota_exceeded", status: "unavailable" });
     await expect(
-      deleteSaved(persistence, draft.noteId, draft.markdown),
+      deleteSaved({
+        markdown: draft.markdown,
+        noteId: draft.noteId,
+        persistence,
+      }),
     ).resolves.toEqual({ reason: "quota_exceeded", status: "unavailable" });
   });
 });
@@ -154,17 +163,17 @@ function createDraft(noteId: string, markdown = "# Draft") {
   });
 }
 
-function deleteSaved(
-  persistence: ReturnType<typeof createDraftPersistence>,
-  noteId: string,
-  markdown: string,
-  baseContentHash = "sha256-base",
-) {
-  return persistence.deleteDraftIfSavedSnapshotMatches({
-    baseContentHash,
+function deleteSaved(input: {
+  readonly baseContentHash?: string;
+  readonly markdown: string;
+  readonly noteId: string;
+  readonly persistence: ReturnType<typeof createDraftPersistence>;
+}) {
+  return input.persistence.deleteDraftIfSavedSnapshotMatches({
+    baseContentHash: input.baseContentHash ?? "sha256-base",
     clusterId,
-    markdown,
-    noteId,
+    markdown: input.markdown,
+    noteId: input.noteId,
   });
 }
 

@@ -37,7 +37,9 @@ describe("NoteEditorSurface", () => {
       screen.getByText("Draft recovery is unavailable for this cluster."),
     ).toBeInTheDocument();
   });
+});
 
+describe("NoteEditorSurface missing-note recovery", () => {
   it("shows and protects a recovered draft for a missing note", () => {
     const onDiscardMissingDraft = vi.fn(() => Promise.resolve());
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -82,7 +84,9 @@ describe("NoteEditorSurface", () => {
     );
     expect(onDiscardMissingDraft).toHaveBeenCalledTimes(1);
   });
+});
 
+describe("NoteEditorSurface future recovery", () => {
   it("protects a future-version missing-note record without a destructive action", () => {
     renderSurface({
       draft: {

@@ -107,7 +107,9 @@ describe("MilkdownEditor lifecycle", () => {
 
     expect(crepeInstances[0]?.destroy).toHaveBeenCalled();
   });
+});
 
+describe("MilkdownEditor replacement", () => {
   it("recreates the editor when the selected note changes", async () => {
     const { rerender } = render(
       <MilkdownEditor
@@ -148,7 +150,9 @@ describe("MilkdownEditor lifecycle", () => {
     expect(crepeInstances[0]?.destroy).toHaveBeenCalled();
     expect(crepeInstances[1]?.config.defaultValue).toBe("# Project");
   });
+});
 
+describe("MilkdownEditor session stability", () => {
   it("retains one Crepe instance across same-session product rerenders", async () => {
     const gate = createTestEditorSessionGate();
     const publish = createAcknowledgingPublisher();
@@ -192,7 +196,7 @@ describe("MilkdownEditor lifecycle", () => {
 
 describe("MilkdownEditor controllable creation", () => {
   it("keeps exact source editable while create is pending", async () => {
-    const create = createDeferred<void>();
+    const create = createDeferred<undefined>();
     let markdown = "# Stale construction";
     const replaceMarkdown = vi.fn((next: string) => {
       markdown = next;
@@ -235,7 +239,9 @@ describe("MilkdownEditor controllable creation", () => {
     expect(replaceMarkdown).toHaveBeenCalledWith("# Pre-ready edit");
     expect(publish).toHaveBeenCalledOnce();
   });
+});
 
+describe("MilkdownEditor creation failure", () => {
   it("keeps exact source visible when Crepe creation rejects", async () => {
     const createRuntime = vi.fn<CrepeRuntimeFactory>(() => ({
       create: () => Promise.reject(new Error("Injected create failure.")),
