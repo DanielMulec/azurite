@@ -38,7 +38,9 @@ export function getSnapshotAdmissionIssue(
 ) {
   if (snapshot.disposition === "recovery_read_unavailable") {
     const issue = editor.persistenceIssue;
-    return issue === undefined ? undefined : { ...issue, retryAction: undefined };
+    return issue === undefined
+      ? undefined
+      : { ...issue, retryAction: undefined };
   }
   if (snapshot.disposition === "preserved_unknown") {
     return undefined;
@@ -52,7 +54,8 @@ export function getSnapshotAdmissionIssue(
     draftEpoch: snapshot.draftEpoch,
     failure: { reason: identity.reason, source: "cluster_identity" },
     noteId: snapshot.noteId,
-    operation: snapshot.cause === "mode_change" ? "mode_write" : "content_write",
+    operation:
+      snapshot.cause === "mode_change" ? "mode_write" : "content_write",
     ownerKey: snapshot.sessionKey,
     retryAction: "retry_draft_persistence",
     revision: snapshot.revision,
@@ -115,7 +118,10 @@ function getSettlementPatch(
   if (result.status === "unavailable") {
     return { persistenceIssue: createWriteIssue(snapshot, result.reason) };
   }
-  if (result.outcome === "no_record" || result.outcome.status !== "not_matching") {
+  if (
+    result.outcome === "no_record" ||
+    result.outcome.status !== "not_matching"
+  ) {
     return {
       draftDisposition: "none",
       durableSnapshotKey: undefined,
@@ -138,7 +144,8 @@ function createWriteIssue(
     draftEpoch: snapshot.draftEpoch,
     failure,
     noteId: snapshot.noteId,
-    operation: snapshot.cause === "mode_change" ? "mode_write" : "content_write",
+    operation:
+      snapshot.cause === "mode_change" ? "mode_write" : "content_write",
     ownerKey: snapshot.sessionKey,
     retryAction: "retry_draft_persistence",
     revision: snapshot.revision,

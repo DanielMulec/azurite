@@ -1,11 +1,6 @@
 import { KeyedTaskCoordinator } from "@azurite/shared";
 
-import type {
-  DraftPersistence,
-  DraftRecordMutationResult,
-  DraftWriteResult,
-  SavedDraftSnapshot,
-} from "./draft-database.js";
+import type { DraftPersistence, SavedDraftSnapshot } from "./draft-database.js";
 import {
   runCoordinatedDraftMutation,
   runCoordinatedDraftRead,
@@ -25,55 +20,19 @@ import type {
   DraftMutationSnapshot,
   SnapshotPreparationResult,
 } from "./draft-workflow-types.js";
+import type {
+  DraftPersistenceCoordinatorOptions,
+  DraftSnapshotResult,
+  PreparedSlot,
+  ScheduledSlot,
+  SnapshotReceipt,
+  SnapshotSettlement,
+} from "./draft-persistence-coordinator-types.js";
+export type { DraftSnapshotResult } from "./draft-persistence-coordinator-types.js";
 import {
   clearDraftTimer,
   getDraftEpochKey,
 } from "./draft-scheduling-helpers.js";
-
-/** Result of executing, coalescing, or blocking one immutable snapshot. */
-export type DraftSnapshotResult =
-  | { readonly status: "written" }
-  | {
-      readonly outcome: "no_record" | DraftRecordMutationResult;
-      readonly status: "clean";
-    }
-  | { readonly schemaVersion: number; readonly status: "preserved_unknown" }
-  | {
-      readonly reason: Extract<
-        DraftWriteResult | DraftRecordMutationResult,
-        { readonly status: "unavailable" }
-      >["reason"] | "queue_task_failed";
-      readonly status: "unavailable";
-    }
-  | { readonly status: "superseded" }
-  | { readonly status: "record_protected" };
-
-type SnapshotSettlement = {
-  readonly result: DraftSnapshotResult;
-  readonly snapshot: DraftMutationSnapshot;
-};
-
-type PreparedSlot = {
-  readonly isCurrent: () => boolean;
-  readonly onSettled: (settlement: SnapshotSettlement) => void;
-  readonly receipt: SnapshotReceipt;
-  readonly snapshot: DraftMutationSnapshot;
-};
-
-type SnapshotReceipt = {
-  readonly promise: Promise<DraftSnapshotResult>;
-  readonly resolve: (result: DraftSnapshotResult) => void;
-  settled: boolean;
-};
-
-type ScheduledSlot = PreparedSlot & {
-  timer: ReturnType<typeof setTimeout> | undefined;
-};
-
-type DraftPersistenceCoordinatorOptions = {
-  readonly delayMs: number;
-  readonly persistence: DraftPersistence;
-};
 
 /**
  * Owns immutable draft admission, debounce coalescing, and ordered per-note work.

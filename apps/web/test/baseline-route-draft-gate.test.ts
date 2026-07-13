@@ -84,7 +84,7 @@ describe("baseline route draft gate degradation", () => {
       status: "continue",
     });
     expect(getEditor(store).persistenceIssue).toMatchObject({
-      failure: { reason: "write_failed", source: "persistence" },
+      failure: { reason: "queue_task_failed", source: "coordinator" },
     });
     unsubscribe();
     store.getState().updateDraftMarkdown("# Retry attempt");

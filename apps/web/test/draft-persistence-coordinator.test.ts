@@ -42,7 +42,10 @@ describe("ordered draft persistence", () => {
   it("coalesces a not-yet-started older snapshot without writing it", async () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi.fn(memory.persistence.writeDraft);
-    const coordinator = createCoordinator({ ...memory.persistence, writeDraft });
+    const coordinator = createCoordinator({
+      ...memory.persistence,
+      writeDraft,
+    });
     const firstSettlement = vi.fn();
     const first = createSnapshot({ markdown: "# Older", revision: 1 });
     const second = createSnapshot({
@@ -53,7 +56,9 @@ describe("ordered draft persistence", () => {
     admit(coordinator, first, firstSettlement);
     admit(coordinator, second);
 
-    await expect(coordinator.flushSnapshot(second.snapshotKey)).resolves.toEqual({
+    await expect(
+      coordinator.flushSnapshot(second.snapshotKey),
+    ).resolves.toEqual({
       status: "written",
     });
 
@@ -61,7 +66,9 @@ describe("ordered draft persistence", () => {
       expect.objectContaining({ result: { status: "superseded" } }),
     );
     expect(writeDraft).toHaveBeenCalledOnce();
-    expect(writeDraft.mock.calls[0]?.[0]).toMatchObject({ markdown: "# Newest" });
+    expect(writeDraft.mock.calls[0]?.[0]).toMatchObject({
+      markdown: "# Newest",
+    });
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
 
@@ -69,30 +76,45 @@ describe("ordered draft persistence", () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi
       .fn<DraftPersistence["writeDraft"]>()
-      .mockResolvedValueOnce({ reason: "quota_exceeded", status: "unavailable" })
+      .mockResolvedValueOnce({
+        reason: "quota_exceeded",
+        status: "unavailable",
+      })
       .mockImplementation(memory.persistence.writeDraft);
-    const coordinator = createCoordinator({ ...memory.persistence, writeDraft });
+    const coordinator = createCoordinator({
+      ...memory.persistence,
+      writeDraft,
+    });
     const snapshot = createSnapshot({ markdown: "# Retry exact" });
     admit(coordinator, snapshot);
 
-    await expect(coordinator.flushSnapshot(snapshot.snapshotKey)).resolves.toEqual({
+    await expect(
+      coordinator.flushSnapshot(snapshot.snapshotKey),
+    ).resolves.toEqual({
       reason: "quota_exceeded",
       status: "unavailable",
     });
     expect(coordinator.pendingSnapshotCount).toBe(1);
-    await expect(coordinator.retrySnapshot(snapshot.snapshotKey)).resolves.toEqual({
+    await expect(
+      coordinator.retrySnapshot(snapshot.snapshotKey),
+    ).resolves.toEqual({
       status: "written",
     });
 
     expect(writeDraft).toHaveBeenCalledTimes(2);
-    expect(writeDraft.mock.calls[0]?.[0]).toEqual(writeDraft.mock.calls[1]?.[0]);
+    expect(writeDraft.mock.calls[0]?.[0]).toEqual(
+      writeDraft.mock.calls[1]?.[0],
+    );
     expect(coordinator.pendingSnapshotCount).toBe(0);
   });
 
   it("binds original unbound content after identity repair", async () => {
     const memory = createMemoryPersistence();
     const writeDraft = vi.fn(memory.persistence.writeDraft);
-    const coordinator = createCoordinator({ ...memory.persistence, writeDraft });
+    const coordinator = createCoordinator({
+      ...memory.persistence,
+      writeDraft,
+    });
     const snapshot = createSnapshot({
       clusterId: undefined,
       markdown: "# Captured before identity",
@@ -102,7 +124,9 @@ describe("ordered draft persistence", () => {
     expect(coordinator.unboundSnapshotCount).toBe(1);
     expect(writeDraft).not.toHaveBeenCalled();
     coordinator.bindSessionCluster(snapshot.sessionKey, clusterId);
-    await expect(coordinator.flushSnapshot(snapshot.snapshotKey)).resolves.toEqual({
+    await expect(
+      coordinator.flushSnapshot(snapshot.snapshotKey),
+    ).resolves.toEqual({
       status: "written",
     });
 
@@ -209,7 +233,9 @@ describe("terminal and independent draft work", () => {
     const firstFlush = coordinator.flushSnapshot(first.snapshotKey);
     await firstStarted.promise;
 
-    await expect(coordinator.flushSnapshot(second.snapshotKey)).resolves.toEqual({
+    await expect(
+      coordinator.flushSnapshot(second.snapshotKey),
+    ).resolves.toEqual({
       status: "written",
     });
     releaseFirst.resolve(undefined);
@@ -282,9 +308,12 @@ function createMemoryPersistence() {
   const persistence: DraftPersistence = {
     deleteDraft: (targetCluster, noteId) =>
       Promise.resolve({
-        status: records.delete(key(targetCluster, noteId)) ? "deleted" : "absent",
+        status: records.delete(key(targetCluster, noteId))
+          ? "deleted"
+          : "absent",
       }),
-    deleteDraftIfSavedSnapshotMatches: () => Promise.resolve({ status: "absent" }),
+    deleteDraftIfSavedSnapshotMatches: () =>
+      Promise.resolve({ status: "absent" }),
     readDraft: (targetCluster, noteId) => {
       const draft = records.get(key(targetCluster, noteId));
       return Promise.resolve(
