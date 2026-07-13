@@ -16,16 +16,36 @@ export async function executeDraftSnapshot(
   if (isProtectedDisposition(snapshot.disposition)) {
     return { status: "record_protected" };
   }
-  if (!snapshot.contentDirty && snapshot.disposition === "none") {
+  return await executeUnprotectedSnapshot(snapshot, persistence, admittedAt);
+}
+
+async function executeUnprotectedSnapshot(
+  snapshot: DraftMutationSnapshot,
+  persistence: DraftPersistence,
+  admittedAt: string,
+): Promise<DraftSnapshotResult> {
+  if (isCleanWithoutRecord(snapshot)) {
     return { outcome: "no_record", status: "clean" };
   }
+  return await executeStorageSnapshot(snapshot, persistence, admittedAt);
+}
+
+async function executeStorageSnapshot(
+  snapshot: DraftMutationSnapshot,
+  persistence: DraftPersistence,
+  admittedAt: string,
+): Promise<DraftSnapshotResult> {
   if (shouldDeleteSnapshot(snapshot)) {
-    const result = await persistence.deleteDraft(
-      requireClusterId(snapshot),
-      snapshot.noteId,
-    );
-    return toCleanSnapshotResult(result);
+    return await deleteSnapshot(snapshot, persistence);
   }
+  return await writeSnapshot(snapshot, persistence, admittedAt);
+}
+
+async function writeSnapshot(
+  snapshot: DraftMutationSnapshot,
+  persistence: DraftPersistence,
+  admittedAt: string,
+): Promise<DraftSnapshotResult> {
   const result = await persistence.writeDraft(
     createDraftRecord({
       baseContentHash: snapshot.baseContentHash,
@@ -37,6 +57,17 @@ export async function executeDraftSnapshot(
     }),
   );
   return toWriteSnapshotResult(result);
+}
+
+async function deleteSnapshot(
+  snapshot: DraftMutationSnapshot,
+  persistence: DraftPersistence,
+): Promise<DraftSnapshotResult> {
+  const result = await persistence.deleteDraft(
+    requireClusterId(snapshot),
+    snapshot.noteId,
+  );
+  return toCleanSnapshotResult(result);
 }
 
 /** Returns the stable ordered-work key for one ready cluster note. */
@@ -51,6 +82,10 @@ export function getSnapshotQueueKey(snapshot: DraftMutationSnapshot): string {
 
 function shouldDeleteSnapshot(snapshot: DraftMutationSnapshot): boolean {
   return !snapshot.contentDirty;
+}
+
+function isCleanWithoutRecord(snapshot: DraftMutationSnapshot): boolean {
+  return !snapshot.contentDirty && snapshot.disposition === "none";
 }
 
 function isProtectedDisposition(

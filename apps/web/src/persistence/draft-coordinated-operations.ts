@@ -22,22 +22,23 @@ export type CoordinatedDraftMutationResult =
   | { readonly reason: "queue_task_failed"; readonly status: "queue_failed" };
 
 /** Runs an exact read while converting infrastructure rejection to product truth. */
-export async function runCoordinatedDraftRead(
-  tasks: KeyedTaskCoordinator,
-  key: string,
-  clusterId: string,
-  noteId: string,
-  persistence: DraftPersistence,
-): Promise<CoordinatedDraftReadResult> {
+export async function runCoordinatedDraftRead(input: {
+  readonly clusterId: string;
+  readonly key: string;
+  readonly noteId: string;
+  readonly persistence: DraftPersistence;
+  readonly tasks: KeyedTaskCoordinator;
+}): Promise<CoordinatedDraftReadResult> {
   try {
-    return await tasks.run(
-      key,
-      async () => await persistence.readDraft(clusterId, noteId),
+    return await input.tasks.run(
+      input.key,
+      async () =>
+        await input.persistence.readDraft(input.clusterId, input.noteId),
     );
   } catch {
     return {
-      clusterId,
-      noteId,
+      clusterId: input.clusterId,
+      noteId: input.noteId,
       reason: "queue_task_failed",
       status: "queue_failed",
     };

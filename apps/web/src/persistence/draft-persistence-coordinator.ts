@@ -30,6 +30,13 @@ import type {
 } from "./draft-persistence-coordinator-types.js";
 export type { DraftSnapshotResult } from "./draft-persistence-coordinator-types.js";
 import {
+  createSnapshotReceipt,
+  getPreparationRejectionReason,
+  isFailureSupersededBy,
+  notifySettlement,
+  takeMatchingSlots,
+} from "./draft-persistence-coordinator-helpers.js";
+import {
   clearDraftTimer,
   getDraftEpochKey,
 } from "./draft-scheduling-helpers.js";
@@ -85,7 +92,7 @@ export class DraftPersistenceCoordinator {
     if (rejection !== undefined) {
       return rejection;
     }
-    const receipt = createReceipt();
+    const receipt = createSnapshotReceipt();
     this.#removeSupersededFailures(snapshot);
     this.#receipts.set(snapshot.snapshotKey, receipt);
     this.#prepared.set(snapshot.snapshotKey, {
@@ -127,7 +134,7 @@ export class DraftPersistenceCoordinator {
       return;
     }
     this.#unbound.delete(sessionKey);
-    if (!slot.isCurrent() || this.#isClosed(slot.snapshot)) {
+    if (!this.#isExecutable(slot)) {
       this.#settle(slot, { status: "superseded" });
       return;
     }
@@ -160,20 +167,15 @@ export class DraftPersistenceCoordinator {
 
   /** Re-admits one exact failed immutable snapshot without recapturing state. */
   async retrySnapshot(snapshotKey: string): Promise<DraftSnapshotResult> {
-    const failed = this.#failed.get(snapshotKey);
-    if (failed === undefined || !failed.isCurrent()) {
+    const failed = this.#getRetryableSnapshot(snapshotKey);
+    if (failed === undefined) {
       return { status: "superseded" };
     }
     this.#failed.delete(snapshotKey);
-    const receipt = createReceipt();
+    const receipt = createSnapshotReceipt();
     const retried = { ...failed, receipt };
     this.#receipts.set(snapshotKey, receipt);
-    if (retried.snapshot.clusterId === undefined) {
-      this.#commitUnbound(retried);
-      return await receipt.promise;
-    }
-    this.#schedule(retried);
-    this.#startScheduled(getSnapshotQueueKey(retried.snapshot));
+    this.#admitRetry(retried);
     return await receipt.promise;
   }
 
@@ -184,13 +186,13 @@ export class DraftPersistenceCoordinator {
   ): Promise<CoordinatedDraftReadResult> {
     const key = getDraftQueueKey(clusterId, noteId);
     this.#startScheduled(key);
-    return await runCoordinatedDraftRead(
-      this.#keyedTasks,
-      key,
+    return await runCoordinatedDraftRead({
       clusterId,
+      key,
       noteId,
-      this.#persistence,
-    );
+      persistence: this.#persistence,
+      tasks: this.#keyedTasks,
+    });
   }
 
   /** Conditionally reconciles a successful Save behind earlier note work. */
@@ -239,11 +241,10 @@ export class DraftPersistenceCoordinator {
     snapshot: DraftMutationSnapshot,
     isCurrent: () => boolean,
   ): Extract<SnapshotPreparationResult, { status: "rejected" }> | undefined {
-    const reason = this.#isClosed(snapshot)
-      ? "closed_epoch"
-      : isCurrent()
-        ? undefined
-        : "stale_session";
+    const reason = getPreparationRejectionReason(
+      this.#isClosed(snapshot),
+      isCurrent(),
+    );
     return reason === undefined
       ? undefined
       : {
@@ -255,6 +256,20 @@ export class DraftPersistenceCoordinator {
           sessionKey: snapshot.sessionKey,
           status: "rejected",
         };
+  }
+
+  #getRetryableSnapshot(snapshotKey: string): PreparedSlot | undefined {
+    const slot = this.#failed.get(snapshotKey);
+    return slot?.isCurrent() === true ? slot : undefined;
+  }
+
+  #admitRetry(slot: PreparedSlot): void {
+    if (slot.snapshot.clusterId === undefined) {
+      this.#commitUnbound(slot);
+      return;
+    }
+    this.#schedule(slot);
+    this.#startScheduled(getSnapshotQueueKey(slot.snapshot));
   }
 
   #commitUnbound(slot: PreparedSlot): void {
@@ -303,7 +318,7 @@ export class DraftPersistenceCoordinator {
   }
 
   async #execute(slot: PreparedSlot): Promise<DraftSnapshotResult> {
-    if (!slot.isCurrent() || this.#isClosed(slot.snapshot)) {
+    if (!this.#isExecutable(slot)) {
       return { status: "superseded" };
     }
     return await executeDraftSnapshot(
@@ -319,52 +334,28 @@ export class DraftPersistenceCoordinator {
     }
     slot.receipt.settled = true;
     slot.receipt.resolve(result);
-    try {
-      slot.onSettled({ result, snapshot: slot.snapshot });
-    } catch {
-      // Product state already owns the operation result when a subscriber throws.
-    }
+    notifySettlement(slot, result);
     this.#receipts.delete(slot.snapshot.snapshotKey);
-    if (result.status === "unavailable") {
-      this.#failed.set(slot.snapshot.snapshotKey, slot);
-    } else {
-      this.#failed.delete(slot.snapshot.snapshotKey);
-    }
+    this.#updateFailedSnapshot(slot, result);
   }
 
   #cancelMatching(predicate: (slot: PreparedSlot) => boolean): void {
-    for (const [key, slot] of this.#prepared) {
-      if (predicate(slot)) {
-        this.#prepared.delete(key);
-        this.#settle(slot, { status: "superseded" });
-      }
-    }
-    for (const [key, slot] of this.#scheduled) {
-      if (predicate(slot)) {
-        this.#scheduled.delete(key);
-        clearDraftTimer(slot);
-        this.#settle(slot, { status: "superseded" });
-      }
-    }
-    for (const [key, slot] of this.#unbound) {
-      if (predicate(slot)) {
-        this.#unbound.delete(key);
-        this.#settle(slot, { status: "superseded" });
-      }
-    }
-    for (const [key, slot] of this.#failed) {
-      if (predicate(slot)) {
-        this.#failed.delete(key);
-      }
-    }
+    const scheduled = takeMatchingSlots(this.#scheduled, predicate);
+    scheduled.forEach(clearDraftTimer);
+    const settling = [
+      ...takeMatchingSlots(this.#prepared, predicate),
+      ...scheduled,
+      ...takeMatchingSlots(this.#unbound, predicate),
+    ];
+    settling.forEach((slot) => {
+      this.#settle(slot, { status: "superseded" });
+    });
+    takeMatchingSlots(this.#failed, predicate);
   }
 
   #removeSupersededFailures(snapshot: DraftMutationSnapshot): void {
     for (const [key, slot] of this.#failed) {
-      if (
-        slot.snapshot.sessionKey === snapshot.sessionKey &&
-        slot.snapshot.revision <= snapshot.revision
-      ) {
+      if (isFailureSupersededBy(slot, snapshot)) {
         this.#failed.delete(key);
       }
     }
@@ -381,12 +372,17 @@ export class DraftPersistenceCoordinator {
       getDraftEpochKey(snapshot.sessionKey, snapshot.draftEpoch),
     );
   }
-}
 
-function createReceipt(): SnapshotReceipt {
-  let resolveReceipt: (result: DraftSnapshotResult) => void = () => {};
-  const promise = new Promise<DraftSnapshotResult>((resolve) => {
-    resolveReceipt = resolve;
-  });
-  return { promise, resolve: resolveReceipt, settled: false };
+  #isExecutable(slot: PreparedSlot): boolean {
+    return slot.isCurrent() && !this.#isClosed(slot.snapshot);
+  }
+
+  #updateFailedSnapshot(slot: PreparedSlot, result: DraftSnapshotResult): void {
+    const snapshotKey = slot.snapshot.snapshotKey;
+    if (result.status === "unavailable") {
+      this.#failed.set(snapshotKey, slot);
+      return;
+    }
+    this.#failed.delete(snapshotKey);
+  }
 }

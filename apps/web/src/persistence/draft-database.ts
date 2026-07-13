@@ -125,31 +125,66 @@ async function deleteDraftIfSavedSnapshotMatches(
   const draftId = createDraftRecordId(snapshot.clusterId, snapshot.noteId);
 
   try {
-    return await database.transaction("rw", database.drafts, async () => {
-      const storedDraft: unknown = await database.drafts.get(draftId);
-      const validation = validateStoredDraftRecord(storedDraft);
-      if (storedDraft === undefined) {
-        return { status: "absent" };
-      }
-      if (validation.status === "delete") {
-        await database.drafts.delete(draftId);
-        return { reason: "validation_failed", status: "invalid_deleted" };
-      }
-      if (validation.status === "preserve") {
-        return {
-          schemaVersion: validation.schemaVersion,
-          status: "preserved_unknown",
-        };
-      }
-      if (!matchesSavedSnapshot(validation.record, snapshot)) {
-        return { status: "not_matching" };
-      }
-      await database.drafts.delete(draftId);
-      return { status: "deleted" };
-    });
+    return await database.transaction(
+      "rw",
+      database.drafts,
+      async () => await deleteMatchingStoredDraft(database, draftId, snapshot),
+    );
   } catch (error) {
     return unavailableDraftMutationResult(classifyPersistenceError(error));
   }
+}
+
+async function deleteMatchingStoredDraft(
+  database: AzuriteBrowserDatabase,
+  draftId: string,
+  snapshot: SavedDraftSnapshot,
+): Promise<DraftRecordMutationResult> {
+  const storedDraft: unknown = await database.drafts.get(draftId);
+  if (storedDraft === undefined) {
+    return { status: "absent" };
+  }
+  return await deleteValidatedSavedDraft({
+    database,
+    draftId,
+    snapshot,
+    storedDraft,
+  });
+}
+
+async function deleteValidatedSavedDraft(input: {
+  readonly database: AzuriteBrowserDatabase;
+  readonly draftId: string;
+  readonly snapshot: SavedDraftSnapshot;
+  readonly storedDraft: unknown;
+}): Promise<DraftRecordMutationResult> {
+  const validation = validateStoredDraftRecord(input.storedDraft);
+  if (validation.status === "delete") {
+    await input.database.drafts.delete(input.draftId);
+    return { reason: "validation_failed", status: "invalid_deleted" };
+  }
+  if (validation.status === "preserve") {
+    return {
+      schemaVersion: validation.schemaVersion,
+      status: "preserved_unknown",
+    };
+  }
+  return await deleteCurrentSavedDraft(input, validation.record);
+}
+
+async function deleteCurrentSavedDraft(
+  input: {
+    readonly database: AzuriteBrowserDatabase;
+    readonly draftId: string;
+    readonly snapshot: SavedDraftSnapshot;
+  },
+  draft: DraftRecord,
+): Promise<DraftRecordMutationResult> {
+  if (!matchesSavedSnapshot(draft, input.snapshot)) {
+    return { status: "not_matching" };
+  }
+  await input.database.drafts.delete(input.draftId);
+  return { status: "deleted" };
 }
 
 function matchesSavedSnapshot(
@@ -178,11 +213,8 @@ async function readDraft(
       }
 
       return await handleStoredDraft(
-        database,
-        draftId,
+        { clusterId, database, draftId, noteId },
         storedDraft,
-        clusterId,
-        noteId,
       );
     });
   } catch (error) {
@@ -195,11 +227,13 @@ async function readDraft(
 }
 
 async function handleStoredDraft(
-  database: AzuriteBrowserDatabase,
-  draftId: string,
+  context: {
+    readonly clusterId: string;
+    readonly database: AzuriteBrowserDatabase;
+    readonly draftId: string;
+    readonly noteId: string;
+  },
   storedDraft: unknown,
-  clusterId: string,
-  noteId: string,
 ): Promise<DraftReadResult> {
   const validation = validateStoredDraftRecord(storedDraft);
 
@@ -209,17 +243,17 @@ async function handleStoredDraft(
 
   if (validation.status === "preserve") {
     return {
-      clusterId,
-      noteId,
+      clusterId: context.clusterId,
+      noteId: context.noteId,
       schemaVersion: validation.schemaVersion,
       status: "preserved_unknown",
     };
   }
 
-  await database.drafts.delete(draftId);
+  await context.database.drafts.delete(context.draftId);
   return {
-    clusterId,
-    noteId,
+    clusterId: context.clusterId,
+    noteId: context.noteId,
     reason: "validation_failed",
     status: "invalid_deleted",
   };
@@ -254,26 +288,43 @@ async function deleteDraft(
 ): Promise<DraftRecordMutationResult> {
   const draftId = createDraftRecordId(clusterId, noteId);
   try {
-    return await database.transaction("rw", database.drafts, async () => {
-      const storedDraft: unknown = await database.drafts.get(draftId);
-      if (storedDraft === undefined) {
-        return { status: "absent" };
-      }
-      const validation = validateStoredDraftRecord(storedDraft);
-      if (validation.status === "preserve") {
-        return {
-          schemaVersion: validation.schemaVersion,
-          status: "preserved_unknown",
-        };
-      }
-      await database.drafts.delete(draftId);
-      return validation.status === "delete"
-        ? { reason: "validation_failed", status: "invalid_deleted" }
-        : { status: "deleted" };
-    });
+    return await database.transaction(
+      "rw",
+      database.drafts,
+      async () => await deleteStoredDraft(database, draftId),
+    );
   } catch (error) {
     return unavailableDraftMutationResult(classifyPersistenceError(error));
   }
+}
+
+async function deleteStoredDraft(
+  database: AzuriteBrowserDatabase,
+  draftId: string,
+): Promise<DraftRecordMutationResult> {
+  const storedDraft: unknown = await database.drafts.get(draftId);
+  if (storedDraft === undefined) {
+    return { status: "absent" };
+  }
+  return await deleteValidatedDraft(database, draftId, storedDraft);
+}
+
+async function deleteValidatedDraft(
+  database: AzuriteBrowserDatabase,
+  draftId: string,
+  storedDraft: unknown,
+): Promise<DraftRecordMutationResult> {
+  const validation = validateStoredDraftRecord(storedDraft);
+  if (validation.status === "preserve") {
+    return {
+      schemaVersion: validation.schemaVersion,
+      status: "preserved_unknown",
+    };
+  }
+  await database.drafts.delete(draftId);
+  return validation.status === "delete"
+    ? { reason: "validation_failed", status: "invalid_deleted" }
+    : { status: "deleted" };
 }
 
 function unavailableDraftReadResult(

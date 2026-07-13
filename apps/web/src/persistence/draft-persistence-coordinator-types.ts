@@ -25,17 +25,20 @@ export type DraftSnapshotResult =
   | { readonly status: "superseded" }
   | { readonly status: "record_protected" };
 
+/** Immutable snapshot paired with its terminal coordinator result. */
 export type SnapshotSettlement = {
   readonly result: DraftSnapshotResult;
   readonly snapshot: DraftMutationSnapshot;
 };
 
+/** Promise capability used to await one exact admitted snapshot. */
 export type SnapshotReceipt = {
   readonly promise: Promise<DraftSnapshotResult>;
   readonly resolve: (result: DraftSnapshotResult) => void;
   settled: boolean;
 };
 
+/** Inactive or retryable immutable snapshot owned by the coordinator. */
 export type PreparedSlot = {
   readonly admittedAt: string;
   readonly isCurrent: () => boolean;
@@ -44,10 +47,12 @@ export type PreparedSlot = {
   readonly snapshot: DraftMutationSnapshot;
 };
 
+/** Prepared slot waiting in the per-note debounce window. */
 export type ScheduledSlot = PreparedSlot & {
   timer: ReturnType<typeof setTimeout> | undefined;
 };
 
+/** Runtime dependencies for the browser draft coordinator. */
 export type DraftPersistenceCoordinatorOptions = {
   readonly delayMs: number;
   readonly persistence: DraftPersistence;
