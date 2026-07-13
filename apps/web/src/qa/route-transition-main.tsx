@@ -4,7 +4,7 @@ import { AzuriteRouterProvider } from "../app-router.js";
 import { AzuriteErrorBoundary } from "../components/AzuriteErrorBoundary.js";
 import { readWebSentryConfig } from "../config/sentry-config.js";
 import { initializeWebSentry } from "../observability/initialize-web-sentry.js";
-import "../styles/global.css";
+import "../../qa/route-transition/qa.css";
 import { RouteTransitionQaPanel } from "./RouteTransitionQaPanel.js";
 import {
   createRouteTransitionQaController,
