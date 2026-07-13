@@ -127,8 +127,8 @@ and continuation decisions.
 | Selected note | The note ID owned by the current live store transition. It can differ temporarily from the rendered note. |
 | Rendered note | The ready editor retained as a visual projection while a replacement loads. It does not own current route intent merely because its ID matches a target. |
 | Active load | One note read tagged with request sequence and the exact route intent that authorized it. It may be reused only when it still belongs to the current intent and selected note. |
-| Pre-transition gate | One replaceable runtime capability with `prepare` and `settle` operations. `prepare` receives only cause plus outgoing owner identity, never target/location/intent. It returns a result and per-call lease. The route owner binds that lease to the intent and calls `settle` exactly once. |
-| Gate lease | A unique target-free token for one gate call. Calls may share one underlying flush/durability promise, but independent leases/ref-counting prevent a stale intent from releasing a freeze still used by a current intent. |
+| Pre-transition gate | One replaceable runtime capability with `prepare` and `settle` operations. `prepare` receives a route-owner-created lease, cause, and outgoing owner identity, never target/location/intent. The route owner binds the lease to the intent and calls `settle` exactly once. |
+| Gate lease | A unique target-free token allocated by the route owner for one gate call. Calls may share one underlying flush/durability promise, but independent leases/ref-counting prevent a stale intent from releasing a freeze still used by a current intent. |
 | Transition predecessor | The committed route/view descriptor captured for an intent. A current cancellation invalidates its admitted load, restores the still-live committed selection/view, and repairs to that committed URL; a stale cancellation changes nothing. |
 | Transition outcome | One exact terminal result for an intent. It includes intent/target identity, status-specific fields, and this intent's surface effect. Gate settlement and Slice 7B evidence consume the result; they never infer it from `Promise<void>`. |
 
@@ -141,15 +141,15 @@ code changes. Variant membership, ownership, and state effects are fixed:
 type RouteGateCause = "note_list" | "startup_fallback" | "url_sync";
 
 type RouteGatePrepareInput = {
+  leaseKey: string;
   cause: RouteGateCause;
   outgoingOwnerKey: string | undefined;
 };
 
 type RouteGateResult =
-  | { status: "continue"; leaseKey: string }
+  | { status: "continue" }
   | {
       status: "cancel";
-      leaseKey: string;
       reason:
         | "prerequisite_failed"
         | "prerequisite_unavailable"
@@ -163,6 +163,14 @@ type RouteTransitionOutcome =
       noteId: string;
       requestSequence: number;
       view: "ready" | "missing" | "missing_draft";
+      surfaceEffect: "replaced";
+    }
+  | {
+      status: "applied";
+      intentKey: string;
+      noteId: undefined;
+      requestSequence: undefined;
+      view: "empty";
       surfaceEffect: "replaced";
     }
   | {
@@ -187,7 +195,7 @@ type RouteTransitionOutcome =
       status: "cancelled";
       intentKey: string;
       noteId: string | undefined;
-      reason: RouteGateResult & { status: "cancel" };
+      reason: Extract<RouteGateResult, { status: "cancel" }>["reason"];
       repair: "not_needed" | "replaced" | "superseded";
       surfaceEffect: "retained";
     }
@@ -204,9 +212,9 @@ type RouteTransitionOutcome =
     };
 ```
 
-The gate `settle` input is `{ leaseKey, outcome }`. It receives no route target
-other than the outcome's public note identity and cannot continue, repair, or
-choose navigation. Registering a new gate replaces only future `prepare` calls;
+The gate `settle` input is `{ leaseKey, outcome }`. It receives no private route
+intent/location object and cannot continue, repair, or choose navigation.
+Registering a new gate replaces only future `prepare` calls;
 existing leases settle on the capability that created them. Unregistration
 installs a no-op gate. A thrown or rejected `prepare` becomes
 `cancel/prerequisite_failed`; a thrown/rejected `settle` is contained and cannot
@@ -241,12 +249,17 @@ alter the already-decided route outcome.
      coherence.
 
 2. **Pre-transition gate**
-   - After registration/location resolution, first return `coherent_noop` when
-     URL, selected note, ready/missing view, and request ownership already agree.
-     A no-op performs no gate, draft flush, load, or second evidence operation.
-   - Otherwise invoke `prepare` before selected-note mutation or read admission.
-     Bind its unique lease to the intent outside the gate. Invoke `settle`
-     exactly once for every returned lease on every terminal path.
+   - Immediately after registration, classify a coherent-no-op candidate when
+     destination, selected note, ready/missing view, and request ownership
+     already agree. It becomes `coherent_noop` only after router resolution; it
+     performs no gate, draft flush, load, or second evidence operation.
+     A coherent list click does not navigate merely to obtain an echo; it settles
+     directly without adding history.
+   - Otherwise allocate a lease and invoke `prepare` from the
+     `onBeforeNavigate`/list-start boundary before selected-note mutation or read
+     admission. Store admission awaits both gate result and router resolution.
+     Invoke `settle` exactly once for every allocated lease on every terminal
+     path, including thrown `prepare` and navigation rejection.
    - Re-check that the exact intent is current after every awaited prerequisite.
      A stale `continue`, `cancel`, success, or failure cannot act on a newer
      intent.
