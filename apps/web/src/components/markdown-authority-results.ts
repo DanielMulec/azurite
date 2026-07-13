@@ -2,6 +2,7 @@ import type {
   ChangeOrigin,
   CommitCause,
   CommitResult,
+  PublicationCommand,
   PublicationResult,
   PublicationTrigger,
   SynchronizationResult,
@@ -25,14 +26,12 @@ export function createRetryReverted(input: {
 }
 
 /** Creates a typed commit no-op without touching editor authority. */
-export function createCommitNoChange(
-  input: {
-    readonly cause: CommitCause;
-    readonly reason: "projection_unchanged" | "source_authority_current";
-    readonly revision: number;
-    readonly sessionKey: string;
-  },
-): CommitResult {
+export function createCommitNoChange(input: {
+  readonly cause: CommitCause;
+  readonly reason: "projection_unchanged" | "source_authority_current";
+  readonly revision: number;
+  readonly sessionKey: string;
+}): CommitResult {
   return { ...input, status: "no_change" };
 }
 
@@ -54,8 +53,33 @@ export function createSynchronizationFailure(
     | "projection_read_failed"
     | "stale_session",
   sessionKey: string,
-): SynchronizationResult {
+): Extract<SynchronizationResult, { readonly status: "failed" }> {
   return { cause, reason, sessionKey, stateEffect: "none", status: "failed" };
+}
+
+/** Calls the store publication boundary and types an unexpected thrown failure. */
+export function callAuthorityPublication(input: {
+  readonly command: PublicationCommand;
+  readonly disposition: DraftDisposition;
+  readonly publish: (command: PublicationCommand) => PublicationResult;
+  readonly revision: number;
+  readonly sessionKey: string;
+}): PublicationResult {
+  try {
+    return input.publish(input.command);
+  } catch {
+    return {
+      attemptedMarkdown: input.command.markdown,
+      attemptedRevision: input.revision + 1,
+      disposition: input.disposition,
+      origin: input.command.origin,
+      reason: "state_update_failed",
+      sessionKey: input.sessionKey,
+      stateEffect: "none",
+      status: "rejected",
+      trigger: input.command.trigger,
+    };
+  }
 }
 
 /** Creates a same-mode synchronization no-op. */
@@ -68,6 +92,16 @@ export function createSynchronizationNoChange(
     stateEffect: "none",
     status: "no_change",
   };
+}
+
+/** Creates a successful synchronization with no product-state mutation. */
+export function createSynchronizationSuccess(input: {
+  readonly cause: "creation" | "source_to_wysiwyg";
+  readonly exactAuthority: string;
+  readonly projection: string;
+  readonly sessionKey: string;
+}): SynchronizationResult {
+  return { ...input, stateEffect: "none", status: "synchronized" };
 }
 
 /** Maps one authority publication into the same-session commit contract. */
@@ -102,13 +136,11 @@ export function toPublicationTrigger(cause: CommitCause): PublicationTrigger {
   return publicationTriggerByCommitCause[cause];
 }
 
-const publicationTriggerByCommitCause: Record<
-  CommitCause,
-  PublicationTrigger
-> = {
-  manual_save: "pre_save",
-  mode_switch: "pre_mode_switch",
-  pagehide: "pagehide",
-  route_transition: "pre_route_transition",
-  visibilitychange: "visibilitychange",
-};
+const publicationTriggerByCommitCause: Record<CommitCause, PublicationTrigger> =
+  {
+    manual_save: "pre_save",
+    mode_switch: "pre_mode_switch",
+    pagehide: "pagehide",
+    route_transition: "pre_route_transition",
+    visibilitychange: "visibilitychange",
+  };

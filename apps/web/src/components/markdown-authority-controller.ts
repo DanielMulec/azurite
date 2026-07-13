@@ -1,5 +1,4 @@
 import type {
-  AuthorityResolution,
   CommitCause,
   CommitResult,
   PublicationCommand,
@@ -8,31 +7,35 @@ import type {
   SynchronizationResult,
 } from "../domain/markdown-authority-types.js";
 import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+import {
+  createControllerCommitNoChange,
+  createCreationCheckpoint,
+  createRetryReversion,
+  getAcceptedAuthorityPatch,
+  getCheckpointProjection,
+  getImmediateCommitResult,
+  getWysiwygIgnoreReason,
+  isCommitProjectionCurrent,
+  isControllerUnavailable,
+  readAuthorityProjection,
+  resolveProjectionCandidate,
+  type AuthorityCheckpoint,
+  type AuthorityRetryCandidate,
+} from "./markdown-authority-decisions.js";
 import type {
   AcceptedChangeResult,
   AuthorityControllerInput,
   MarkdownAuthorityState,
 } from "./markdown-authority-controller-types.js";
 import {
+  callAuthorityPublication,
   createCommitFailure,
-  createCommitNoChange,
-  createRetryReverted,
   createSynchronizationFailure,
   createSynchronizationNoChange,
+  createSynchronizationSuccess,
   toCommitResult,
   toPublicationTrigger,
 } from "./markdown-authority-results.js";
-
-type Checkpoint = {
-  readonly exactAuthority: string;
-  readonly projection: string;
-};
-
-type RetryCandidate = {
-  readonly markdown: string;
-  readonly origin: "source_input" | "wysiwyg_document";
-  readonly resolution: AuthorityResolution;
-};
 
 /**
  * Owns exact Markdown authority versus Crepe's serialized projection.
@@ -43,12 +46,12 @@ export class MarkdownAuthorityController {
   readonly #listeners = new Set<() => void>();
   #acknowledgedAuthority: string;
   #acknowledgedProjection: string | undefined;
-  #checkpoint: Checkpoint | undefined;
+  #checkpoint: AuthorityCheckpoint | undefined;
   #disposition: DraftDisposition;
   #frozen = false;
   #isPublishing = false;
   #isSynchronizing = false;
-  #retry: RetryCandidate | undefined;
+  #retry: AuthorityRetryCandidate | undefined;
   #revision: number;
   #state: MarkdownAuthorityState;
 
@@ -91,36 +94,37 @@ export class MarkdownAuthorityController {
         this.sessionKey,
       );
     }
-    let projection: string;
-    try {
-      projection = this.#input.readProjection();
-    } catch {
-      this.markFailed("The Milkdown editor projection could not be read.");
-      return createSynchronizationFailure(
-        "creation",
-        "projection_read_failed",
-        this.sessionKey,
-      );
+    const projectionRead = readAuthorityProjection(
+      this.#input.readProjection,
+      () => {
+        this.markFailed("The Milkdown editor projection could not be read.");
+        return createSynchronizationFailure(
+          "creation",
+          "projection_read_failed",
+          this.sessionKey,
+        );
+      },
+    );
+    if (projectionRead.status === "failed") {
+      return projectionRead.result;
     }
-    if (
-      this.#state.mode === "wysiwyg" &&
-      this.#acknowledgedAuthority === this.#input.initialMarkdown
-    ) {
-      this.#checkpoint = {
-        exactAuthority: this.#acknowledgedAuthority,
-        projection,
-      };
-      this.#acknowledgedProjection = projection;
-    }
+    const projection = projectionRead.projection;
+    this.#checkpoint = createCreationCheckpoint(
+      {
+        acknowledgedAuthority: this.#acknowledgedAuthority,
+        initialMarkdown: this.#input.initialMarkdown,
+        mode: this.#state.mode,
+      },
+      projection,
+    );
+    this.#acknowledgedProjection = getCheckpointProjection(this.#checkpoint);
     this.#patch({ editorError: undefined, lifecycle: "ready" });
-    return {
+    return createSynchronizationSuccess({
       cause: "creation",
       exactAuthority: this.#acknowledgedAuthority,
       projection,
       sessionKey: this.sessionKey,
-      stateEffect: "none",
-      status: "synchronized",
-    };
+    });
   }
 
   /** Falls back to exact editable source without inventing a content change. */
@@ -162,16 +166,20 @@ export class MarkdownAuthorityController {
     markdown: string,
     trigger: PublicationTrigger = "listener",
   ): AcceptedChangeResult {
-    if (this.#state.lifecycle !== "ready") {
-      return { reason: "lifecycle", status: "ignored" };
+    const reason = getWysiwygIgnoreReason({
+      frozen: this.#frozen,
+      isPublishing: this.#isPublishing,
+      isSynchronizing: this.#isSynchronizing,
+      lifecycle: this.#state.lifecycle,
+      mode: this.#state.mode,
+    });
+    if (reason !== undefined) {
+      return { reason, status: "ignored" };
     }
-    if (this.#state.mode !== "wysiwyg" || this.#frozen) {
-      return { reason: "inactive_mode", status: "ignored" };
-    }
-    if (this.#isSynchronizing || this.#isPublishing) {
-      return { reason: "synchronization", status: "ignored" };
-    }
-    return this.#publishCandidate(this.#resolveProjection(markdown), trigger);
+    return this.#publishCandidate(
+      resolveProjectionCandidate(markdown, this.#checkpoint),
+      trigger,
+    );
   }
 
   /** Retries the exact unacknowledged visible value without another edit. */
@@ -183,38 +191,43 @@ export class MarkdownAuthorityController {
 
   /** Commits a live rich projection before a same-session or route action. */
   commit(cause: CommitCause): CommitResult {
-    if (this.#state.lifecycle === "destroyed") {
-      return createCommitFailure(cause, "stale_session", this.sessionKey);
+    const immediate = getImmediateCommitResult({
+      cause,
+      lifecycle: this.#state.lifecycle,
+      mode: this.#state.mode,
+      revision: this.#revision,
+      sessionKey: this.sessionKey,
+    });
+    if (immediate !== undefined) {
+      return immediate;
     }
-    if (this.#state.mode === "markdown" || this.#state.lifecycle !== "ready") {
-      return createCommitNoChange(
-        cause,
-        "source_authority_current",
-        this.#revision,
-        this.sessionKey,
-      );
-    }
-    let projection: string;
-    try {
-      projection = this.#input.readProjection();
-    } catch {
-      return createCommitFailure(
-        cause,
-        "projection_read_failed",
-        this.sessionKey,
-      );
-    }
+    const projectionRead = readAuthorityProjection(
+      this.#input.readProjection,
+      () =>
+        createCommitFailure(cause, "projection_read_failed", this.sessionKey),
+    );
+    return projectionRead.status === "failed"
+      ? projectionRead.result
+      : this.#commitProjection(cause, projectionRead.projection);
+  }
+
+  #commitProjection(cause: CommitCause, projection: string): CommitResult {
     if (
-      projection === this.#acknowledgedProjection &&
-      this.#retry === undefined
+      isCommitProjectionCurrent({
+        acknowledgedProjection: this.#acknowledgedProjection,
+        hasRetry: this.#retry !== undefined,
+        projection,
+      })
     ) {
-      return createCommitNoChange(
-        cause,
-        "projection_unchanged",
-        this.#revision,
-        this.sessionKey,
-      );
+      return this.#createNoChangeResult(cause, "projection_unchanged");
     }
+    return this.#publishProjectionAsCommit(cause, projection);
+  }
+
+  #publishProjectionAsCommit(
+    cause: CommitCause,
+    projection: string,
+  ): CommitResult {
     const change = this.publishWysiwyg(projection, toPublicationTrigger(cause));
     if (change.status === "ignored") {
       return createCommitFailure(cause, "stale_session", this.sessionKey);
@@ -222,14 +235,26 @@ export class MarkdownAuthorityController {
     return toCommitResult(cause, this.sessionKey, change.publication);
   }
 
+  #createNoChangeResult(
+    cause: CommitCause,
+    reason: "projection_unchanged" | "source_authority_current",
+  ): CommitResult {
+    return createControllerCommitNoChange(
+      {
+        cause,
+        revision: this.#revision,
+        sessionKey: this.sessionKey,
+      },
+      reason,
+    );
+  }
+
   /** Commits WYSIWYG and activates exact source only when that commit succeeds. */
   showSource(): CommitResult {
     if (this.#state.mode === "markdown") {
-      return createCommitNoChange(
+      return this.#createNoChangeResult(
         "mode_switch",
         "source_authority_current",
-        this.#revision,
-        this.sessionKey,
       );
     }
     const commit = this.commit("mode_switch");
@@ -256,6 +281,10 @@ export class MarkdownAuthorityController {
         this.sessionKey,
       );
     }
+    return this.#synchronizeSourceToWysiwyg();
+  }
+
+  #synchronizeSourceToWysiwyg(): SynchronizationResult {
     this.#isSynchronizing = true;
     try {
       this.#input.replaceProjection(this.#acknowledgedAuthority);
@@ -267,14 +296,12 @@ export class MarkdownAuthorityController {
       this.#acknowledgedProjection = projection;
       this.#patch({ editorError: undefined, mode: "wysiwyg" });
       this.#input.onModeChange("wysiwyg");
-      return {
+      return createSynchronizationSuccess({
         cause: "source_to_wysiwyg",
         exactAuthority: this.#acknowledgedAuthority,
         projection,
         sessionKey: this.sessionKey,
-        stateEffect: "none",
-        status: "synchronized",
-      };
+      });
     } catch {
       this.#patch({
         editorError: "The rich editor could not apply the Markdown source.",
@@ -290,27 +317,44 @@ export class MarkdownAuthorityController {
   }
 
   #publishCandidate(
-    candidate: RetryCandidate,
+    candidate: AuthorityRetryCandidate,
     trigger: PublicationTrigger,
   ): AcceptedChangeResult {
-    if (this.#frozen || this.#state.lifecycle === "destroyed") {
+    if (isControllerUnavailable(this.#frozen, this.#state.lifecycle)) {
       return { reason: "lifecycle", status: "ignored" };
     }
-    if (candidate.markdown === this.#acknowledgedAuthority && this.#retry) {
-      this.#retry = undefined;
-      this.#patch({ editorError: undefined, hasPublicationRetry: false });
-      return {
-        markdown: candidate.markdown,
-        publication: createRetryReverted({
-          disposition: this.#disposition,
-          origin: candidate.origin,
-          revision: this.#revision,
-          sessionKey: this.sessionKey,
-          trigger,
-        }),
-        status: "processed",
-      };
+    const reverted = this.#revertRetry(candidate, trigger);
+    if (reverted !== undefined) {
+      return reverted;
     }
+    return this.#publishPreparedCandidate(candidate, trigger);
+  }
+
+  #revertRetry(
+    candidate: AuthorityRetryCandidate,
+    trigger: PublicationTrigger,
+  ): AcceptedChangeResult | undefined {
+    const result = createRetryReversion({
+      acknowledgedAuthority: this.#acknowledgedAuthority,
+      candidate,
+      disposition: this.#disposition,
+      retry: this.#retry,
+      revision: this.#revision,
+      sessionKey: this.sessionKey,
+      trigger,
+    });
+    if (result === undefined) {
+      return undefined;
+    }
+    this.#retry = undefined;
+    this.#patch({ editorError: undefined, hasPublicationRetry: false });
+    return result;
+  }
+
+  #publishPreparedCandidate(
+    candidate: AuthorityRetryCandidate,
+    trigger: PublicationTrigger,
+  ): AcceptedChangeResult {
     const command: PublicationCommand = {
       markdown: candidate.markdown,
       origin: candidate.origin,
@@ -319,72 +363,54 @@ export class MarkdownAuthorityController {
       trigger,
     };
     this.#isPublishing = true;
-    const publication = this.#callPublish(command);
+    const publication = callAuthorityPublication({
+      command,
+      disposition: this.#disposition,
+      publish: this.#input.publish,
+      revision: this.#revision,
+      sessionKey: this.sessionKey,
+    });
     this.#isPublishing = false;
+    this.#settlePublishedCandidate(candidate, publication);
+    return { markdown: candidate.markdown, publication, status: "processed" };
+  }
+
+  #settlePublishedCandidate(
+    candidate: AuthorityRetryCandidate,
+    publication: PublicationResult,
+  ): void {
     if (publication.status === "rejected") {
       this.#retry = candidate;
       this.#patch({
         editorError: "The latest editor change has not been acknowledged.",
         hasPublicationRetry: true,
       });
-    } else {
-      this.#acceptPublication(candidate, publication);
+      return;
     }
-    return { markdown: candidate.markdown, publication, status: "processed" };
-  }
-
-  #callPublish(command: PublicationCommand): PublicationResult {
-    try {
-      return this.#input.publish(command);
-    } catch {
-      return {
-        attemptedMarkdown: command.markdown,
-        attemptedRevision: this.#revision + 1,
-        disposition: this.#disposition,
-        origin: command.origin,
-        reason: "state_update_failed",
-        sessionKey: this.sessionKey,
-        stateEffect: "none",
-        status: "rejected",
-        trigger: command.trigger,
-      };
-    }
+    this.#acceptPublication(candidate, publication);
   }
 
   #acceptPublication(
-    candidate: RetryCandidate,
+    candidate: AuthorityRetryCandidate,
     publication: Exclude<PublicationResult, { status: "rejected" }>,
   ): void {
-    this.#acknowledgedAuthority = candidate.markdown;
-    if (candidate.origin === "wysiwyg_document") {
-      this.#acknowledgedProjection =
-        candidate.resolution === "checkpoint_restore"
-          ? this.#checkpoint?.projection
-          : candidate.markdown;
+    const accepted = getAcceptedAuthorityPatch(
+      candidate,
+      publication,
+      this.#checkpoint,
+    );
+    this.#acknowledgedAuthority = accepted.authority;
+    if (accepted.projection !== undefined) {
+      this.#acknowledgedProjection = accepted.projection;
     }
-    this.#revision = publication.revision;
-    this.#disposition = publication.disposition;
+    this.#revision = accepted.revision;
+    this.#disposition = accepted.disposition;
     this.#retry = undefined;
     this.#patch({
       editorError: undefined,
       hasPublicationRetry: false,
       sourceMarkdown: candidate.markdown,
     });
-  }
-
-  #resolveProjection(markdown: string): RetryCandidate {
-    const checkpoint = this.#checkpoint;
-    return checkpoint !== undefined && markdown === checkpoint.projection
-      ? {
-          markdown: checkpoint.exactAuthority,
-          origin: "wysiwyg_document",
-          resolution: "checkpoint_restore",
-        }
-      : {
-          markdown,
-          origin: "wysiwyg_document",
-          resolution: "serialized_projection",
-        };
   }
 
   #patch(patch: Partial<MarkdownAuthorityState>): void {
