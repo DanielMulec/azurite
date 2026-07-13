@@ -2,10 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { MarkdownAuthorityController } from "../src/components/markdown-authority-controller.js";
-import type {
-  PublicationCommand,
-  PublicationResult,
-} from "../src/domain/markdown-authority-types.js";
+import type { PublicationResult } from "../src/domain/markdown-authority-types.js";
 import { crlfMarkdownFixture } from "./markdown-fidelity-cases.js";
 
 const fixtureNames = [
@@ -43,7 +40,7 @@ describe("fixture-driven authority checkpoint", () => {
   it("retains exact hyphen source when setup projection uses asterisks", () => {
     const exact = readFixture("hyphen-lists.md");
     const projection = exact.replaceAll(/^([ \t]*)-/gm, "$1*");
-    const publish = vi.fn((_command: PublicationCommand): PublicationResult => {
+    const publish = vi.fn((): PublicationResult => {
       throw new Error("Setup synchronization must not publish.");
     });
     const controller = new MarkdownAuthorityController({

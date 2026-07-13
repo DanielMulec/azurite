@@ -1,0 +1,4 @@
+@import "../../src/styles/global.css";
+
+/* The dedicated Vite root sits outside src, so declare its production sources. */
+@source "../../src";
