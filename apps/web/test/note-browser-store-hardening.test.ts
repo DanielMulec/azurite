@@ -146,7 +146,7 @@ describe("note browser store stale save conflict hardening", () => {
     expect(store.getState().noteState).toMatchObject({
       editor: {
         currentMarkdown: "# Home\nNewest draft",
-        recovery: "conflict",
+        draftDisposition: "conflict",
         saveStatus: "conflict",
       },
       status: "ready",

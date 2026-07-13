@@ -18,7 +18,7 @@ import { selectTestNote } from "./note-browser-route-test-helpers.js";
 const failureCases = [
   {
     error: new Error("Temporary save failure."),
-    expectedRecovery: "none",
+    expectedDisposition: "generated_durable",
     expectedStatus: "failed",
     name: "failure",
   },
@@ -27,7 +27,7 @@ const failureCases = [
       code: apiErrorCodes.noteWriteConflict,
       statusCode: 409,
     }),
-    expectedRecovery: "conflict",
+    expectedDisposition: "conflict",
     expectedStatus: "conflict",
     name: "conflict",
   },
@@ -36,7 +36,7 @@ const failureCases = [
 describe("save failure post-persistence ownership", () => {
   it.each(failureCases)(
     "applies $name state to the latest exact-session edit",
-    async ({ error, expectedRecovery, expectedStatus }) => {
+    async ({ error, expectedDisposition, expectedStatus }) => {
       const drafts = createMemoryDraftPersistence();
       const writeStarted = createDeferred<undefined>();
       const releaseWrite = createDeferred<undefined>();
@@ -71,7 +71,7 @@ describe("save failure post-persistence ownership", () => {
       expect(store.getState().noteState).toMatchObject({
         editor: {
           currentMarkdown: "# Edit during persistence",
-          recovery: expectedRecovery,
+          draftDisposition: expectedDisposition,
           saveStatus: expectedStatus,
         },
         status: "ready",

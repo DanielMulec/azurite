@@ -48,7 +48,7 @@ export function getSnapshotQueueKey(snapshot: DraftMutationSnapshot): string {
 }
 
 function shouldDeleteSnapshot(snapshot: DraftMutationSnapshot): boolean {
-  return !snapshot.contentDirty || snapshot.cause.includes("cleanup");
+  return !snapshot.contentDirty;
 }
 
 function isProtectedDisposition(

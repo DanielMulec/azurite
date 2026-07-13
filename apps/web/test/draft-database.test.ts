@@ -332,6 +332,11 @@ function createBrokenPersistence(
         method === "get" ? Promise.reject(error) : Promise.resolve(undefined),
       put: () => (method === "put" ? Promise.reject(error) : Promise.resolve()),
     },
+    transaction: (
+      _mode: string,
+      _table: unknown,
+      callback: () => Promise<unknown>,
+    ) => callback(),
   } as unknown as AzuriteBrowserDatabase);
 }
 

@@ -19,6 +19,7 @@ import {
   type BrowserOperationEvidence,
 } from "./note-browser-evidence.js";
 import { createNoteRequestMetadata } from "./note-operation-metadata.js";
+import { flushEditorDurability } from "./note-browser-durability-actions.js";
 import { reloadSelectedNoteAction } from "./note-browser-route-actions.js";
 import { applyMissingRoute } from "./note-browser-route-state.js";
 import {
@@ -128,6 +129,7 @@ async function saveEditor(
       contentHash: response.note.contentHash,
     });
   } catch (error) {
+    await flushEditorDurability("explicit_flush", context);
     applySaveFailure({ context, editor, error });
     recordSaveResult(evidence, { error });
   }

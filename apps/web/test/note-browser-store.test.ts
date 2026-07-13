@@ -111,7 +111,7 @@ describe("note browser store save handling", () => {
       editor: {
         baseContentHash: "sha256-saved",
         currentMarkdown: "# Home\nSaved",
-        recovery: "none",
+        draftDisposition: "none",
         savedMarkdown: "# Home\nSaved",
       },
       status: "ready",
@@ -146,7 +146,7 @@ describe("note browser store conflict handling", () => {
       markdown: "# Home\nConflict draft",
     });
     expect(store.getState().noteState).toMatchObject({
-      editor: { recovery: "conflict", saveStatus: "conflict" },
+      editor: { draftDisposition: "conflict", saveStatus: "conflict" },
       status: "ready",
     });
   });
@@ -179,7 +179,7 @@ describe("note browser store recovery actions", () => {
       drafts.read(readyClusterIdentity.clusterId, "index.md"),
     ).toBeUndefined();
     expect(store.getState().noteState).toMatchObject({
-      editor: { currentMarkdown: "# Disk", recovery: "none" },
+      editor: { currentMarkdown: "# Disk", draftDisposition: "none" },
       status: "ready",
     });
   });

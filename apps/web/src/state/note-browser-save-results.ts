@@ -12,6 +12,7 @@ import {
 } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
+import { admitPostSaveDraftSnapshot } from "./note-browser-save-rebase.js";
 
 type SaveResponseInput = {
   readonly clusterIdentity: ClusterIdentity;
@@ -34,7 +35,11 @@ export async function applySaveResponse(
     input.editor.sessionKey,
     input.editor.revision,
   );
+  const hadNewerEdit = !isSameSaveSnapshot(currentEditor, input.editor);
   applySuccessfulSave(input, reconciliation);
+  if (hadNewerEdit) {
+    await admitPostSaveDraftSnapshot(input.context);
+  }
 }
 
 /** Applies a failed Save to the latest exact session without restoring text. */
