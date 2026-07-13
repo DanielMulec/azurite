@@ -25,87 +25,135 @@ export async function flushEditorDurability(
     editor.currentMarkdown,
     editor.savedMarkdown,
   );
-  const immediate = getImmediateDurability(editor, dirty, cause, context);
+  const immediate = getImmediateDurability({ cause, context, dirty, editor });
   if (immediate !== undefined) {
     return immediate;
   }
-  if (editor.lastSnapshotKey === undefined) {
+  return await flushAdmittedSnapshot(editor, cause, context);
+}
+
+async function flushAdmittedSnapshot(
+  editor: EditorSession,
+  cause: DurabilityCause,
+  context: StoreContext,
+): Promise<DurabilityResult> {
+  const snapshotKey = editor.lastSnapshotKey;
+  if (snapshotKey === undefined) {
     return unavailableDurability(editor, cause, {
       reason: "snapshot_admission_failed",
       source: "coordinator",
     });
   }
-  const result = await context.draftCoordinator.flushSnapshot(
-    editor.lastSnapshotKey,
-  );
-  return resolveFlushedDurability(editor, result, cause, context);
+  const result = await context.draftCoordinator.flushSnapshot(snapshotKey);
+  return resolveFlushedDurability({ cause, context, original: editor, result });
 }
 
-function getImmediateDurability(
+function getImmediateDurability(input: {
+  readonly cause: DurabilityCause;
+  readonly context: StoreContext;
+  readonly dirty: boolean;
+  readonly editor: EditorSession;
+}): DurabilityResult | undefined {
+  const clean = getCleanImmediateDurability(input);
+  if (clean !== undefined) {
+    return clean;
+  }
+  const durable = getOwnedRecordDurability(input);
+  if (durable !== undefined) {
+    return durable;
+  }
+  return getUnavailableImmediateDurability(input.editor, input.cause);
+}
+
+function getCleanImmediateDurability(input: {
+  readonly cause: DurabilityCause;
+  readonly dirty: boolean;
+  readonly editor: EditorSession;
+}): DurabilityResult | undefined {
+  return input.dirty
+    ? undefined
+    : getCleanDispositionDurability(input.editor, input.cause);
+}
+
+function getCleanDispositionDurability(
   editor: EditorSession,
-  dirty: boolean,
   cause: DurabilityCause,
-  context: StoreContext,
 ): DurabilityResult | undefined {
-  if (!dirty && editor.draftDisposition === "none") {
+  if (editor.draftDisposition === "none") {
     return cleanDurability(editor, cause);
   }
-  if (!dirty && isPreservedDisposition(editor.draftDisposition)) {
-    return preservedDurability(editor, cause);
-  }
-  if (
-    (editor.draftDisposition === "recovered" ||
-      editor.draftDisposition === "conflict") &&
-    editor.durableSnapshotKey !== undefined
-  ) {
-    return durableResult(editor, cause, context);
-  }
-  if (
-    editor.draftDisposition === "cleanup_required" ||
-    editor.persistenceIssue !== undefined
-  ) {
-    return unavailableDurability(
-      editor,
-      cause,
-      editor.persistenceIssue?.failure ?? {
-        reason: "queue_task_failed",
-        source: "coordinator",
-      },
-    );
-  }
-  return undefined;
+  return isPreservedDisposition(editor.draftDisposition)
+    ? preservedDurability(editor, cause)
+    : undefined;
 }
 
-function resolveFlushedDurability(
-  original: EditorSession,
-  result: DraftSnapshotResult,
+function getOwnedRecordDurability(input: {
+  readonly cause: DurabilityCause;
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+}): DurabilityResult | undefined {
+  if (!isRecoveredOrConflict(input.editor.draftDisposition)) {
+    return undefined;
+  }
+  if (input.editor.durableSnapshotKey === undefined) {
+    return undefined;
+  }
+  return durableResult(input.editor, input.cause, input.context);
+}
+
+function getUnavailableImmediateDurability(
+  editor: EditorSession,
   cause: DurabilityCause,
-  context: StoreContext,
+): DurabilityResult | undefined {
+  if (editor.draftDisposition === "cleanup_required") {
+    return unavailableDurability(editor, cause, getEditorFailure(editor));
+  }
+  return editor.persistenceIssue === undefined
+    ? undefined
+    : unavailableDurability(editor, cause, editor.persistenceIssue.failure);
+}
+
+function resolveFlushedDurability(input: {
+  readonly cause: DurabilityCause;
+  readonly context: StoreContext;
+  readonly original: EditorSession;
+  readonly result: DraftSnapshotResult;
+}): DurabilityResult {
+  const current = getExactEditor(input.original.sessionKey, input.context);
+  if (current === undefined) {
+    return ownerLostAfterFlush(input);
+  }
+  if (current.revision !== input.original.revision) {
+    return ownerLostAfterFlush(input);
+  }
+  return resolveCurrentFlushedDurability(current, input);
+}
+
+function ownerLostAfterFlush(input: {
+  readonly cause: DurabilityCause;
+  readonly original: EditorSession;
+}): DurabilityResult {
+  return unavailableDurability(input.original, input.cause, {
+    reason: "owner_lost",
+    source: "session",
+  });
+}
+
+function resolveCurrentFlushedDurability(
+  current: EditorSession,
+  input: {
+    readonly cause: DurabilityCause;
+    readonly context: StoreContext;
+    readonly result: DraftSnapshotResult;
+  },
 ): DurabilityResult {
-  const current = getExactEditor(original.sessionKey, context);
-  if (current === undefined || current.revision !== original.revision) {
-    return unavailableDurability(original, cause, {
-      reason: "owner_lost",
-      source: "session",
-    });
+  if (isDurableFlush(current, input.result)) {
+    return durableResult(current, input.cause, input.context);
   }
-  if (
-    result.status === "written" ||
-    current.durableSnapshotKey === current.lastSnapshotKey
-  ) {
-    return durableResult(current, cause, context);
+  if (input.result.status === "clean") {
+    return cleanDurability(current, input.cause);
   }
-  if (result.status === "clean") {
-    return cleanDurability(current, cause);
-  }
-  return unavailableDurability(
-    current,
-    cause,
-    current.persistenceIssue?.failure ?? {
-      reason: "queue_task_failed",
-      source: "coordinator",
-    },
-  );
+  return unavailableDurability(current, input.cause, getEditorFailure(current));
 }
 
 function cleanDurability(
@@ -147,12 +195,12 @@ function durableResult(
   context: StoreContext,
 ): DurabilityResult {
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
-  const snapshotKey = editor.durableSnapshotKey ?? editor.lastSnapshotKey;
-  if (clusterId === undefined || snapshotKey === undefined) {
-    return unavailableDurability(editor, cause, {
-      reason: "queue_task_failed",
-      source: "coordinator",
-    });
+  if (clusterId === undefined) {
+    return missingDurableIdentity(editor, cause);
+  }
+  const snapshotKey = getDurableSnapshotKey(editor);
+  if (snapshotKey === undefined) {
+    return missingDurableIdentity(editor, cause);
   }
   return {
     cause,
@@ -165,6 +213,16 @@ function durableResult(
     snapshotKey,
     status: "durable",
   };
+}
+
+function missingDurableIdentity(
+  editor: EditorSession,
+  cause: DurabilityCause,
+): DurabilityResult {
+  return unavailableDurability(editor, cause, {
+    reason: "queue_task_failed",
+    source: "coordinator",
+  });
 }
 
 function unavailableDurability(
@@ -206,4 +264,32 @@ function isPreservedDisposition(
     disposition === "recovery_read_unavailable" ||
     disposition === "preserved_unknown"
   );
+}
+
+function isRecoveredOrConflict(
+  disposition: EditorSession["draftDisposition"],
+): boolean {
+  return disposition === "recovered" || disposition === "conflict";
+}
+
+function isDurableFlush(
+  editor: EditorSession,
+  result: DraftSnapshotResult,
+): boolean {
+  return (
+    result.status === "written" ||
+    editor.durableSnapshotKey === editor.lastSnapshotKey
+  );
+}
+
+function getDurableSnapshotKey(editor: EditorSession): string | undefined {
+  return editor.durableSnapshotKey ?? editor.lastSnapshotKey;
+}
+
+function getEditorFailure(
+  editor: EditorSession,
+): Extract<DurabilityResult, { status: "unavailable" }>["failure"] {
+  return editor.persistenceIssue === undefined
+    ? { reason: "queue_task_failed", source: "coordinator" }
+    : editor.persistenceIssue.failure;
 }

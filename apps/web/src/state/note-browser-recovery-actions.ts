@@ -5,186 +5,286 @@ import {
   createEditorSession,
   getReadyClusterId,
 } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
-import { readRouteDraft } from "./note-browser-route-drafts.js";
+import type {
+  NoteBrowserStore,
+  StoreContext,
+} from "./note-browser-contracts.js";
+import {
+  readRouteDraft,
+  type RouteDraftApplication,
+} from "./note-browser-route-drafts.js";
+import type { EditorSession } from "./note-browser-types.js";
 
 /** Retries an unread browser record without replacing dirty live authority. */
 export async function retryBrowserRecoveryAction(
   context: StoreContext,
 ): Promise<RecoveryReadResult> {
-  const noteState = context.get().noteState;
-  if (
-    noteState.status !== "ready" ||
-    noteState.editor.draftDisposition !== "recovery_read_unavailable"
-  ) {
+  const editor = getRecoveryRetryEditor(context);
+  if (editor === undefined) {
     return ownerLostResult(context);
   }
-  const editor = noteState.editor;
+  return await retryEditorRecovery(editor, context);
+}
+
+function getRecoveryRetryEditor(
+  context: StoreContext,
+): EditorSession | undefined {
+  const noteState = context.get().noteState;
+  if (noteState.status !== "ready") {
+    return undefined;
+  }
+  return noteState.editor.draftDisposition === "recovery_read_unavailable"
+    ? noteState.editor
+    : undefined;
+}
+
+async function retryEditorRecovery(
+  editor: EditorSession,
+  context: StoreContext,
+): Promise<RecoveryReadResult> {
   if (hasMarkdownDifference(editor.currentMarkdown, editor.savedMarkdown)) {
-    return {
-      clusterId: editor.persistenceIssue?.clusterId,
-      noteId: editor.note.id,
-      ownerKey: editor.sessionKey,
-      reason: "dirty_live_authority",
-      status: "superseded",
-    };
+    return dirtyAuthorityResult(editor, getIssueClusterId(editor));
   }
   const identity = context.get().clusterIdentity;
   if (identity === undefined) {
     return applyUnavailableIdentity(editor, context);
   }
+  return await retryRecoveryWithIdentity(editor, identity, context);
+}
+
+async function retryRecoveryWithIdentity(
+  editor: EditorSession,
+  identity: NonNullable<NoteBrowserStore["clusterIdentity"]>,
+  context: StoreContext,
+): Promise<RecoveryReadResult> {
   const application = await readRouteDraft(editor.note.id, identity, context);
-  const current = context.get().noteState;
-  if (
-    current.status !== "ready" ||
-    current.editor.sessionKey !== editor.sessionKey
-  ) {
+  const current = getExactRecoveryEditor(editor.sessionKey, context);
+  if (current === undefined) {
     return ownerLostResult(context, editor.note.id, editor.sessionKey);
   }
-  if (
-    hasMarkdownDifference(
-      current.editor.currentMarkdown,
-      current.editor.savedMarkdown,
-    )
-  ) {
-    return {
-      clusterId: application.clusterId,
-      noteId: editor.note.id,
-      ownerKey: editor.sessionKey,
-      reason: "dirty_live_authority",
-      status: "superseded",
-    };
+  if (hasMarkdownDifference(current.currentMarkdown, current.savedMarkdown)) {
+    return dirtyAuthorityResult(editor, application.clusterId);
   }
   return applyRecoveryApplication(editor.sessionKey, application, context);
 }
 
-function applyRecoveryApplication(
+function getExactRecoveryEditor(
   ownerKey: string,
-  application: Awaited<ReturnType<typeof readRouteDraft>>,
   context: StoreContext,
-): RecoveryReadResult {
-  const state = context.get();
-  if (state.noteState.status !== "ready") {
-    return ownerLostResult(context);
+): EditorSession | undefined {
+  const noteState = context.get().noteState;
+  if (noteState.status !== "ready") {
+    return undefined;
   }
-  const noteId = state.noteState.editor.note.id;
-  if (application.disposition === "recovery_read_unavailable") {
-    const issue = createDraftPersistenceIssue({
-      clusterId: application.clusterId,
-      draftEpoch: state.noteState.editor.draftEpoch,
-      failure: application.failure ?? {
-        reason: "recovery_read_required",
-        source: "record",
-      },
-      noteId,
-      operation: "recovery_read",
-      ownerKey,
-      retryAction: "retry_browser_recovery",
-      sessionKey: ownerKey,
-    });
-    context.set((current) =>
-      current.noteState.status === "ready" &&
-      current.noteState.editor.sessionKey === ownerKey
-        ? {
-            ...application.statePatch,
-            noteState: {
-              editor: { ...current.noteState.editor, persistenceIssue: issue },
-              status: "ready",
-            },
-          }
-        : current,
-    );
-    return {
-      clusterId: application.clusterId,
-      disposition: "recovery_read_unavailable",
-      issue,
-      noteId,
-      ownerKey,
-      status: "failed",
-    };
-  }
-  if (application.disposition === "preserved_unknown") {
-    context.set((current) =>
-      current.noteState.status === "ready" &&
-      current.noteState.editor.sessionKey === ownerKey
-        ? {
-            noteState: {
-              editor: {
-                ...current.noteState.editor,
-                draftDisposition: "preserved_unknown",
-                persistenceIssue: undefined,
-                preservedSchemaVersion: application.preservedSchemaVersion,
-              },
-              status: "ready",
-            },
-          }
-        : current,
-    );
-    return {
-      clusterId: requireClusterId(application.clusterId),
-      disposition: "preserved_unknown",
-      noteId,
-      ownerKey,
-      schemaVersion: application.preservedSchemaVersion ?? 2,
-      status: "preserved",
-    };
-  }
-  return applyResolvedRecovery(ownerKey, application, context);
+  return noteState.editor.sessionKey === ownerKey
+    ? noteState.editor
+    : undefined;
 }
 
-function applyResolvedRecovery(
+function dirtyAuthorityResult(
+  editor: EditorSession,
+  clusterId: string | undefined,
+): RecoveryReadResult {
+  return {
+    clusterId,
+    noteId: editor.note.id,
+    ownerKey: editor.sessionKey,
+    reason: "dirty_live_authority",
+    status: "superseded",
+  };
+}
+
+function getIssueClusterId(editor: EditorSession): string | undefined {
+  return editor.persistenceIssue === undefined
+    ? undefined
+    : editor.persistenceIssue.clusterId;
+}
+
+function applyRecoveryApplication(
   ownerKey: string,
-  application: Awaited<ReturnType<typeof readRouteDraft>>,
+  application: RouteDraftApplication,
   context: StoreContext,
 ): RecoveryReadResult {
   const state = context.get();
   if (state.noteState.status !== "ready") {
     return ownerLostResult(context);
   }
-  const editor = createEditorSession(
-    state.noteState.editor.note,
+  return applyOwnedRecovery({
     application,
     context,
+    editor: state.noteState.editor,
+    ownerKey,
+  });
+}
+
+type OwnedRecoveryInput = {
+  readonly application: RouteDraftApplication;
+  readonly context: StoreContext;
+  readonly editor: EditorSession;
+  readonly ownerKey: string;
+};
+
+function applyOwnedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
+  if (input.application.disposition === "recovery_read_unavailable") {
+    return applyUnavailableRecovery(input);
+  }
+  if (input.application.disposition === "preserved_unknown") {
+    return applyPreservedRecovery(input);
+  }
+  return applyResolvedRecovery(input);
+}
+
+function applyUnavailableRecovery(
+  input: OwnedRecoveryInput,
+): RecoveryReadResult {
+  const issue = createDraftPersistenceIssue({
+    clusterId: input.application.clusterId,
+    draftEpoch: input.editor.draftEpoch,
+    failure: getRecoveryFailure(input.application),
+    noteId: input.editor.note.id,
+    operation: "recovery_read",
+    ownerKey: input.ownerKey,
+    retryAction: "retry_browser_recovery",
+    sessionKey: input.ownerKey,
+  });
+  input.context.set((current) => {
+    const editor = getOwnedStateEditor(current, input.ownerKey);
+    return editor === undefined
+      ? current
+      : {
+          ...input.application.statePatch,
+          noteState: {
+            editor: { ...editor, persistenceIssue: issue },
+            status: "ready",
+          },
+        };
+  });
+  return {
+    clusterId: input.application.clusterId,
+    disposition: "recovery_read_unavailable",
+    issue,
+    noteId: input.editor.note.id,
+    ownerKey: input.ownerKey,
+    status: "failed",
+  };
+}
+
+function applyPreservedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
+  input.context.set((current) => {
+    const editor = getOwnedStateEditor(current, input.ownerKey);
+    return editor === undefined
+      ? current
+      : {
+          noteState: {
+            editor: {
+              ...editor,
+              draftDisposition: "preserved_unknown",
+              persistenceIssue: undefined,
+              preservedSchemaVersion: input.application.preservedSchemaVersion,
+            },
+            status: "ready",
+          },
+        };
+  });
+  return {
+    clusterId: requireClusterId(input.application.clusterId),
+    disposition: "preserved_unknown",
+    noteId: input.editor.note.id,
+    ownerKey: input.ownerKey,
+    schemaVersion: input.application.preservedSchemaVersion ?? 2,
+    status: "preserved",
+  };
+}
+
+function applyResolvedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
+  const editor = createEditorSession(
+    input.editor.note,
+    input.application,
+    input.context,
   );
-  const committed = state.committedRouteView;
-  context.set({
-    ...application.statePatch,
-    committedRouteView:
-      committed?.view === "ready"
-        ? { ...committed, renderedOwnerKey: editor.sessionKey }
-        : committed,
+  const committed = input.context.get().committedRouteView;
+  input.context.set({
+    ...input.application.statePatch,
+    committedRouteView: rebaseCommittedOwner(committed, editor.sessionKey),
     noteState: { editor, status: "ready" },
   });
-  const clusterId = requireClusterId(application.clusterId);
-  if (application.draft === undefined) {
-    return {
-      clusterId,
-      disposition: "none",
-      issue: editor.persistenceIssue,
-      noteId: editor.note.id,
-      ownerKey,
-      recordStatus:
-        application.failure?.source === "persistence"
-          ? "invalid_deleted"
-          : "absent",
-      status: "resolved",
-    };
-  }
+  const clusterId = requireClusterId(input.application.clusterId);
+  return input.application.draft === undefined
+    ? resolvedAbsentRecovery(input, editor, clusterId)
+    : resolvedCurrentRecovery(input, editor, clusterId);
+}
+
+function resolvedAbsentRecovery(
+  input: OwnedRecoveryInput,
+  editor: EditorSession,
+  clusterId: string,
+): RecoveryReadResult {
+  return {
+    clusterId,
+    disposition: "none",
+    issue: editor.persistenceIssue,
+    noteId: editor.note.id,
+    ownerKey: input.ownerKey,
+    recordStatus: getAbsentRecordStatus(input.application),
+    status: "resolved",
+  };
+}
+
+function resolvedCurrentRecovery(
+  input: OwnedRecoveryInput,
+  editor: EditorSession,
+  clusterId: string,
+): RecoveryReadResult {
   return {
     clusterId,
     disposition: editor.draftDisposition as "conflict" | "recovered",
     noteId: editor.note.id,
-    ownerKey,
+    ownerKey: input.ownerKey,
     recordStatus: "found_current",
     status: "resolved",
   };
 }
 
+function getRecoveryFailure(application: RouteDraftApplication) {
+  return (
+    application.failure ?? {
+      reason: "recovery_read_required" as const,
+      source: "record" as const,
+    }
+  );
+}
+
+function getOwnedStateEditor(
+  state: NoteBrowserStore,
+  ownerKey: string,
+): EditorSession | undefined {
+  if (state.noteState.status !== "ready") {
+    return undefined;
+  }
+  return state.noteState.editor.sessionKey === ownerKey
+    ? state.noteState.editor
+    : undefined;
+}
+
+function rebaseCommittedOwner(
+  committed: NoteBrowserStore["committedRouteView"],
+  sessionKey: string,
+): NoteBrowserStore["committedRouteView"] {
+  return committed?.view === "ready"
+    ? { ...committed, renderedOwnerKey: sessionKey }
+    : committed;
+}
+
+function getAbsentRecordStatus(
+  application: RouteDraftApplication,
+): "absent" | "invalid_deleted" {
+  return application.failure?.source === "persistence"
+    ? "invalid_deleted"
+    : "absent";
+}
+
 function applyUnavailableIdentity(
-  editor: Extract<
-    ReturnType<StoreContext["get"]>["noteState"],
-    { status: "ready" }
-  >["editor"],
+  editor: EditorSession,
   context: StoreContext,
 ): RecoveryReadResult {
   const identity = context.get().clusterIdentity;
@@ -192,10 +292,7 @@ function applyUnavailableIdentity(
     clusterId: undefined,
     draftEpoch: editor.draftEpoch,
     failure: {
-      reason:
-        identity?.status === "unavailable"
-          ? identity.reason
-          : "metadata_unavailable",
+      reason: getUnavailableIdentityReason(identity),
       source: "cluster_identity",
     },
     noteId: editor.note.id,
@@ -218,6 +315,14 @@ function applyUnavailableIdentity(
     ownerKey: editor.sessionKey,
     status: "failed",
   };
+}
+
+function getUnavailableIdentityReason(
+  identity: NoteBrowserStore["clusterIdentity"],
+) {
+  return identity?.status === "unavailable"
+    ? identity.reason
+    : "metadata_unavailable";
 }
 
 function ownerLostResult(
