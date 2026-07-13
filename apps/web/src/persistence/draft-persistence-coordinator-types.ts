@@ -37,6 +37,7 @@ export type SnapshotReceipt = {
 };
 
 export type PreparedSlot = {
+  readonly admittedAt: string;
   readonly isCurrent: () => boolean;
   readonly onSettled: (settlement: SnapshotSettlement) => void;
   readonly receipt: SnapshotReceipt;

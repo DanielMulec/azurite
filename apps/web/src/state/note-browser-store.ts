@@ -151,12 +151,9 @@ function createInitialState(
     applyRoute: (input) => applyRouteAction(input, runtime.context),
     clusterIdentity: undefined,
     committedRouteView: undefined,
-    discardDraftAndReloadDiskVersion: async () => {
-      await discardDraftAndReloadDiskVersionAction(runtime.context);
-    },
-    discardMissingDraft: async () => {
-      await discardMissingDraftAction(runtime.context);
-    },
+    discardDraftAndReloadDiskVersion: () =>
+      discardDraftAndReloadDiskVersionAction(runtime.context),
+    discardMissingDraft: () => discardMissingDraftAction(runtime.context),
     draftRecoveryStatus: { status: "available" },
     ensureNotes: () => ensureNotesAction(runtime.context),
     flushPendingDraft: async (cause = "explicit_flush") =>

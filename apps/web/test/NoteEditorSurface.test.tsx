@@ -49,9 +49,11 @@ describe("NoteEditorSurface", () => {
           markdown: "# Deleted but recovered",
           updatedAt: "2026-07-08T10:00:00.000Z",
         },
+        draftDisposition: "recovered",
         draftEpoch: 0,
         noteId: "deleted.md",
         persistenceIssue: undefined,
+        preservedSchemaVersion: undefined,
         renderedOwnerKey: "deleted.md:missing-draft:1",
         status: "missing-draft",
       },
@@ -79,6 +81,32 @@ describe("NoteEditorSurface", () => {
       "Discard this recovered draft?",
     );
     expect(onDiscardMissingDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("protects a future-version missing-note record without a destructive action", () => {
+    renderSurface({
+      draft: {
+        editorMode: "markdown",
+        markdown: "# Previously recovered",
+        updatedAt: "2026-07-08T10:00:00.000Z",
+      },
+      draftDisposition: "preserved_unknown",
+      draftEpoch: 1,
+      noteId: "deleted.md",
+      persistenceIssue: undefined,
+      preservedSchemaVersion: 7,
+      renderedOwnerKey: "deleted.md:missing-draft:1",
+      status: "missing-draft",
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Newer recovery record for missing note",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText(/compatible build/i)).toBeInTheDocument();
   });
 });
 

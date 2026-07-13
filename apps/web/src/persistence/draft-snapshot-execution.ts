@@ -11,6 +11,7 @@ import type { DraftSnapshotResult } from "./draft-persistence-coordinator.js";
 export async function executeDraftSnapshot(
   snapshot: DraftMutationSnapshot,
   persistence: DraftPersistence,
+  admittedAt = new Date().toISOString(),
 ): Promise<DraftSnapshotResult> {
   if (isProtectedDisposition(snapshot.disposition)) {
     return { status: "record_protected" };
@@ -32,6 +33,7 @@ export async function executeDraftSnapshot(
       editorMode: snapshot.editorMode,
       markdown: snapshot.markdown,
       noteId: snapshot.noteId,
+      updatedAt: admittedAt,
     }),
   );
   return toWriteSnapshotResult(result);

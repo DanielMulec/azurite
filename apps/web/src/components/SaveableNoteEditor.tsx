@@ -12,7 +12,7 @@ import { MilkdownEditor } from "./MilkdownEditor.js";
 
 type SaveableNoteEditorProps = {
   readonly editor: EditorSession;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
@@ -83,7 +83,7 @@ function SaveToolbar({
 }: {
   readonly editor: EditorSession;
   readonly isDirty: boolean;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
   readonly onRetryBrowserRecovery: () => Promise<unknown>;
   readonly onRetryDraftCleanup: () => Promise<void>;
   readonly onRetryDraftPersistence: () => Promise<void>;
@@ -114,7 +114,9 @@ function SaveToolbar({
               }}
               type="button"
             >
-              Discard draft and reload disk version
+              {editor.persistenceIssue?.retryAction === "retry_discard"
+                ? "Retry discard"
+                : "Discard draft and reload disk version"}
             </button>
           ) : null}
           <DraftRetryButton

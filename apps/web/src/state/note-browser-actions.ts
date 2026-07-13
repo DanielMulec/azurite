@@ -1,8 +1,8 @@
+export { saveSelectedNoteAction } from "./note-browser-editor-actions.js";
 export {
   discardDraftAndReloadDiskVersionAction,
   discardMissingDraftAction,
-  saveSelectedNoteAction,
-} from "./note-browser-editor-actions.js";
+} from "./note-browser-discard-actions.js";
 export {
   applyRouteAction,
   ensureNotesAction,

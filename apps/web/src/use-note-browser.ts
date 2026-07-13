@@ -21,6 +21,7 @@ import type {
   NoteViewState,
 } from "./state/note-browser-types.js";
 import type { RouteHistoryStatus } from "./routing/route-transition-types.js";
+import type { DiscardResult } from "./persistence/draft-workflow-types.js";
 
 type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
 
@@ -32,8 +33,10 @@ export type NoteBrowserRouteGateFactory = (
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
-  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
-  readonly discardMissingDraft: () => Promise<void>;
+  readonly discardDraftAndReloadDiskVersion: () => Promise<
+    DiscardResult | undefined
+  >;
+  readonly discardMissingDraft: () => Promise<DiscardResult | undefined>;
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly editorSessionGate: EditorSessionGate;
   readonly noteState: NoteViewState;

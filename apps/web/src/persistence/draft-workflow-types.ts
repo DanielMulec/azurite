@@ -247,3 +247,45 @@ export type CleanupResult =
       readonly snapshotKey: string | undefined;
       readonly status: "failed";
     };
+
+/** Exact terminal result of disposing one compatible recovery record. */
+export type DiscardResult =
+  | {
+      readonly closedEpoch: number;
+      readonly clusterId: string | undefined;
+      readonly next: "missing_without_draft" | "reload_disk";
+      readonly noteId: string;
+      readonly ownerKey: string;
+      readonly status: "completed";
+    }
+  | {
+      readonly closedEpoch: number;
+      readonly clusterId: string | undefined;
+      readonly noteId: string;
+      readonly ownerKey: string;
+      readonly reason: "owner_lost";
+      readonly status: "superseded";
+    }
+  | {
+      readonly closedEpoch: number;
+      readonly clusterId: string;
+      readonly disposition: "preserved_unknown";
+      readonly noteId: string;
+      readonly ownerKey: string;
+      readonly restoredEpoch: number;
+      readonly schemaVersion: number;
+      readonly status: "preserved";
+      readonly surfaceEffect: "restored";
+    }
+  | {
+      readonly closedEpoch: number;
+      readonly clusterId: string | undefined;
+      readonly disposition: "conflict" | "recovered";
+      readonly failure: DraftFailureDetail;
+      readonly issue: DraftPersistenceIssue;
+      readonly noteId: string;
+      readonly ownerKey: string;
+      readonly restoredEpoch: number;
+      readonly status: "failed";
+      readonly surfaceEffect: "restored";
+    };

@@ -77,7 +77,7 @@ export type EditorSessionGate = {
   readonly routeGate: RouteTransitionGate;
   readonly runTerminalAction: (
     sessionKey: string,
-    action: () => Promise<void>,
+    action: () => Promise<unknown>,
   ) => Promise<void>;
   readonly subscribe: (listener: () => void) => () => void;
 };
@@ -248,7 +248,7 @@ class EditorSessionGateRuntime {
 
   async runTerminalAction(
     sessionKey: string,
-    action: () => Promise<void>,
+    action: () => Promise<unknown>,
   ): Promise<void> {
     const controller = this.#controllers.get(sessionKey);
     if (controller === undefined) {

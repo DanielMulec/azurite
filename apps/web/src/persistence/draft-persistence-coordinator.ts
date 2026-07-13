@@ -88,7 +88,11 @@ export class DraftPersistenceCoordinator {
     const receipt = createReceipt();
     this.#removeSupersededFailures(snapshot);
     this.#receipts.set(snapshot.snapshotKey, receipt);
-    this.#prepared.set(snapshot.snapshotKey, { ...input, receipt });
+    this.#prepared.set(snapshot.snapshotKey, {
+      ...input,
+      admittedAt: new Date().toISOString(),
+      receipt,
+    });
     return { snapshot, status: "prepared" };
   }
 
@@ -302,7 +306,11 @@ export class DraftPersistenceCoordinator {
     if (!slot.isCurrent() || this.#isClosed(slot.snapshot)) {
       return { status: "superseded" };
     }
-    return await executeDraftSnapshot(slot.snapshot, this.#persistence);
+    return await executeDraftSnapshot(
+      slot.snapshot,
+      this.#persistence,
+      slot.admittedAt,
+    );
   }
 
   #settle(slot: PreparedSlot, result: DraftSnapshotResult): void {

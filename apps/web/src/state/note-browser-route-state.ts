@@ -82,9 +82,11 @@ export function applyMissingDraftRoute(
       },
       noteState: {
         draft: input.draft,
+        draftDisposition: "recovered",
         draftEpoch: 0,
         noteId: input.noteId,
         persistenceIssue: undefined,
+        preservedSchemaVersion: undefined,
         renderedOwnerKey: input.renderedOwnerKey,
         status: "missing-draft",
       },

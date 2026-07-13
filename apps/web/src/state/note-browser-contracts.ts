@@ -16,6 +16,7 @@ import type { DraftCleanupRetryRegistry } from "../persistence/draft-cleanup-ret
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type {
+  DiscardResult,
   DurabilityCause,
   DurabilityResult,
   RecoveryReadResult,
@@ -74,8 +75,10 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly applyRoute: (
     input: RouteStoreApplyInput,
   ) => Promise<RouteStoreApplyResult>;
-  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
-  readonly discardMissingDraft: () => Promise<void>;
+  readonly discardDraftAndReloadDiskVersion: () => Promise<
+    DiscardResult | undefined
+  >;
+  readonly discardMissingDraft: () => Promise<DiscardResult | undefined>;
   readonly flushPendingDraft: (
     cause?: DurabilityCause,
   ) => Promise<DurabilityResult>;

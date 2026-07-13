@@ -17,8 +17,8 @@ type NoteEditorSurfaceProps = {
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly noteState: NoteViewState;
   readonly routeHistoryStatus: RouteHistoryStatus;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
-  readonly onDiscardMissingDraft: () => Promise<void>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
+  readonly onDiscardMissingDraft: () => Promise<unknown>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
@@ -190,7 +190,7 @@ function MissingNoteDraft({
     NoteViewState,
     { readonly status: "missing-draft" }
   >;
-  readonly onDiscardMissingDraft: () => Promise<void>;
+  readonly onDiscardMissingDraft: () => Promise<unknown>;
 }): ReactElement {
   const [isDiscarding, setIsDiscarding] = useState(false);
   return (
@@ -205,29 +205,35 @@ function MissingNoteDraft({
             {noteState.noteId}
           </p>
           <h2 className="text-3xl font-semibold tracking-normal text-[var(--azurite-heading)]">
-            Recovered draft for missing note
+            {noteState.draftDisposition === "preserved_unknown"
+              ? "Newer recovery record for missing note"
+              : "Recovered draft for missing note"}
           </h2>
           <p className="mt-2 text-sm leading-6 text-[var(--azurite-muted)]">
-            The file is no longer present on disk, but Azurite recovered the
-            browser draft. Save is disabled until note restore or creation
-            exists.
+            {noteState.draftDisposition === "preserved_unknown"
+              ? "A newer Azurite build now owns this browser recovery record. Use a compatible build to inspect or dispose of it."
+              : "The file is no longer present on disk, but Azurite recovered the browser draft. Save is disabled until note restore or creation exists."}
           </p>
         </header>
         <div className="mb-4 flex justify-end border-b border-[var(--azurite-border)] pb-4">
-          <button
-            className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
-            onClick={() => {
-              if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
-                setIsDiscarding(true);
-                void onDiscardMissingDraft().finally(() => {
-                  setIsDiscarding(false);
-                });
-              }
-            }}
-            type="button"
-          >
-            Discard recovered draft
-          </button>
+          {noteState.draftDisposition === "recovered" ? (
+            <button
+              className="w-fit border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+              onClick={() => {
+                if (confirmMissingDraftDiscard(noteState.draft.markdown)) {
+                  setIsDiscarding(true);
+                  void onDiscardMissingDraft().finally(() => {
+                    setIsDiscarding(false);
+                  });
+                }
+              }}
+              type="button"
+            >
+              {noteState.persistenceIssue?.retryAction === "retry_discard"
+                ? "Retry discard"
+                : "Discard recovered draft"}
+            </button>
+          ) : null}
         </div>
         <textarea
           className="min-h-[28rem] w-full resize-y border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-4 py-3 font-mono text-sm leading-6 text-[var(--azurite-text)]"
