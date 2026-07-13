@@ -141,6 +141,24 @@ The deterministic route fault controller is available only through dedicated
 development and optimized QA entries. It is absent from the ordinary Vite
 application graph and production build.
 
+The 2026-07-13 post-completion adversarial review established four current
+boundaries around that route owner and adjacent state:
+
+- Slice 7C is actively correcting candidate activation that invalidates a
+  still-loading predecessor before the pre-transition gate continues;
+- planned Slice 7D keeps successful Save inside the existing editor session so
+  the committed rendered-owner identity remains coherent, and it retains an
+  exact failed draft-write retry obligation through ordered persistence;
+- the deferred Route Failure Resilience slice owns exact repair when
+  `navigate()` rejects after committing its history echo; and
+- that resilience slice also owns malformed-target canonicalization when the
+  notes-list request fails. The current validation boundary still guarantees
+  zero note reads for the unsafe target.
+
+These are explicit known ownership boundaries, not alternate route or draft
+owners. Exact evidence and disposition live in
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`.
+
 ## API And Contract Boundaries
 
 Stable routes, query parameters, error codes, note IDs, cluster metadata, and

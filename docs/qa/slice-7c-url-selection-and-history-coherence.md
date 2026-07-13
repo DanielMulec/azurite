@@ -2,7 +2,9 @@
 
 ## Status
 
-- Completion decision: **Passed and complete on 2026-07-13**.
+- Original completion decision: **Passed on 2026-07-13**.
+- Current decision: **Reopened on 2026-07-13 for the pending-predecessor
+  cancellation correction**.
 - QA date and timezone: 2026-07-13, Europe/Vienna.
 - Browser-tested implementation commit:
   `250f14501caf34c7f7acb5974da1079dc6f64cc6`.
@@ -11,10 +13,38 @@
   target-free gate lifecycle, the acceptance-only fault harness, and preserved
   Slice 7B correlation/save/recovery guarantees.
 - Authoritative contract:
-  `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`.
+  `docs/slices/active/slice-7c-url-selection-and-history-coherence.md`.
 
-This document is the authoritative completion evidence for Slice 7C. The
-archived slice links here instead of duplicating the result matrix.
+This document is the authoritative implementation and review evidence for Slice
+7C. The original green matrix remains valid for the scenarios it selected, but
+the later adversarial evidence below supersedes its completion decision.
+
+## Post-Completion Adversarial Review
+
+A read-only adversarial review at clean synchronized commit
+`d425d6ec0b71fc8f6eede45facd36344d45f398b` found five coverage gaps while the
+existing 335 tests, full validation, ordinary build, QA build, bundle-exclusion
+check, and diff integrity remained green.
+
+| ID      | Finding and evidence                                                                                                                                                                                                                                                                        | Scope disposition                                                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7C-AR-1 | Cancelling B while A's real route read is pending invalidates A before gate admission. B cancels without an entry, but A's response is stale and the article remains permanently loading. Confirmed in rendered desktop development, Pixel 6 development, and Pixel 6 optimized production. | Reopen Slice 7C narrowly. Delay store intent activation until gate continuation so cancellation preserves A's authorization and completion. |
+| 7C-AR-2 | `navigate()` rejection after its history echo leaves URL/history on B while selection, article, and committed view retain A. Deterministically reproduced through the production router adapter; real-router reachability was not established.                                              | Planned Route Failure Resilience slice after Slice 7F and at least one visible Cluster workflow.                                            |
+| 7C-AR-3 | Successful real Fastify Save creates a new live editor owner without refreshing the committed route view; clicking the already-selected note issues another GET and replaces the editor instead of settling `coherent_noop`.                                                                | Planned Slice 7D same-session Save owns the correction and its zero-I/O post-Save acceptance proof.                                         |
+| 7C-AR-4 | With malformed `..%2Fsecret.md` search and the real backend stopped, the notes-list request fails, zero note reads occur, and the unsafe search remains instead of canonicalizing.                                                                                                          | Planned Route Failure Resilience slice. The zero-read security boundary remains current product truth.                                      |
+| 7C-AR-5 | Browser-level IndexedDB failure produces one failed draft write and degradation, but no retry without another edit because the baseline retry flag is cleared.                                                                                                                              | Planned Slice 7D ordered persistence owns an immutable retry obligation and visible retry without requiring another edit.                   |
+
+No new finding appeared during the targeted browser pass. All owned browser
+sessions, disposable content, QA processes, and ports were cleaned up; the
+ordinary product bundle was rebuilt after the harness and contained no harness
+markers. No source file changed during review.
+
+The scope decision intentionally does not equate finding severity with roadmap
+priority. `7C-AR-1` is inseparable from Slice 7D because 7D introduces the first
+production cancellation on unavailable exact durability. `7C-AR-3` and
+`7C-AR-5` are completed by architecture already selected in 7D. `7C-AR-2` and
+`7C-AR-4` form an independently useful infrastructure-failure resilience
+outcome that does not block editor durability or visible Cluster progress.
 
 ## Environment And Run Ownership
 
@@ -159,10 +189,10 @@ silently replaced by the closing green matrix:
 | 7C-QA-4 | Two Discard evidence attempts mishandled the confirmation dialog or used `document` outside the browser closure                                                   | Runner mistakes. The third isolated run proved one fresh read, unchanged occurrence/history, draft deletion, and disk truth                                                  |
 | 7C-QA-5 | Final strict lint could not type-parse the dedicated harness entry because it was outside the web TypeScript project                                              | In-scope integration omission. The exact QA entry was added to `apps/web/tsconfig.json`; full validation then passed                                                         |
 
-No unresolved product, harness, architecture, security, data-integrity, or
-regression finding remains. No finding introduced a separate product
-capability or storage owner, so the working agreement's scope re-selection rule
-did not require another slice.
+That statement described the original completion run only. The later
+post-completion review above found `7C-AR-1` through `7C-AR-5` and now owns their
+authoritative dispositions. `7C-AR-1` reopens this slice; the other four have
+stable owners outside the narrow correction.
 
 ## Automated Verification
 
@@ -214,7 +244,7 @@ configuration, ignore pattern, or validation boundary was weakened.
 
 No authenticated Chrome clone or Daniel-owned browser profile was used.
 
-## Completion Gate
+## Historical Completion Gate
 
 - [x] Every selected browser-matrix and harness cell is `PASS`.
 - [x] Every changed behavior and preservation guardrail has required evidence.
@@ -224,4 +254,6 @@ No authenticated Chrome clone or Daniel-owned browser profile was used.
 - [x] Owned QA cleanup is complete and fixed ports are free.
 - [x] The repository is clean on `main` and synchronized with `origin/main`.
 
-Final decision: **Passed**.
+Historical decision: **Passed for the selected original matrix**. Superseded by
+the post-completion adversarial review until `7C-AR-1` passes its correction
+boundary and proportional four-cell browser verification.

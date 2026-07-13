@@ -2,17 +2,31 @@
 
 ## Status
 
-Completed on 2026-07-13. The validated action-aware history owner, target-free
-pre-transition gate, rendered-session ownership, exact route/reload
-authorization, committed route views, and acceptance-only fault harness are
-implemented and verified. Detailed evidence is in
+Reopened on 2026-07-13 for one narrow corrective outcome: a cancelled candidate
+must not strand its still-loading predecessor. The original implementation and
+browser matrix passed, but a later adversarial review proved that application
+navigation activates the candidate in Zustand before gate admission finishes.
+That activation invalidates the predecessor's pending read even when the gate
+then cancels the candidate.
+
+Findings discovered by the same review have been reselected deliberately:
+
+- successful-Save committed-owner coherence and failed draft-write retry
+  ownership move into planned Slice 7D, whose same-session Save and ordered
+  persistence architecture complete those workflows;
+- post-echo router-promise rejection and malformed-target canonicalization while
+  the note list is unavailable move into the separate planned Route Failure
+  Resilience slice after visible Cluster product progress; and
+- no other adversarial finding is part of this reopened correction.
+
+The original implementation evidence and the adversarial reproduction record
+are in
 `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
 
 The sequence is deliberately re-selected to `7B -> 7C -> 7D -> 7E -> 7F`:
 
-- this completed slice establishes route-intent ownership and the
-  pre-transition gate;
-- active Slice 7D consumes that gate for Markdown authority and draft
+- this reopened slice repairs cancellation while the predecessor is loading;
+- planned Slice 7D then consumes the corrected gate for Markdown authority and draft
   durability;
 - Slice 7E is refreshed after the implemented Slice 7D contracts exist; and
 - Slice 7F performs the diagnosed editor-correctness repair immediately after
@@ -21,6 +35,38 @@ The sequence is deliberately re-selected to `7B -> 7C -> 7D -> 7E -> 7F`:
 Slice 7B QA classified this capability from a pre-existing race first introduced
 with the Slice 6 navigation foundation. The authoritative reproduction is in
 `docs/qa/slice-7b-request-correlation.md`.
+
+### Reopened Correction Boundary
+
+Fix the cancellation finding as a narrow Slice 7C correction because Slice 7D
+will actively exercise that path. Add its exact regression test and run
+proportional verification: full validation and builds plus cancellation on
+desktop Chrome and Pixel 6 in Vite development and optimized production. Sentry
+permutations are not required because this correction changes no observability,
+correlation, transport, or fail-open behavior.
+
+The correction is complete only when all of the following are true:
+
+1. Note A has a route-authorized real read pending.
+2. An application transition to B reaches a held pre-transition gate without
+   invalidating A's load authorization or mutating selection.
+3. The gate cancels B with `prerequisite_unavailable`; B settles
+   `cancelled/entry_not_committed`, creates no history entry, and issues no B
+   note read.
+4. A's original response may still apply, commit the ready A route view, and
+   clear loading because A remains the exact predecessor owned by the unchanged
+   URL.
+5. URL, selected note, rendered article, committed view, `aria-current`, request
+   ownership, and history all agree on A after settlement.
+6. New deterministic regression coverage fails on the reviewed baseline and
+   passes after the correction.
+7. The four selected browser cells pass through the existing dedicated
+   production-tree harness: development desktop, development Pixel 6,
+   optimized-production desktop, and optimized-production Pixel 6.
+8. `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`,
+   `/opt/homebrew/bin/pnpm qa:route-transition:build`, ordinary-bundle harness
+   exclusion, and `git diff --check` pass; QA resources are cleaned up; and the
+   complete repository state is clean and pushed to `origin/main`.
 
 ## Product Decision
 
@@ -109,6 +155,26 @@ backend-down recovery. The browser fault harness is proof infrastructure outside
 normal product builds, not a product route or persistent state owner. Therefore
 the reviewed delivery order remains `7B -> 7C -> 7D`; no additional slice or
 combined 7C/7D slice is required.
+
+The post-completion adversarial review re-ran scope selection rather than
+annexing every discovered failure. Cancelling B while A is still loading remains
+inside 7C because the gate cannot be a dependable prerequisite for Slice 7D if
+its cancellation destroys the predecessor's only authorized completion.
+
+Successful Save changing the live editor owner and a failed baseline draft
+write losing its retry obligation now belong to Slice 7D. They participate in
+7D's already-selected same-session Save and ordered draft-persistence workflows;
+implementing temporary parallel repairs in 7C would create code that 7D must
+immediately replace.
+
+Post-echo `navigate()` rejection and malformed-target canonicalization during a
+failed note-list load form the stable Route Failure Resilience outcome. The
+former is deterministic in the router adapter but was not established as
+reachable through the current real router; the latter preserves the zero-read
+security boundary while leaving a malformed URL visible during backend
+failure. Neither is required for 7D's editor-durability handoff, so Daniel
+deliberately orders that resilience slice after visible Cluster product
+progress.
 
 ## Reproduction Baseline
 
@@ -361,10 +427,12 @@ callable.
    - Convert every current/next raw location through the existing
      `parseAppLocationSearch`/`parseAppSearch` and `noteIdSchema` route boundary
      exactly once. Preserve valid literal-percent and encoded-name behavior. An
-     unsafe or malformed note becomes an undefined target, issues no note read,
-     and is canonicalized by replace only after admission while preserving
-     pathname, hash, and all recognized unrelated search such as
-     `azurite-dev=sentry-test`.
+     unsafe or malformed note becomes an undefined target and issues no note
+     read. When note-list execution remains available, canonicalize it by replace
+     only after admission while preserving pathname, hash, and all recognized
+     unrelated search such as `azurite-dev=sentry-test`. The deferred Route
+     Failure Resilience slice owns canonicalization when the notes-list request
+     itself fails; zero-read safety remains mandatory in both states.
    - Seed the initial validated occurrence exactly once. Deduplicate the router's
      first `onBeforeNavigate`/canonicalization echo by history key and expected
      canonical occurrence. Queue the intent while the store executor is absent;
@@ -377,8 +445,11 @@ callable.
      rechecks intent currency because a newer commit may resolve an older
      promise.
    - Remove pending tokens on their echo, rejection, supersession, or owner
-     disposal. Navigation rejection settles `failed/navigation_rejected` and
-     leaves predecessor product state unchanged. No timeout is product control.
+     disposal. Navigation rejection before its history echo settles
+     `failed/navigation_rejected` and leaves predecessor product state
+     unchanged. The deferred Route Failure Resilience slice owns exact
+     predecessor repair when `navigate()` rejects after its echo has committed
+     the destination occurrence. No timeout is product control.
 
 2. **Same-target policy and pre-transition gate**
    - A fully coherent note-list click settles directly as `coherent_noop` without
@@ -406,11 +477,10 @@ callable.
      `flushPendingDraft` attempt so overlapping transitions cannot mistake that
      exact unresolved promise for completed work. An unavailable or thrown
      baseline attempt records the existing degraded draft status and then
-     continues; it does not clear a retry obligation, loop until an interactive
-     editor stops changing, or veto navigation. New edits continue through
-     today's scheduler. Slice 7D owns freeze, ordered draining, cleanup-required
-     disposition, retry, and the first production `prerequisite_unavailable`
-     cancellation.
+     continues; it does not loop until an interactive editor stops changing or
+     veto navigation. Slice 7D owns the failed-write retry obligation, freeze,
+     ordered draining, cleanup-required disposition, explicit retry, and the
+     first production `prerequisite_unavailable` cancellation.
    - A current application cancellation blocks the push/replace before it creates
      an entry and settles `entry_not_committed`. A current traversal cancellation
      restores the exact predecessor key/index and settles
@@ -634,8 +704,8 @@ runs a dedicated development entry and optimized harness build, restores
   and thrown/rejected prepare/settle with exact-once terminal notification.
 - Temporary-adapter tests prove overlapping callers join the same unresolved
   baseline flush; unavailable/throw records existing degradation and continues;
-  a later edit remains owned by today's scheduler; and no failed attempt is
-  reclassified as exact durability or silently treated as a successful cleanup.
+  and no failed attempt is reclassified as exact durability or silently treated
+  as a successful cleanup. Slice 7D owns retry after the failed attempt.
 - Deferred A/B store tests cover every read completion order, stale failure,
   missing-note recovery, target-owned committed error, unexpected store throw,
   and exact active-load cleanup.
@@ -718,8 +788,10 @@ The shared baseline is `docs/reference/product-guardrails.md`. This slice adds:
 - repeated same-target application clicks must not manufacture entries while
   distinct same-target traversal occurrences remain independent;
 - malformed or traversal-like note search must issue no filesystem/API read;
-- canonicalization and every normal/cancelled transition must preserve
-  recognized unrelated search, pathname, and hash;
+- canonicalization when note-list execution is available and every
+  normal/cancelled transition must preserve recognized unrelated search,
+  pathname, and hash; the deferred Route Failure Resilience slice owns
+  canonicalization during notes-list failure;
 - this slice must not worsen today's draft scheduling, deliberately delete an
   unresolved outgoing draft, or claim exact post-admission durability; Slice 7D
   owns editor freeze and snapshot-specific handoff;
@@ -776,7 +848,7 @@ The shared baseline is `docs/reference/product-guardrails.md`. This slice adds:
   route or history mutation.
 - The temporary production flush adapter preserves existing degraded behavior
   and fails open; injected gates prove cancellation until Slice 7D owns exact
-  durability.
+  durability and failed-write retry.
 - Slice 7D can register editor durability through this gate without receiving or
   choosing route targets and without implementing history rollback.
 - The eight-cell desktop/Pixel 6, development/production,
@@ -785,7 +857,7 @@ The shared baseline is `docs/reference/product-guardrails.md`. This slice adds:
 - Full repository validation, production build, diff integrity, clean `main`,
   and synchronization with `origin/main` pass.
 
-## Completion Evidence
+## Historical Completion Evidence
 
 Installed TanStack History behavior is qualified by direct contract tests and a
 focused inverse-delta cancellation patch. The complete route owner, store
@@ -795,19 +867,20 @@ eight-cell desktop/Pixel 6, development/preview, Sentry-disabled/enabled matrix
 and four-cell fault-harness matrix passed, including the supplemental URL,
 history, Discard, IndexedDB-unavailable, backend-down, and empty-cluster cases.
 
-The authoritative commands, exact browser evidence, finding dispositions, and
-cleanup ledger live in
-`docs/qa/slice-7c-url-selection-and-history-coherence.md`. No known unresolved
-Slice 7C bug, regression, side effect, or in-scope issue remains.
+The authoritative commands, exact browser evidence, later adversarial finding
+dispositions, and cleanup ledger live in
+`docs/qa/slice-7c-url-selection-and-history-coherence.md`. This evidence remains
+valid for the scenarios it exercised, but the later pending-predecessor
+cancellation reproduction reopened the slice and supersedes its original
+completion decision until the correction boundary above passes.
 
 ## Open Questions
 
-None for planning. The validated history-admission owner, action-aware
+None for the narrow correction. The validated history-admission owner, action-aware
 cancellation, same-target policy, committed-view/outgoing-owner identity,
 route-or-reload authorization, temporary fail-open adapter, executable QA seam,
-and Slice 7D boundary are committed decisions. Installed-version qualification
-was the first implementation proof, not another design-review loop; its focused
-adapter/dependency correction remains part of 7C. Evidence that instead requires
-a new persistent owner, storage boundary, or independently useful product
-capability triggers the working agreement's Scope Re-selection During Review
-rule.
+and Slice 7D boundary remain committed decisions. The correction changes only
+the timing of store intent activation so cancellation cannot invalidate its
+predecessor. Findings 2–5 retain the owners recorded in Status and Scope
+Re-selection Result; they must not be pulled back into this correction without
+new contradictory evidence and another explicit scope decision.

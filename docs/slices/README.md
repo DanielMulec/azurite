@@ -22,17 +22,20 @@ truth.
    classified as pre-existing, and the final eight-cell Playwright plus
    authenticated Sentry matrix passed on 2026-07-12. Exact evidence lives in
    `docs/qa/slice-7b-request-correlation.md`.
-3. Completed: Slice 7C, URL selection and history coherence. The action-aware
-   route owner, exact traversal cancellation, typed target-free gate, and
-   route/reload authorization passed the full browser and fault-harness matrix
-   on 2026-07-13. Its archive is
-   `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`; exact
-   evidence is in `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
-4. Active: Slice 7D, Markdown fidelity and honest dirty state. It consumes the
-   implemented Slice 7C gate, preserves exact Markdown authority, orders
-   browser-draft persistence, and makes cleanup and Discard failure explicit.
-   Its plan is
-   `docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+3. Active correction: Slice 7C, URL selection and history coherence. Its
+   original implementation passed the full browser and fault-harness matrix on
+   2026-07-13, then adversarial review proved that cancelling B while A's read is
+   pending can strand A in loading. The active correction is deliberately
+   limited to preserving that predecessor through cancellation. Its plan is
+   `docs/slices/active/slice-7c-url-selection-and-history-coherence.md`; exact
+   evidence and finding dispositions are in
+   `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
+4. Planned next: Slice 7D, Markdown fidelity and honest dirty state. It consumes
+   the corrected Slice 7C gate, preserves exact Markdown authority, orders
+   browser-draft persistence, makes cleanup and Discard failure explicit,
+   preserves post-Save route coherence, and retains failed-write retry
+   obligations. Its plan is
+   `docs/slices/planned/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
 5. Planned: Slice 7E, semantic editor and persistence diagnostics. It has a hard
    post-7D refresh gate before promotion. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
@@ -43,10 +46,17 @@ truth.
    Its plan file is intentionally deferred until Slice 7E evidence identifies
    the durable cause; the Slice 7E immediate-handoff section and
    `docs/qa/mobile-markdown-newline-reversion.md` are authoritative meanwhile.
-7. Candidate after Slice 7F: a measured editor-loading and bundle-performance
-   slice using the deferred boundary in
-   `docs/technical-architecture.md`. Milkdown with Crepe remains the selected
-   editor architecture.
+7. Product priority after Slice 7F: select and deliver the first complete,
+   visible Cluster workflow. Architecture direction is in
+   `docs/technical-architecture.md` under Cluster Resolution And Filesystem
+   Error Evolution.
+8. Deferred until after that visible Cluster progress: Route Failure
+   Resilience for post-echo router rejection and malformed-target
+   canonicalization during notes-list failure. Its plan is
+   `docs/slices/planned/route-failure-resilience.md`.
+9. Later candidate: a measured editor-loading and bundle-performance slice using
+   the deferred boundary in `docs/technical-architecture.md`. Milkdown with Crepe
+   remains the selected editor architecture.
 
 When a slice is completed, add concise completion evidence to its document and
 move it to `archive/`. Promote the next planned slice to `active/` only after its

@@ -29,9 +29,9 @@ Slice 7A is complete and archived in
 and historical physical-phone runtime evidence is now an implemented dependency,
 not a future prerequisite. The 2026-07-13 adversarial resequencing made Slice
 7C the next active product slice in
-`docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`. Slice 7D
+`docs/slices/active/slice-7c-url-selection-and-history-coherence.md`. Slice 7D
 and Slice 7E follow in
-`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md` and
+`docs/slices/planned/slice-7d-markdown-fidelity-and-honest-dirty-state.md` and
 `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 
 The historical physical-phone session recorded the mobile Markdown newline
@@ -1405,7 +1405,7 @@ Start without enabled Sentry configuration and prove:
 
 The 2026-07-13 adversarial review superseded the original direct 7B-to-7D
 handoff. Promote
-`docs/slices/archive/slice-7c-url-selection-and-history-coherence.md` first.
+`docs/slices/active/slice-7c-url-selection-and-history-coherence.md` first.
 Slice 7C may rely on the correlated request/operation evidence and owns the
 pre-existing route-selection race, unique route intent, and typed gate/outcome
 seam required by Slice 7D.

@@ -2,11 +2,28 @@
 
 ## Status
 
-Active as of 2026-07-13 after Slice 7C implemented and verified its validated
-action-aware history owner, typed target-free pre-transition gate, rendered
-outgoing-session identity, route-or-reload load authorization, exact-current
-revalidation, coherent no-op predicate, and typed terminal outcome. This slice
-consumes that implemented seam without becoming a second route owner.
+Planned as of 2026-07-13 while Slice 7C completes its narrow
+pending-predecessor cancellation correction. Slice 7D otherwise consumes the
+implemented validated action-aware history owner, typed target-free
+pre-transition gate, rendered outgoing-session identity, route-or-reload load
+authorization, exact-current revalidation, coherent no-op predicate, and typed
+terminal outcome. This slice consumes that implemented seam without becoming a
+second route owner.
+
+The post-7C adversarial review assigned two additional findings to this slice
+because they are inseparable from architecture already selected here:
+
+1. successful manual Save currently creates a new editor session without
+   refreshing the committed route-view owner, so the next click on the already
+   selected note is not a `coherent_noop` and performs an unnecessary GET and
+   editor replacement; and
+2. a failed baseline draft write clears its retry obligation, so no retry occurs
+   without another edit.
+
+Slice 7D's existing same-session Save and ordered persistence boundaries own the
+durable correction. The implementation and acceptance proof below now require
+post-Save route coherence and an exact retryable failed-write snapshot without
+adding temporary parallel fixes to Slice 7C.
 
 The 2026-07-13 adversarial review proved that the earlier plan secretly depended
 on those route guarantees while calling route coherence a non-goal. In
@@ -82,6 +99,13 @@ commit and flush newer work, but browser reload or termination while an
 asynchronous IndexedDB mutation is unfinished remains best-effort. This slice
 does not add intrusive unload confirmation UX. Verification that claims reload
 recovery must first observe the exact draft as durable.
+
+A failed draft write never consumes its retry obligation. The exact immutable
+snapshot remains `generated_pending`, its typed failure remains visible, and an
+explicit `Retry draft persistence` action re-admits that snapshot through the
+same per-note coordinator without requiring another content edit. A newer
+accepted revision supersedes the failed snapshot. This slice does not create an
+unbounded background retry loop.
 
 Draft persistence is an ordered workflow, not write-only serialization. Reads,
 debounced snapshots that have been scheduled but not yet queued, writes,
@@ -688,6 +712,10 @@ never decides them.
      updates the saved Markdown, content hash, note metadata, draft disposition,
      and save status in the existing `sessionKey`; it preserves mode, current
      document, selection, synchronization checkpoint, and Undo history.
+     Because the rendered owner remains unchanged, the committed route view
+     remains coherent. Clicking the already-selected note immediately after Save
+     settles `coherent_noop` without the gate, navigation, history mutation, or
+     another note GET.
    - For sidebar selection, URL-driven replacement, and Back/Forward, the Slice
      7C owner registers the route intent and calls this gate synchronously from
      its committed pre-navigation boundary. The gate
@@ -843,6 +871,11 @@ cleanup`; it must not lie that Save failed or leave an impossible
      the per-cluster/note coordinator. Missing cluster identity or snapshot
      admission failure produces an explicit unavailable result and cannot be
      treated as durable.
+   - A rejected draft write retains the exact current snapshot and
+     `generated_pending` disposition as a retry obligation. Expose `Retry draft
+persistence`; retry the same snapshot through the ordered coordinator
+     without requiring another edit, and allow a newer accepted revision to
+     supersede it. Do not spin in an automatic unbounded retry loop.
    - The draft flush boundary returns a snapshot-specific durability result.
      Destructive note/route transitions may proceed after `clean` or `durable`
      for the exact still-active session, but not after `unavailable`. Save and
@@ -1188,6 +1221,14 @@ Implementation requirements:
   and content hash, set `cleanup_required`, and expose `Retry draft cleanup`.
   Prove retry success removes the record without another API `PUT` and a newer
   edit supersedes the stale retry.
+- Remove the current successful-Save fresh-session reconstruction. Update the
+  existing exact session in place and prove its unchanged owner keeps the
+  committed route view coherent; a same-target click after Save must allocate no
+  route lease and issue no note GET.
+- On draft-write rejection, retain the immutable current snapshot plus
+  `generated_pending` disposition and expose `Retry draft persistence`. Route
+  the retry through the same per-note coordinator, require no intervening edit,
+  and let a newer admitted revision supersede the failed snapshot.
 - Preserve the existing Slice 7B single-flight, edit-during-save,
   session-ownership, conflict, failed-save, and exact-draft-cleanup behavior
   after its prerequisite repairs.
@@ -1242,6 +1283,9 @@ Implementation requirements:
   Undo history; a new `sessionKey` creates exactly one replacement instance.
 - Prove successful same-session Save settlement retains `sessionKey`, source or
   WYSIWYG mode, the same Crepe instance, selection, checkpoint, and Undo history.
+- After that Save, click the already-selected note and prove the Slice 7C
+  coherent predicate remains true: no gate lease, navigation, history change,
+  note GET, route evidence operation, or editor replacement occurs.
 - Add a deferred-save integration case: begin Save, make a WYSIWYG edit while
   the request is pending, resolve the response before `markdownUpdated`, and
   prove the same live instance later publishes a dirty, recoverable edit instead
@@ -1295,6 +1339,10 @@ Implementation requirements:
 - Reject read, write, cleanup, and Discard tasks in turn. Prove each caller gets
   the exact typed failure, later same-key work still runs, scheduled slots cannot
   resurrect stale work, and idle coordinator entries return to zero.
+- For write rejection specifically, prove the exact failed snapshot remains
+  retryable and visible as `generated_pending`; invoke `Retry draft persistence`
+  without another edit and prove the same revision becomes durable. Repeat with
+  a newer edit before retry and prove only the newer snapshot may win.
 - Prove a pristine clean session performs no speculative draft deletion, while a
   session that durably wrote and then reverted completes its ordered deletion
   before destructive handoff reports `clean`.
@@ -1432,6 +1480,8 @@ Baseline: `docs/reference/product-guardrails.md`.
   synchronization checkpoint, or duplicate an editor DOM tree.
 - Successful Save settlement must not end a same-note editor session or cancel a
   WYSIWYG edit still waiting for Milkdown's debounced listener.
+- Successful Save must not stale the committed rendered-owner identity, turn an
+  already-selected note click into a gate/load, or issue a second note GET.
 - Source edits accepted while Crepe creates must not call the unready editor,
   disappear at readiness, or reveal stale WYSIWYG content.
 - A stale Crepe instance must not overwrite newer source input or a newly opened
@@ -1450,6 +1500,8 @@ Baseline: `docs/reference/product-guardrails.md`.
   mode, recovery behavior, and successful-save cleanup.
 - A same-note draft read must not overtake scheduled or queued mutations, and a
   rejected task must not poison later work or leak an idle coordinator key.
+- A failed draft write must not consume its exact retryable snapshot, require a
+  dummy edit to retry, or let an older retry overwrite a newer revision.
 - Successful disk Save followed by failed browser cleanup must not be reported as
   failed disk Save, clean `none`, or an actionless clean recovery state.
 - Valid legacy ambiguous drafts must not be deleted or rewritten by projection
@@ -1543,6 +1595,9 @@ the same authority, persistence, routing, and disk truth:
     200-millisecond listener, and confirm the same Crepe DOM, mode, selection,
     checkpoint, and Undo history remain. After the listener settles, confirm the
     newer edit is dirty and recoverable against the updated saved baseline.
+    Separately, complete an ordinary Save and click the already-selected note;
+    prove no gate, navigation, history mutation, note GET, or editor replacement
+    occurs.
 13. Hold a replacement note read pending after sidebar and Back/Forward
     navigation. Confirm the outgoing article becomes visibly busy, `aria-busy`,
     inert to editor and toolbar input, exposes its live status outside the inert
@@ -1589,6 +1644,9 @@ the same authority, persistence, routing, and disk truth:
     Discard, and navigation. Confirm the read observes the ordered result, the
     final IndexedDB record matches the newest snapshot, rejected work does not
     poison the key, and different notes remain independent.
+    Force one draft write to fail, invoke the visible retry without another edit,
+    and prove the same exact snapshot becomes durable; then prove a newer edit
+    supersedes the failed snapshot before retry.
 25. Wait through readiness and delayed configured-plugin activity without input;
     confirm no post-ready non-authoritative document change becomes accepted
     content.
@@ -1657,8 +1715,10 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
   snapshot admission, including after a subscriber throws.
 - Required Transitions 4 and 8 preserve one Crepe instance, selection,
   checkpoint, and Undo history through same-session rerenders and successful
-  Save while making destructive handoff visibly busy, inert, exact-session, and
-  durable before replacement.
+  Save. The unchanged rendered owner keeps the committed route view coherent,
+  so a same-target click after Save is a zero-I/O `coherent_noop`. Destructive
+  handoff remains visibly busy, inert, exact-session, and durable before
+  replacement.
 - The editor gate owns no route targets, intent identity, or history handling. It
   consumes Slice 7C's gate/outcome seam, restores the exact outgoing session for
   every non-applied outcome, and never strands a controller closed or frozen.
@@ -1680,6 +1740,10 @@ finding. Required Slice 7F owns that mandatory correctness work after Slice 7E.
   contract, and recover after reload once the matching draft or save completes.
   Browser lifecycle flush attempts are not reported as durable without observed
   IndexedDB completion.
+- A failed draft write retains the exact immutable retry obligation and a visible
+  retry action. The same snapshot can become durable without another edit, a
+  newer revision supersedes it safely, and no unbounded automatic retry loop is
+  introduced.
 - Typed accepted-change, publication/admission, synchronization, commit,
   durability, cleanup, Discard, and editor-gate results expose session and cause
   truth for Slice 7E without adding Sentry behavior or making diagnostics a
