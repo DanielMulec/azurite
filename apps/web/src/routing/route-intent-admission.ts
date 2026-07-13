@@ -108,21 +108,23 @@ function createApplicationEchoIntent(
   if (pending === undefined) {
     return undefined;
   }
-  return bindPendingIntent(pending, candidate, location, runtime);
+  return bindPendingIntent({ candidate, location, pending }, runtime);
 }
 
 function bindPendingIntent(
-  pending: PendingApplicationNavigation,
-  candidate: HistoryAdmissionCandidate,
-  location: ValidatedLocationOccurrence,
+  input: {
+    readonly candidate: HistoryAdmissionCandidate;
+    readonly location: ValidatedLocationOccurrence;
+    readonly pending: PendingApplicationNavigation;
+  },
   runtime: RouteTransitionRuntime,
 ): RouteIntent {
   const intent: RouteIntent = {
-    ...pending,
-    location,
+    ...input.pending,
+    location: input.location,
     needsCanonicalReplacement: needsCanonicalReplacement(
-      candidate.nextLocation,
-      location,
+      input.candidate.nextLocation,
+      input.location,
     ),
     settled: false,
   };
@@ -306,40 +308,52 @@ async function finishCancellation(
     return;
   }
   const confirmed = await input.candidate.restoration;
-  await finishTraversalCancellation(input.intent, prepared, confirmed, runtime);
+  await finishTraversalCancellation(
+    { confirmed, intent: input.intent, prepared },
+    runtime,
+  );
 }
 
 async function finishTraversalCancellation(
-  intent: RouteIntent,
-  prepared: PreparedAdmission,
-  confirmed: boolean,
+  input: {
+    readonly confirmed: boolean;
+    readonly intent: RouteIntent;
+    readonly prepared: PreparedAdmission;
+  },
   runtime: RouteTransitionRuntime,
 ): Promise<void> {
   const outcome = getTraversalCancellationOutcome(
-    intent,
-    prepared.gate.result,
-    confirmed,
+    input,
     runtime,
   );
   if (outcome.status === "failed") {
     runtime.storeRegistry.get()?.reportHistoryUnavailable();
   }
-  await completeRouteIntent({ gate: prepared.gate, intent, outcome }, runtime);
+  await completeRouteIntent(
+    { gate: input.prepared.gate, intent: input.intent, outcome },
+    runtime,
+  );
 }
 
 function getTraversalCancellationOutcome(
-  intent: RouteIntent,
-  result: RouteGateResult,
-  confirmed: boolean,
+  input: {
+    readonly confirmed: boolean;
+    readonly intent: RouteIntent;
+    readonly prepared: PreparedAdmission;
+  },
   runtime: RouteTransitionRuntime,
 ): RouteTransitionOutcome {
-  if (!isCurrentIntent(intent, runtime)) {
-    return supersededOutcome(intent, "awaiting_history_restore");
+  if (!isCurrentIntent(input.intent, runtime)) {
+    return supersededOutcome(input.intent, "awaiting_history_restore");
   }
-  if (!confirmed) {
-    return historyRestoreFailedOutcome(intent);
+  if (!input.confirmed) {
+    return historyRestoreFailedOutcome(input.intent);
   }
-  return cancellationOutcome(intent, result, "traversal_restored");
+  return cancellationOutcome(
+    input.intent,
+    input.prepared.gate.result,
+    "traversal_restored",
+  );
 }
 
 function cancellationOutcome(

@@ -62,14 +62,15 @@ export function mapStoreOutcome(
   if (result.status === "applied") {
     return mapAppliedOutcome(intent, result);
   }
+  return mapNonAppliedOutcome(intent, result);
+}
+
+function mapNonAppliedOutcome(
+  intent: RouteIntent,
+  result: Exclude<RouteStoreApplyResult, { status: "applied" }>,
+): RouteTransitionOutcome {
   if (result.status === "coherent_noop") {
-    return {
-      intentKey: intent.intentKey,
-      noteId: intent.noteId,
-      status: "coherent_noop",
-      surfaceEffect: "retained",
-      view: result.view,
-    } as RouteTransitionOutcome;
+    return coherentNoopOutcome(intent, result.view);
   }
   if (result.status === "failed") {
     return mapFailedOutcome(intent, result.reason);
@@ -84,6 +85,7 @@ export function intentLocation(
   return intent.location;
 }
 
+/** Returns the deterministic lease key allocated for one route intent. */
 export function gateLeaseKey(intentKey: string): string {
   return `${intentKey}:gate`;
 }
@@ -102,7 +104,7 @@ function mapAppliedOutcome(
       view: "empty",
     };
   }
-  if (intent.noteId === undefined || result.requestSequence === undefined) {
+  if (intent.noteId === undefined) {
     return mapFailedOutcome(intent, "store_apply_failed");
   }
   return {
@@ -112,6 +114,31 @@ function mapAppliedOutcome(
     status: "applied",
     surfaceEffect: "replaced",
     view: result.view,
+  };
+}
+
+function coherentNoopOutcome(
+  intent: RouteIntent,
+  view: Extract<RouteStoreApplyResult, { status: "coherent_noop" }>["view"],
+): RouteTransitionOutcome {
+  if (intent.noteId === undefined) {
+    return {
+      intentKey: intent.intentKey,
+      noteId: undefined,
+      status: "coherent_noop",
+      surfaceEffect: "retained",
+      view: "empty",
+    };
+  }
+  if (view === "empty") {
+    return mapFailedOutcome(intent, "store_apply_failed");
+  }
+  return {
+    intentKey: intent.intentKey,
+    noteId: intent.noteId,
+    status: "coherent_noop",
+    surfaceEffect: "retained",
+    view,
   };
 }
 

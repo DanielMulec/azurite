@@ -42,14 +42,28 @@ export function createNoteNavigationSearch(
 /** Serializes validated search without changing pathname or hash. */
 export function serializeAppSearch(search: AppSearch): string {
   const parameters = new URLSearchParams();
-  if (search.note !== undefined) {
-    parameters.set("note", search.note);
-  }
-  if (search["azurite-dev"] !== undefined) {
-    parameters.set("azurite-dev", search["azurite-dev"]);
-  }
+  appendNoteSearch(parameters, search.note);
+  appendDiagnosticsSearch(parameters, search["azurite-dev"]);
   const serialized = parameters.toString();
   return serialized.length === 0 ? "" : `?${serialized}`;
+}
+
+function appendNoteSearch(
+  parameters: URLSearchParams,
+  noteId: string | undefined,
+): void {
+  if (noteId !== undefined) {
+    parameters.set("note", noteId);
+  }
+}
+
+function appendDiagnosticsSearch(
+  parameters: URLSearchParams,
+  diagnostics: AppSearch["azurite-dev"],
+): void {
+  if (diagnostics !== undefined) {
+    parameters.set("azurite-dev", diagnostics);
+  }
 }
 
 function parseSafeRouteNote(note: string): AppSearch {

@@ -16,6 +16,7 @@
     "@milkdown/kit": "^7.21.2",
     "@sentry/react": "^10.64.0",
     "@tailwindcss/vite": "^4.3.2",
+    "@tanstack/history": "1.162.0",
     "@tanstack/react-router": "^1.170.17",
     "dexie": "^4.4.4",
     "react": "^19.2.7",

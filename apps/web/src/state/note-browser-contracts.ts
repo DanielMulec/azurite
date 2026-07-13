@@ -9,16 +9,30 @@ import type { StoreApi } from "zustand/vanilla";
 
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
+import type {
+  RouteStoreApplyInput,
+  RouteStoreApplyResult,
+  RouteStoreExecutor,
+  RouteNotesResult,
+} from "../routing/route-store-executor.js";
 import type { EditorSession } from "./note-browser-types.js";
 import type { NoteBrowserSnapshot } from "./note-browser-types.js";
 
 /** Ephemeral ownership for one in-flight note load. */
 export type ActiveNoteLoad = {
+  readonly authorization: NoteLoadAuthorization;
   readonly metadata: ApiRequestMetadata;
   readonly noteId: string;
-  readonly promise: Promise<void>;
+  readonly promise: Promise<RouteStoreApplyResult>;
   readonly requestSequence: number;
   readonly routeSource: string;
+};
+
+/** Ephemeral ownership for the one coalesced notes-list request. */
+export type ActiveNotesLoad = {
+  readonly promise: Promise<RouteNotesResult>;
+  readonly requestSequence: number;
 };
 
 /** Ephemeral ownership for one in-flight manual save. */
@@ -43,26 +57,18 @@ export type NoteBrowserApi = {
   ) => Promise<SaveNoteResponse>;
 };
 
-/** Router adapter used by store actions without importing router internals. */
-export type RouteNavigation = {
-  readonly replaceSelectedNote: (noteId: string) => void;
-};
-
 /** Zustand store shape for note navigation, editing, saving, and recovery. */
 export type NoteBrowserStore = NoteBrowserSnapshot & {
+  readonly activateRouteIntent: RouteStoreExecutor["activateRouteIntent"];
+  readonly applyRoute: (input: RouteStoreApplyInput) => Promise<RouteStoreApplyResult>;
   readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly discardMissingDraft: () => Promise<void>;
   readonly flushPendingDraft: () => Promise<void>;
-  readonly loadNotes: (
-    routeNoteId: string | undefined,
-    navigation: RouteNavigation,
-  ) => Promise<void>;
+  readonly ensureNotes: () => Promise<RouteNotesResult>;
+  readonly getCoherentView: RouteStoreExecutor["getCoherentView"];
+  readonly getRenderedOwnerKey: RouteStoreExecutor["getRenderedOwnerKey"];
   readonly saveSelectedNote: () => Promise<void>;
-  readonly selectNote: (noteId: string) => Promise<void>;
-  readonly syncRouteNote: (
-    routeNoteId: string | undefined,
-    navigation: RouteNavigation,
-  ) => Promise<void>;
+  readonly reportHistoryUnavailable: RouteStoreExecutor["reportHistoryUnavailable"];
   readonly updateDraftMarkdown: (markdown: string) => void;
   readonly updateEditorMode: (editorMode: EditorMode) => void;
 };
@@ -71,16 +77,21 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
 export type StoreContext = {
   readonly api: NoteBrowserApi;
   readonly draftPersistence: DraftPersistence;
-  readonly clearActiveNoteLoad: (promise: Promise<void>) => void;
+  readonly clearActiveNoteLoad: (
+    promise: Promise<RouteStoreApplyResult>,
+  ) => void;
+  readonly clearActiveNotesLoad: (promise: Promise<RouteNotesResult>) => void;
   readonly clearActiveNoteSave: (
     noteId: string,
     promise: Promise<void>,
   ) => void;
   readonly get: () => NoteBrowserStore;
-  readonly getActiveNoteLoad: (noteId: string) => ActiveNoteLoad | undefined;
+  readonly getActiveNoteLoad: () => ActiveNoteLoad | undefined;
+  readonly getActiveNotesLoad: () => ActiveNotesLoad | undefined;
   readonly getActiveNoteSave: (noteId: string) => ActiveNoteSave | undefined;
-  readonly getLatestRouteNoteId: () => string | undefined;
+  readonly getCurrentRouteIntentKey: () => string | undefined;
   readonly isCurrentNoteRequest: (
+    authorization: NoteLoadAuthorization,
     requestSequence: number,
     noteId: string,
   ) => boolean;
@@ -93,5 +104,7 @@ export type StoreContext = {
   readonly nextNotesRequestSequence: () => number;
   readonly set: StoreApi<NoteBrowserStore>["setState"];
   readonly setActiveNoteLoad: (load: ActiveNoteLoad) => void;
+  readonly setActiveNotesLoad: (load: ActiveNotesLoad) => void;
   readonly setActiveNoteSave: (noteId: string, save: ActiveNoteSave) => void;
+  readonly setCurrentRouteIntent: (intentKey: string) => void;
 };

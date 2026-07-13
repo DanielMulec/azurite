@@ -9,6 +9,10 @@ import type {
   DraftWriteResult,
 } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type {
+  CommittedRouteView,
+  RouteHistoryStatus,
+} from "../routing/route-transition-types.js";
 
 /** Loadable note list state owned by the note browser store. */
 export type LoadableNotes =
@@ -19,13 +23,14 @@ export type LoadableNotes =
 
 /** Render state for the selected-note editor surface. */
 export type NoteViewState =
-  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "error"; readonly message: string; readonly noteId: string }
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "missing"; readonly noteId: string }
   | {
       readonly draft: MissingNoteDraft;
       readonly noteId: string;
+      readonly renderedOwnerKey: string;
       readonly status: "missing-draft";
     }
   | { readonly editor: EditorSession; readonly status: "ready" };
@@ -69,9 +74,11 @@ export type DraftRecoveryStatus =
 /** Serializable snapshot of the note browser store state. */
 export type NoteBrowserSnapshot = {
   readonly clusterIdentity: ClusterIdentity | undefined;
+  readonly committedRouteView: CommittedRouteView | undefined;
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly noteState: NoteViewState;
   readonly notesState: LoadableNotes;
+  readonly routeHistoryStatus: RouteHistoryStatus;
   readonly selectedNoteId: string | undefined;
 };
 

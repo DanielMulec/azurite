@@ -153,14 +153,32 @@ async function selectNote(
       dependencies,
     );
   }
+  return await selectSameTargetNote(noteId, dependencies);
+}
+
+async function selectSameTargetNote(
+  noteId: string,
+  dependencies: {
+    readonly router: RouteTransitionRouterAdapter;
+    readonly runtime: RouteTransitionRuntime;
+  },
+): Promise<RouteTransitionOutcome> {
   const joined = findJoinedCurrentIntent(noteId, dependencies.runtime);
   if (joined !== undefined) {
     return await joined;
   }
-  const coherent = dependencies.runtime.storeRegistry
-    .get()
-    ?.getCoherentView(dependencies.runtime.currentOccurrence, noteId);
-  if (coherent?.status === "coherent_noop") {
+  return await selectUnjoinedSameTarget(noteId, dependencies);
+}
+
+async function selectUnjoinedSameTarget(
+  noteId: string,
+  dependencies: {
+    readonly router: RouteTransitionRouterAdapter;
+    readonly runtime: RouteTransitionRuntime;
+  },
+): Promise<RouteTransitionOutcome> {
+  const coherent = getCoherentView(noteId, dependencies.runtime);
+  if (coherent !== undefined) {
     return createDirectNoop(noteId, coherent.view, dependencies.runtime);
   }
   return await admitCurrentOccurrence(
@@ -176,6 +194,30 @@ async function selectNote(
   );
 }
 
+function getCoherentView(
+  noteId: string,
+  runtime: RouteTransitionRuntime,
+): Extract<
+  ReturnType<RouteStoreExecutor["getCoherentView"]>,
+  { status: "coherent_noop" }
+> | undefined {
+  const executor = runtime.storeRegistry.get();
+  if (executor === undefined) {
+    return undefined;
+  }
+  const result = executor.getCoherentView(runtime.currentOccurrence, noteId);
+  return readCoherentResult(result);
+}
+
+function readCoherentResult(
+  result: ReturnType<RouteStoreExecutor["getCoherentView"]>,
+): Extract<
+  ReturnType<RouteStoreExecutor["getCoherentView"]>,
+  { status: "coherent_noop" }
+> | undefined {
+  return result?.status === "coherent_noop" ? result : undefined;
+}
+
 function findJoinedCurrentIntent(
   noteId: string,
   runtime: RouteTransitionRuntime,
@@ -185,10 +227,29 @@ function findJoinedCurrentIntent(
     return undefined;
   }
   const active = runtime.activeIntents.get(currentKey);
-  if (isMatchingActiveIntent(active, noteId, runtime)) {
-    return active.result.promise;
+  const activePromise = getMatchingActivePromise(active, noteId, runtime);
+  if (activePromise !== undefined) {
+    return activePromise;
   }
-  return findMatchingPending(currentKey, noteId, runtime)?.result.promise;
+  return getMatchingPendingPromise(currentKey, noteId, runtime);
+}
+
+function getMatchingPendingPromise(
+  intentKey: string,
+  noteId: string,
+  runtime: RouteTransitionRuntime,
+): Promise<RouteTransitionOutcome> | undefined {
+  return findMatchingPending(intentKey, noteId, runtime)?.result.promise;
+}
+
+function getMatchingActivePromise(
+  intent: RouteIntent | undefined,
+  noteId: string,
+  runtime: RouteTransitionRuntime,
+): Promise<RouteTransitionOutcome> | undefined {
+  return isMatchingActiveIntent(intent, noteId, runtime)
+    ? intent.result.promise
+    : undefined;
 }
 
 function isMatchingActiveIntent(
@@ -196,9 +257,18 @@ function isMatchingActiveIntent(
   noteId: string,
   runtime: RouteTransitionRuntime,
 ): intent is RouteIntent {
+  if (intent === undefined || intent.settled) {
+    return false;
+  }
+  return isMatchingIntentTarget(intent, noteId, runtime);
+}
+
+function isMatchingIntentTarget(
+  intent: RouteIntent,
+  noteId: string,
+  runtime: RouteTransitionRuntime,
+): boolean {
   return (
-    intent !== undefined &&
-    !intent.settled &&
     intent.noteId === noteId &&
     isSameHistoryOccurrence(intent.location, runtime.currentOccurrence)
   );
@@ -209,12 +279,9 @@ function findMatchingPending(
   noteId: string,
   runtime: RouteTransitionRuntime,
 ): PendingApplicationNavigation | undefined {
-  for (const pending of runtime.pendingApplications.values()) {
-    if (pending.intentKey === intentKey && pending.noteId === noteId) {
-      return pending;
-    }
-  }
-  return undefined;
+  return Array.from(runtime.pendingApplications.values()).find(
+    (pending) => pending.intentKey === intentKey && pending.noteId === noteId,
+  );
 }
 
 function createDirectNoop(
@@ -261,7 +328,7 @@ function disposeOwner(
   resources.removeHistorySubscription();
   resources.removeResolvedSubscription();
   for (const confirmation of runtime.locationConfirmations.values()) {
-    confirmation.result.resolve();
+    confirmation.result.resolve(undefined);
   }
   runtime.locationConfirmations.clear();
   runtime.storeRegistry.dispose();

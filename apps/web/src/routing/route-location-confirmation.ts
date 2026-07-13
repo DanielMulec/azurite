@@ -17,7 +17,7 @@ export function registerLocationConfirmation(
   const confirmation: LocationConfirmation = {
     ...initialState,
     occurrence,
-    result: createControlledResult<void>(),
+    result: createControlledResult<undefined>(),
   };
   runtime.locationConfirmations.set(occurrenceIdentity(occurrence), confirmation);
   resolveCompletedConfirmation(confirmation, runtime);
@@ -77,5 +77,5 @@ function resolveCompletedConfirmation(
   runtime.locationConfirmations.delete(
     occurrenceIdentity(confirmation.occurrence),
   );
-  confirmation.result.resolve();
+  confirmation.result.resolve(undefined);
 }

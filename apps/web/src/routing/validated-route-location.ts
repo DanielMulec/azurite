@@ -9,6 +9,7 @@ import type {
   ValidatedLocationOccurrence,
 } from "./route-transition-types.js";
 
+/** Private history-state key recognizing one expected application echo. */
 export const applicationNavigationTokenStateKey =
   "__azurite_navigation_token";
 
@@ -54,10 +55,7 @@ export function needsCanonicalReplacement(
 export function readApplicationNavigationToken(
   location: HistoryLocation,
 ): string | undefined {
-  const token = Reflect.get(
-    location.state,
-    applicationNavigationTokenStateKey,
-  );
+  const token = location.state.__azurite_navigation_token;
   return typeof token === "string" ? token : undefined;
 }
 

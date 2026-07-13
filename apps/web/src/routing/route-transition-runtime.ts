@@ -9,11 +9,13 @@ import type {
   ValidatedLocationOccurrence,
 } from "./route-transition-types.js";
 
+/** Promise and resolver pair retained by one owned runtime operation. */
 export type ControlledResult<Result> = {
   readonly promise: Promise<Result>;
   readonly resolve: (result: Result) => void;
 };
 
+/** Internal immutable intent identity plus its terminal result owner. */
 export type RouteIntent = {
   readonly cause: RouteGateCause;
   readonly intentKey: string;
@@ -25,6 +27,7 @@ export type RouteIntent = {
   settled: boolean;
 };
 
+/** Tokenized application request waiting for its one history echo. */
 export type PendingApplicationNavigation = {
   readonly cause: RouteGateCause;
   readonly intentKey: string;
@@ -37,13 +40,15 @@ export type PendingApplicationNavigation = {
   readonly token: string;
 };
 
+/** Two-signal completion state for one exact history occurrence. */
 export type LocationConfirmation = {
   historySeen: boolean;
   readonly occurrence: ValidatedLocationOccurrence;
-  readonly result: ControlledResult<void>;
+  readonly result: ControlledResult<undefined>;
   resolvedSeen: boolean;
 };
 
+/** Mutable ephemeral state owned by one route-transition owner. */
 export type RouteTransitionRuntime = {
   readonly activeIntents: Map<string, RouteIntent>;
   currentIntentKey: string | undefined;
@@ -57,6 +62,7 @@ export type RouteTransitionRuntime = {
   readonly storeRegistry: RouteStoreExecutorRegistry;
 };
 
+/** Narrow TanStack adapter consumed by the framework-neutral route owner. */
 export type RouteTransitionRouterAdapter = {
   readonly historyLocation: () => HistoryLocation;
   readonly navigate: (input: {
@@ -72,6 +78,7 @@ export type RouteTransitionRouterAdapter = {
   ) => () => void;
 };
 
+/** Creates one promise with an exactly owned resolver. */
 export function createControlledResult<Result>(): ControlledResult<Result> {
   let resolveResult: (result: Result) => void = () => {};
   const promise = new Promise<Result>((resolve) => {
@@ -80,6 +87,7 @@ export function createControlledResult<Result>(): ControlledResult<Result> {
   return { promise, resolve: resolveResult };
 }
 
+/** Allocates one owner-local unique identity. */
 export function nextRuntimeIdentity(
   runtime: RouteTransitionRuntime,
   prefix: string,
@@ -88,6 +96,7 @@ export function nextRuntimeIdentity(
   return `${prefix}-${String(runtime.identity)}`;
 }
 
+/** Creates the stable map key for one exact history occurrence. */
 export function occurrenceIdentity(
   occurrence: Pick<
     ValidatedLocationOccurrence,
@@ -97,6 +106,7 @@ export function occurrenceIdentity(
   return `${occurrence.historyKey}:${String(occurrence.historyIndex)}`;
 }
 
+/** Returns whether an unsettled intent remains the owner's latest intent. */
 export function isCurrentIntent(
   intent: RouteIntent,
   runtime: RouteTransitionRuntime,
