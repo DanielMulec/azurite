@@ -26,12 +26,14 @@ export function createRetryReverted(input: {
 
 /** Creates a typed commit no-op without touching editor authority. */
 export function createCommitNoChange(
-  cause: CommitCause,
-  reason: "projection_unchanged" | "source_authority_current",
-  revision: number,
-  sessionKey: string,
+  input: {
+    readonly cause: CommitCause;
+    readonly reason: "projection_unchanged" | "source_authority_current";
+    readonly revision: number;
+    readonly sessionKey: string;
+  },
 ): CommitResult {
-  return { cause, reason, revision, sessionKey, status: "no_change" };
+  return { ...input, status: "no_change" };
 }
 
 /** Creates a typed commit failure tied to one controller session. */
@@ -97,11 +99,16 @@ export function toCommitResult(
 
 /** Maps a commit cause onto the exact publication trigger. */
 export function toPublicationTrigger(cause: CommitCause): PublicationTrigger {
-  if (cause === "mode_switch") {
-    return "pre_mode_switch";
-  }
-  if (cause === "manual_save") {
-    return "pre_save";
-  }
-  return cause === "route_transition" ? "pre_route_transition" : cause;
+  return publicationTriggerByCommitCause[cause];
 }
+
+const publicationTriggerByCommitCause: Record<
+  CommitCause,
+  PublicationTrigger
+> = {
+  manual_save: "pre_save",
+  mode_switch: "pre_mode_switch",
+  pagehide: "pagehide",
+  route_transition: "pre_route_transition",
+  visibilitychange: "visibilitychange",
+};
