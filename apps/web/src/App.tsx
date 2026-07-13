@@ -10,18 +10,21 @@ import {
 import { readWebSentryConfig } from "./config/sentry-config.js";
 import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
 import { useNoteBrowser } from "./use-note-browser.js";
+import type { NoteBrowserRouteGateFactory } from "./use-note-browser.js";
 
 type AppProps = {
+  readonly createRouteGate?: NoteBrowserRouteGateFactory | undefined;
   readonly devDiagnostics?: "sentry-test" | undefined;
   readonly transitionOwner: RouteTransitionOwner;
 };
 
 /** Root React component for the current Azurite web shell. */
 export function App({
+  createRouteGate,
   devDiagnostics,
   transitionOwner,
 }: AppProps): ReactElement {
-  const browser = useNoteBrowser(transitionOwner);
+  const browser = useNoteBrowser(transitionOwner, createRouteGate);
   const sentryConfig = readWebSentryConfig();
   const showSentryDiagnostics = isSentryDiagnosticsPanelEnabled(
     sentryConfig,

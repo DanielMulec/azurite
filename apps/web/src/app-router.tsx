@@ -26,6 +26,7 @@ import {
   type RouteTransitionOwner,
 } from "./routing/route-transition-owner.js";
 import { applicationNavigationTokenStateKey } from "./routing/validated-route-location.js";
+import type { NoteBrowserRouteGateFactory } from "./use-note-browser.js";
 
 export {
   parseAppLocationSearch,
@@ -37,6 +38,9 @@ const rootRoute = createRootRoute();
 const routeOwnerContext = createContext<RouteTransitionOwner | undefined>(
   undefined,
 );
+const routeGateFactoryContext = createContext<
+  NoteBrowserRouteGateFactory | undefined
+>(undefined);
 
 /** Root route that owns Azurite's selected-note URL search state. */
 export const appRoute = createRoute({
@@ -69,9 +73,24 @@ type AzuriteRouterRuntime = {
   readonly router: AzuriteRouter;
 };
 
+type AzuriteRouterProviderProps = {
+  readonly createRouteGate?: NoteBrowserRouteGateFactory | undefined;
+  readonly runtimeOptions?: AzuriteRouterRuntimeOptions | undefined;
+};
+
+/** Optional acceptance-only controls for the production router runtime. */
+export type AzuriteRouterRuntimeOptions = {
+  readonly confirmRestoration?: Parameters<
+    typeof createRouteTransitionOwner
+  >[0]["confirmRestoration"];
+};
+
 /** React provider for Azurite's typed client router and transition owner. */
-export function AzuriteRouterProvider(): ReactElement {
-  const [runtime] = useState(createAzuriteRouterRuntime);
+export function AzuriteRouterProvider({
+  createRouteGate,
+  runtimeOptions,
+}: AzuriteRouterProviderProps = {}): ReactElement {
+  const [runtime] = useState(() => createAzuriteRouterRuntime(runtimeOptions));
   useEffect(
     () => () => {
       runtime.owner.dispose();
@@ -80,27 +99,39 @@ export function AzuriteRouterProvider(): ReactElement {
   );
 
   return (
-    <routeOwnerContext.Provider value={runtime.owner}>
-      <RouterProvider router={runtime.router} />
-    </routeOwnerContext.Provider>
+    <routeGateFactoryContext.Provider value={createRouteGate}>
+      <routeOwnerContext.Provider value={runtime.owner}>
+        <RouterProvider router={runtime.router} />
+      </routeOwnerContext.Provider>
+    </routeGateFactoryContext.Provider>
   );
 }
 
 /** Creates the production router and owner before RouterProvider renders. */
-export function createAzuriteRouterRuntime(): AzuriteRouterRuntime {
+export function createAzuriteRouterRuntime(
+  options: AzuriteRouterRuntimeOptions = {},
+): AzuriteRouterRuntime {
   const history = createBrowserHistory();
   const router = createAzuriteRouter(history);
   const owner = createRouteTransitionOwner({
+    ...getRestorationOptions(options),
     history,
     router: createRouterAdapter(router),
   });
   return { owner, router };
 }
 
+function getRestorationOptions(options: AzuriteRouterRuntimeOptions) {
+  return options.confirmRestoration === undefined
+    ? {}
+    : { confirmRestoration: options.confirmRestoration };
+}
+
 function AppRoute(): ReactElement {
   const search = getCurrentSearch(appRoute.useSearch());
   return (
     <App
+      createRouteGate={useContext(routeGateFactoryContext)}
       devDiagnostics={search["azurite-dev"]}
       transitionOwner={useRouteTransitionOwner()}
     />

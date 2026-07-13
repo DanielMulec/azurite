@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
 import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
+import type { RouteTransitionGate } from "./routing/route-transition-types.js";
 import { createBaselineRouteDraftGate } from "./state/baseline-route-draft-gate.js";
 import {
   createNoteBrowserRouteExecutor,
@@ -15,6 +16,11 @@ import type {
 import type { RouteHistoryStatus } from "./routing/route-transition-types.js";
 
 type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
+
+/** Factory injected only when an acceptance entry replaces the production gate. */
+export type NoteBrowserRouteGateFactory = (
+  store: NoteBrowserStoreApi,
+) => RouteTransitionGate;
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
@@ -34,9 +40,10 @@ export type NoteBrowserState = {
 /** Connects the route owner and React UI to one note-browser store. */
 export function useNoteBrowser(
   transitionOwner: RouteTransitionOwner,
+  createRouteGate: NoteBrowserRouteGateFactory = createBaselineRouteDraftGate,
 ): NoteBrowserState {
   const [store] = useState(createNoteBrowserStore);
-  useRouteRuntimeRegistration(store, transitionOwner);
+  useRouteRuntimeRegistration(store, transitionOwner, createRouteGate);
   useDraftLifecycleFlush(store);
   const state = useNoteBrowserSelectors(store);
   const selectNote = useCallback(
@@ -52,11 +59,10 @@ export function useNoteBrowser(
 function useRouteRuntimeRegistration(
   store: NoteBrowserStoreApi,
   transitionOwner: RouteTransitionOwner,
+  createRouteGate: NoteBrowserRouteGateFactory,
 ): void {
   useEffect(() => {
-    const unregisterGate = transitionOwner.registerGate(
-      createBaselineRouteDraftGate(store),
-    );
+    const unregisterGate = transitionOwner.registerGate(createRouteGate(store));
     const unregisterExecutor = transitionOwner.registerStoreExecutor(
       createNoteBrowserRouteExecutor(store),
     );
@@ -64,7 +70,7 @@ function useRouteRuntimeRegistration(
       unregisterExecutor();
       unregisterGate();
     };
-  }, [store, transitionOwner]);
+  }, [createRouteGate, store, transitionOwner]);
 }
 
 function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
