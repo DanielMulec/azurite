@@ -16,6 +16,7 @@ import {
   createCommitFailure,
   createCommitNoChange,
   createRetryReverted,
+  toCommitResult,
 } from "./markdown-authority-results.js";
 
 /** Exact source and matching rich-editor serialization at synchronization. */
@@ -30,6 +31,21 @@ export type AuthorityRetryCandidate = {
   readonly origin: ChangeOrigin;
   readonly resolution: AuthorityResolution;
 };
+
+/** Creates the exact source-input candidate before store publication. */
+export function createSourceCandidate(
+  markdown: string,
+): AuthorityRetryCandidate {
+  return { markdown, origin: "source_input", resolution: "exact_input" };
+}
+
+/** Publishes the retained candidate when an explicit retry exists. */
+export function publishRetryCandidate(
+  retry: AuthorityRetryCandidate | undefined,
+  publish: (candidate: AuthorityRetryCandidate) => AcceptedChangeResult,
+): AcceptedChangeResult | undefined {
+  return retry === undefined ? undefined : publish(retry);
+}
 
 /** Safe result of reading a live Crepe projection through its public API. */
 export type ProjectionReadResult<Failure> =
@@ -121,6 +137,18 @@ export function createControllerCommitNoChange(
   reason: "projection_unchanged" | "source_authority_current",
 ): CommitResult {
   return createCommitNoChange({ ...input, reason });
+}
+
+/** Maps a live projection publication into its exact-session commit result. */
+export function toProjectionCommitResult(
+  cause: CommitCause,
+  sessionKey: string,
+  change: AcceptedChangeResult,
+): CommitResult {
+  if (change.status === "ignored") {
+    return createCommitFailure(cause, "stale_session", sessionKey);
+  }
+  return toCommitResult(cause, sessionKey, change.publication);
 }
 
 /** Classifies whether a Milkdown listener may publish into the current session. */

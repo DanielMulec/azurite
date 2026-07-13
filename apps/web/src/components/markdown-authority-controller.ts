@@ -11,14 +11,17 @@ import {
   createControllerCommitNoChange,
   createCreationCheckpoint,
   createRetryReversion,
+  createSourceCandidate,
   getAcceptedAuthorityPatch,
   getCheckpointProjection,
   getImmediateCommitResult,
   getWysiwygIgnoreReason,
   isCommitProjectionCurrent,
   isControllerUnavailable,
+  publishRetryCandidate,
   readAuthorityProjection,
   resolveProjectionCandidate,
+  toProjectionCommitResult,
   type AuthorityCheckpoint,
   type AuthorityRetryCandidate,
 } from "./markdown-authority-decisions.js";
@@ -33,7 +36,6 @@ import {
   createSynchronizationFailure,
   createSynchronizationNoChange,
   createSynchronizationSuccess,
-  toCommitResult,
   toPublicationTrigger,
 } from "./markdown-authority-results.js";
 
@@ -156,7 +158,7 @@ export class MarkdownAuthorityController {
   publishSource(markdown: string): AcceptedChangeResult {
     this.#patch({ sourceMarkdown: markdown });
     return this.#publishCandidate(
-      { markdown, origin: "source_input", resolution: "exact_input" },
+      createSourceCandidate(markdown),
       "direct_input",
     );
   }
@@ -184,9 +186,9 @@ export class MarkdownAuthorityController {
 
   /** Retries the exact unacknowledged visible value without another edit. */
   retryPublication(): AcceptedChangeResult | undefined {
-    return this.#retry === undefined
-      ? undefined
-      : this.#publishCandidate(this.#retry, "explicit_retry");
+    return publishRetryCandidate(this.#retry, (candidate) =>
+      this.#publishCandidate(candidate, "explicit_retry"),
+    );
   }
 
   /** Commits a live rich projection before a same-session or route action. */
@@ -219,41 +221,28 @@ export class MarkdownAuthorityController {
         projection,
       })
     ) {
-      return this.#createNoChangeResult(cause, "projection_unchanged");
+      return createControllerCommitNoChange(
+        {
+          cause,
+          revision: this.#revision,
+          sessionKey: this.sessionKey,
+        },
+        "projection_unchanged",
+      );
     }
-    return this.#publishProjectionAsCommit(cause, projection);
-  }
-
-  #publishProjectionAsCommit(
-    cause: CommitCause,
-    projection: string,
-  ): CommitResult {
     const change = this.publishWysiwyg(projection, toPublicationTrigger(cause));
-    if (change.status === "ignored") {
-      return createCommitFailure(cause, "stale_session", this.sessionKey);
-    }
-    return toCommitResult(cause, this.sessionKey, change.publication);
-  }
-
-  #createNoChangeResult(
-    cause: CommitCause,
-    reason: "projection_unchanged" | "source_authority_current",
-  ): CommitResult {
-    return createControllerCommitNoChange(
-      {
-        cause,
-        revision: this.#revision,
-        sessionKey: this.sessionKey,
-      },
-      reason,
-    );
+    return toProjectionCommitResult(cause, this.sessionKey, change);
   }
 
   /** Commits WYSIWYG and activates exact source only when that commit succeeds. */
   showSource(): CommitResult {
     if (this.#state.mode === "markdown") {
-      return this.#createNoChangeResult(
-        "mode_switch",
+      return createControllerCommitNoChange(
+        {
+          cause: "mode_switch",
+          revision: this.#revision,
+          sessionKey: this.sessionKey,
+        },
         "source_authority_current",
       );
     }
@@ -323,18 +312,7 @@ export class MarkdownAuthorityController {
     if (isControllerUnavailable(this.#frozen, this.#state.lifecycle)) {
       return { reason: "lifecycle", status: "ignored" };
     }
-    const reverted = this.#revertRetry(candidate, trigger);
-    if (reverted !== undefined) {
-      return reverted;
-    }
-    return this.#publishPreparedCandidate(candidate, trigger);
-  }
-
-  #revertRetry(
-    candidate: AuthorityRetryCandidate,
-    trigger: PublicationTrigger,
-  ): AcceptedChangeResult | undefined {
-    const result = createRetryReversion({
+    const reverted = createRetryReversion({
       acknowledgedAuthority: this.#acknowledgedAuthority,
       candidate,
       disposition: this.#disposition,
@@ -343,12 +321,12 @@ export class MarkdownAuthorityController {
       sessionKey: this.sessionKey,
       trigger,
     });
-    if (result === undefined) {
-      return undefined;
+    if (reverted !== undefined) {
+      this.#retry = undefined;
+      this.#patch({ editorError: undefined, hasPublicationRetry: false });
+      return reverted;
     }
-    this.#retry = undefined;
-    this.#patch({ editorError: undefined, hasPublicationRetry: false });
-    return result;
+    return this.#publishPreparedCandidate(candidate, trigger);
   }
 
   #publishPreparedCandidate(
