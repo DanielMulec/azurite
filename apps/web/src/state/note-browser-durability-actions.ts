@@ -6,7 +6,10 @@ import type {
 } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
-import { getCurrentEditor, getExactEditor } from "./note-browser-editor-state.js";
+import {
+  getCurrentEditor,
+  getExactEditor,
+} from "./note-browser-editor-state.js";
 import type { EditorSession } from "./note-browser-types.js";
 
 /** Returns whether the exact current authority may be destructively handed off. */
@@ -129,8 +132,7 @@ function preservedDurability(
     cause,
     clusterId: undefined,
     disposition: editor.draftDisposition as
-      | "preserved_unknown"
-      | "recovery_read_unavailable",
+      "preserved_unknown" | "recovery_read_unavailable",
     noteId: editor.note.id,
     revision: editor.revision,
     sessionKey: editor.sessionKey,
@@ -156,9 +158,7 @@ function durableResult(
     cause,
     clusterId,
     disposition: editor.draftDisposition as
-      | "conflict"
-      | "generated_durable"
-      | "recovered",
+      "conflict" | "generated_durable" | "recovered",
     noteId: editor.note.id,
     revision: editor.revision,
     sessionKey: editor.sessionKey,

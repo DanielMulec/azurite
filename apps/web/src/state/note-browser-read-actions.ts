@@ -215,11 +215,7 @@ async function applyLoadedNote(
   if (!isCurrentRequest(request)) {
     return { status: "stale" };
   }
-  const editor = createEditorSession(
-    note,
-    draftApplication,
-    request.context,
-  );
+  const editor = createEditorSession(note, draftApplication, request.context);
   const clusterPatch = getClusterIdentityPatch(
     response.clusterIdentity,
     request.context.get().draftRecoveryStatus,

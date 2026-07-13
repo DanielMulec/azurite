@@ -100,9 +100,7 @@ export type SnapshotPreparationResult =
       readonly draftEpoch: number;
       readonly noteId: string;
       readonly reason:
-        | "closed_epoch"
-        | "snapshot_admission_failed"
-        | "stale_session";
+        "closed_epoch" | "snapshot_admission_failed" | "stale_session";
       readonly sessionKey: string;
       readonly status: "rejected";
     };
@@ -157,10 +155,7 @@ export type DurabilityFailure =
 
 /** Product action requesting a snapshot-specific durability decision. */
 export type DurabilityCause =
-  | "route_transition"
-  | "visibilitychange"
-  | "pagehide"
-  | "explicit_flush";
+  "route_transition" | "visibilitychange" | "pagehide" | "explicit_flush";
 
 /** Snapshot-specific durability decision returned by the coordinator. */
 export type DurabilityResult =

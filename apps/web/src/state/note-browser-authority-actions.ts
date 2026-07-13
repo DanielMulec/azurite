@@ -6,9 +6,7 @@ import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type { DraftMutationSnapshot } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
-import type {
-  StoreContext,
-} from "./note-browser-contracts.js";
+import type { StoreContext } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 import {
   getCurrentEditor,
@@ -197,10 +195,7 @@ function createAuthoritySnapshot(
     cause: "accepted_change",
     clusterId: getReadyClusterId(context.get().clusterIdentity),
     contentDirty,
-    disposition: getNextDraftDisposition(
-      editor.draftDisposition,
-      contentDirty,
-    ),
+    disposition: getNextDraftDisposition(editor.draftDisposition, contentDirty),
     draftEpoch: editor.draftEpoch,
     editorMode: editor.editorMode,
     markdown,
@@ -243,7 +238,11 @@ function patchModeOnly(
 ): void {
   context.set((state) =>
     stateOwnsEditor(state, editor)
-      ? readyEditorPatch({ ...editor, editorMode, revision: editor.revision + 1 })
+      ? readyEditorPatch({
+          ...editor,
+          editorMode,
+          revision: editor.revision + 1,
+        })
       : state,
   );
 }

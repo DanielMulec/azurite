@@ -67,7 +67,10 @@ function toWriteSnapshotResult(result: DraftWriteResult): DraftSnapshotResult {
 function toCleanSnapshotResult(
   result: DraftRecordMutationResult,
 ): DraftSnapshotResult {
-  if (result.status === "preserved_unknown" || result.status === "unavailable") {
+  if (
+    result.status === "preserved_unknown" ||
+    result.status === "unavailable"
+  ) {
     return result;
   }
   return { outcome: result, status: "clean" };

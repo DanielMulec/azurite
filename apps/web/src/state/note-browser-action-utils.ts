@@ -112,9 +112,7 @@ export function canSaveEditor(editor: EditorSession): boolean {
   if (isEditorSaveBlocked(editor)) {
     return false;
   }
-  return (
-    hasDirtyMarkdown(editor) || editor.draftDisposition === "recovered"
-  );
+  return hasDirtyMarkdown(editor) || editor.draftDisposition === "recovered";
 }
 
 /** Returns whether current markdown differs from the saved disk baseline. */

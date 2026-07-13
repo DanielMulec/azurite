@@ -98,9 +98,7 @@ function isCurrentPostSaveSnapshot(
   );
 }
 
-function isProtected(
-  disposition: EditorSession["draftDisposition"],
-): boolean {
+function isProtected(disposition: EditorSession["draftDisposition"]): boolean {
   return (
     disposition === "recovery_read_unavailable" ||
     disposition === "preserved_unknown"

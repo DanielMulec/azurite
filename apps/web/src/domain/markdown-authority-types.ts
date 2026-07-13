@@ -9,9 +9,7 @@ export type ChangeOrigin = "source_input" | "wysiwyg_document";
 
 /** How an accepted value became exact Markdown authority. */
 export type AuthorityResolution =
-  | "exact_input"
-  | "serialized_projection"
-  | "checkpoint_restore";
+  "exact_input" | "serialized_projection" | "checkpoint_restore";
 
 /** Boundary that requested an authority publication. */
 export type PublicationTrigger =
@@ -116,7 +114,10 @@ export type CommitCause =
 export type CommitResult =
   | {
       readonly cause: CommitCause;
-      readonly publication: Extract<PublicationResult, { status: "acknowledged" }>;
+      readonly publication: Extract<
+        PublicationResult,
+        { status: "acknowledged" }
+      >;
       readonly sessionKey: string;
       readonly status: "acknowledged";
     }
@@ -130,9 +131,7 @@ export type CommitResult =
   | {
       readonly cause: CommitCause;
       readonly reason:
-        | "editor_not_ready"
-        | "projection_read_failed"
-        | "stale_session";
+        "editor_not_ready" | "projection_read_failed" | "stale_session";
       readonly sessionKey: string;
       readonly status: "failed";
     }

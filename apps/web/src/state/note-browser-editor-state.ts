@@ -25,7 +25,9 @@ export function getExactEditor(
 export function getStateEditor(
   state: NoteBrowserStore,
 ): EditorSession | undefined {
-  return state.noteState.status === "ready" ? state.noteState.editor : undefined;
+  return state.noteState.status === "ready"
+    ? state.noteState.editor
+    : undefined;
 }
 
 /** Returns whether one store snapshot still owns an exact editor revision. */
