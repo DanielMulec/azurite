@@ -1,25 +1,71 @@
-# Slice 7D: Semantic Editor And Persistence Diagnostics
+# Slice 7E: Semantic Editor And Persistence Diagnostics
 
 ## Status
 
-Planned. Promote this document to `docs/slices/active/` only after Slices 7A,
-7B, and 7C are implemented and their actual runtime, correlation, Markdown
-authority, and dirty-state contracts are reflected here.
+Planned and explicitly **not ready for promotion or implementation**.
 
-The 7B-dependent event and scope references in this plan were aligned on
-2026-07-10 with the revised planned 7B contract. Slice 7D still requires a full
-refresh against the completed 7B code and the accepted-change origin seam
-implemented by Slice 7C before promotion.
+Promotion to `docs/slices/active/` is a hard gate after Slice 7D implementation,
+not a wording, renumbering, or status-edit pass. The person promoting this slice
+must inspect the completed Slice 7C route owner and completed Slice 7D code,
+tests, architecture, and QA evidence, then revise every affected semantic event,
+attribute, state transition, file boundary, implementation task, and proof in
+this document. If that evidence is not yet available, this slice stays planned.
+
+The 2026-07-13 resequencing moved URL Selection And History Coherence to Slice
+7C, Markdown Fidelity And Honest Dirty State to Slice 7D, this diagnostics work
+to Slice 7E, and the immediately following diagnosed editor-correctness repair
+to Slice 7F.
 
 This slice depends on Slice 7A: Sentry Runtime Delivery Foundation, Slice 7B:
-Request Correlation And Note Route Evidence, and Slice 7C: Markdown Fidelity And
-Honest Dirty State.
+Request Correlation And Note Route Evidence, Slice 7C: URL Selection And History
+Coherence, and Slice 7D: Markdown Fidelity And Honest Dirty State.
 
-Slice 7D completes the full semantic observability promise for the current
+Slice 7E completes the full semantic observability promise for the current
 editor and persistence workflow after Slice 7A proves Sentry runtime delivery
 and disabled-mode safety, Slice 7B proves frontend/backend request correlation
-and note route evidence, and Slice 7C distinguishes exact Markdown authority
-from editor projection and exposes typed accepted-change origins.
+and note route evidence, Slice 7C proves exact route-intent ownership, and Slice
+7D distinguishes exact Markdown authority from editor projection while exposing
+typed publication/admission, synchronization, durability, cleanup, Discard, and
+editor-gate outcomes.
+
+### Mandatory Post-7D Promotion Refresh
+
+Before promotion, all of the following are required and reviewable in the diff:
+
+1. Read Slice 7D completion evidence and inspect the actual exported result
+   unions, store state, controller APIs, draft coordinator, Slice 7C gate/outcome
+   integration, tests, and files. Do not implement names from this planned
+   document when the code chose a different truthful boundary.
+2. Replace the provisional semantic event table with events mapped to actual
+   product transitions: raw Milkdown projection observation, accepted authority
+   publication, immutable snapshot admission, commit, synchronization,
+   durability, consistent draft read, draft disposition, cleanup retry, terminal
+   Discard, editor gate, and Slice 7C route outcome.
+3. Resolve correlation availability by lifecycle. `draft.read.started` occurs
+   before editor-session creation and therefore must not require an editor
+   session ID. Use the identities actually available at read time—cluster, note,
+   route intent/operation, and a draft operation ID—then correlate the resulting
+   editor session after creation.
+4. Re-audit payload eligibility, coalescing, error capture, and state snapshots
+   against exact Slice 7D failure variants. Telemetry must observe product truth;
+   it must never convert a failed admission, cleanup, Discard, or gate into a
+   successful product transition.
+5. Re-run file-line counts and split plans against the post-7D tree. The current
+   line estimates and module names below are planning evidence, not permission to
+   push an implemented file past 400 lines.
+6. Apply Scope Re-selection During Review if implementation introduced another
+   capability, workflow, state owner, storage boundary, or independently useful
+   outcome. Do not silently annex repair work to diagnostics.
+7. Update dependencies, goals, non-goals, architecture, implementation plan,
+   negative side-effect guardrails, verification, acceptance criteria, and the
+   immediate Slice 7F handoff so they all describe the same implemented truth.
+8. Obtain adversarial review of the refreshed document. Promotion is prohibited
+   while any required event asks for unavailable identity, collapses raw
+   observation into accepted authority, or contradicts Slice 7C/7D outcomes.
+
+The promotion diff must contain substantive contract changes justified by
+completion evidence. Changing only slice numbers, tense, file locations, or
+status fails this gate.
 
 ## Product Decision
 
@@ -31,11 +77,11 @@ logs, session replay, error grouping, trace correlation, and investigation UI.
 Azurite owns semantic instrumentation that explains product behavior inside the
 current note editing workflow:
 
-- Milkdown and Crepe lifecycle, focus, selection, transaction, markdown update,
-  and block-menu context.
+- Milkdown and Crepe lifecycle, focus, selection, raw projection, accepted
+  authority, synchronization, commit, and block-menu context.
 - Zustand note browser and editor session transitions.
-- Dexie draft read/write/delete, recovery, degraded persistence, and validation
-  states.
+- Ordered draft read/admission/write/cleanup/Discard, exact disposition,
+  degraded persistence, and validation states.
 - save, conflict, stale-response, and recovery diagnostics with bounded rich
   payload context.
 - editor responsiveness and telemetry volume control during real large-note
@@ -48,7 +94,7 @@ guessing from terminal logs or one-off console prints.
 The 2026-07-10 physical-phone session added a second concrete input:
 `docs/qa/mobile-markdown-newline-reversion.md`. Android Enter briefly created a
 source-mode newline and then the controlled value reverted it; the same session
-also surfaced an unexplained recovered-draft state. Slice 7D must make those
+also surfaced an unexplained recovered-draft state. Slice 7E must make those
 transitions explainable without claiming to fix them.
 
 ## User Story
@@ -59,7 +105,8 @@ actual session in Sentry and understand the editor and persistence path:
 - browser replay with unmasked editor/debug content
 - route and selected-note context
 - Milkdown/Crepe lifecycle, focus, selection, transaction, and block-menu events
-- markdown update summaries without high-frequency noise
+- raw projection summaries without high-frequency noise plus uncoalesced
+  accepted publication/admission and failure results
 - Zustand state transitions relevant to note load, save, conflict, recovery,
   and stale-response handling
 - Dexie draft persistence and recovery evidence
@@ -77,17 +124,17 @@ current questions:
 - Did Milkdown mount correctly?
 - Did focus or selection move before the block menu appeared?
 - Did Crepe expose enough block-menu state to explain the visual failure?
-- Did a markdown update come from editor input, source mode, note switch, or
-  stale async work?
+- Was a raw projection observation accepted as authority, rejected, restored to
+  a checkpoint, or classified as synchronization?
 - Did an Android source-mode input reach local editor state before a parent,
   editor lifecycle, Zustand, or Dexie transition replaced it?
 - Did Dexie fail, recover stale data, or show degraded persistence?
-- Did Zustand preserve the right conflict/recovery state?
+- Did Zustand preserve the right content-dirty and draft-disposition state?
 - Why did the phone display recovered-draft state for the newly created
   disposable cluster?
 - Did debug telemetry itself make editing a large note feel worse?
 
-Slice 7D makes those questions answerable without creating a parallel product
+Slice 7E makes those questions answerable without creating a parallel product
 state system or weakening the file-over-app persistence model.
 
 ## Future Workflow Boundary
@@ -109,7 +156,8 @@ Slice 7A runtime foundation and Slice 7B correlation foundation:
    synchronization projections, and exposes Crepe block-menu context where
    available.
 6. Zustand owns live note browser and editor session state.
-7. Dexie owns browser-local draft persistence and recovery state.
+7. Dexie owns browser-local records while Slice 7D's coordinator orders reads
+   and mutations and Zustand owns current-session draft disposition.
 8. Manual save writes markdown through the existing content-hash conflict
    contract.
 9. Missing-note, degraded draft recovery, save failure, stale response, and
@@ -154,7 +202,7 @@ an internal metadata `missing` state through current note responses.
 
 ### Product Layers Participating Now
 
-Slice 7D touches these current layers:
+Slice 7E touches these current layers:
 
 - repository docs and slice notes
 - Slice 7B shared observability constants extended for semantic editor and
@@ -164,8 +212,8 @@ Slice 7D touches these current layers:
   semantic breadcrumbs
 - Zustand note browser store actions and editor session state
 - Dexie draft persistence and recovery paths
-- Milkdown/Crepe editor lifecycle and markdown update hooks
-- Saveable note editor status, conflict, and recovery state
+- Milkdown/Crepe editor lifecycle, raw projection, and authority result hooks
+- Saveable note editor status, conflict, cleanup, and draft disposition
 - web payload bounds, snapshots, coalescing, and rate limiting
 - backend route observability helpers only where bounded payload or richer
   failure context is needed for save/conflict/recovery evidence
@@ -176,7 +224,7 @@ Slice 7D touches these current layers:
 
 ### Product Layers Predictably Needed Soon
 
-Slice 7D leaves explicit seams for:
+Slice 7E leaves explicit seams for:
 
 - create/delete editor and route actions.
 - autosave and future outbox diagnostics.
@@ -194,15 +242,15 @@ Slice 7D leaves explicit seams for:
 
 ### Deliberately Excluded Layers
 
-These layers are excluded from Slice 7D:
+These layers are excluded from Slice 7E:
 
 - creating Sentry projects, adding SDK dependencies, or redoing runtime
   configuration already completed by Slice 7A
 - replacing the Slice 7A Fastify preload, startup, shutdown, config, Replay, or
-  console-capture boundary unless Slice 7D discovers a correctness bug in that
+  console-capture boundary unless Slice 7E discovers a correctness bug in that
   foundation
 - replacing the Slice 7B request ID, note operation ID, request hook, route
-  evidence, or scope-isolation boundary unless Slice 7D discovers a correctness
+  evidence, or scope-isolation boundary unless Slice 7E discovers a correctness
   bug in that foundation
 - fixing the Milkdown block-menu bug itself
 - fixing the mobile Markdown source-mode newline reversion itself
@@ -226,7 +274,7 @@ These layers are excluded from Slice 7D:
 - direct `packages/core` observability hooks, observer interfaces, or Sentry
   imports
 
-The exclusions are stable because Slice 7D's current value is diagnostic
+The exclusions are stable because Slice 7E's current value is diagnostic
 completeness for the existing browser editor, client state, draft persistence,
 API, and server route-boundary workflow. It completes the current observability
 promise without smuggling in new note lifecycle product behavior.
@@ -239,12 +287,13 @@ promise without smuggling in new note lifecycle product behavior.
   route, cluster, note, result, and API error attributes.
 - Reuse or deliberately wrap the existing editor session identity instead of
   creating a parallel editor identity.
-- Capture Milkdown mount, destroy, focus, selection, transaction, markdown
-  update, and mode/status changes.
+- Capture Milkdown mount, destroy, focus, selection, transaction, raw projection,
+  accepted authority publication/admission, synchronization, commit, and
+  mode/status changes without collapsing them into one “markdown updated” fact.
 - Capture Crepe block-menu open/close behavior and useful context when the
   editor package exposes it.
-- Capture Dexie draft read/write/delete, validation, degraded persistence, and
-  recovery evidence.
+- Capture ordered draft read/admission/write/cleanup/retry/Discard, validation,
+  disposition, and degraded persistence evidence.
 - Capture Zustand snapshots for explicit error, conflict, stale-response,
   recovery, or deliberate test events.
 - Add bounded payload helpers for markdown, drafts, request/response context,
@@ -279,9 +328,9 @@ promise without smuggling in new note lifecycle product behavior.
 - Do not add direct Sentry instrumentation, observer hooks, or telemetry
   contracts to `packages/core`.
 
-## Dependency On Slices 7A, 7B, And 7C
+## Dependency On Slices 7A Through 7D
 
-Slice 7D assumes Slice 7A has already delivered:
+Slice 7E assumes Slice 7A has already delivered:
 
 - `@sentry/react` and `@sentry/node` installed in the owning workspaces.
 - Web and server Sentry initialization behind typed config modules.
@@ -293,7 +342,7 @@ Slice 7D assumes Slice 7A has already delivered:
 - Custom server preload and bounded Sentry-enabled shutdown.
 - Direct Sentry calls contained behind web/server observability helpers.
 
-Slice 7D assumes Slice 7B has already delivered:
+Slice 7E assumes Slice 7B has already delivered:
 
 - Request ID and note operation ID propagation through frontend API calls and
   backend request context.
@@ -303,61 +352,74 @@ Slice 7D assumes Slice 7B has already delivered:
   explicit event attributes, and event-local Sentry scope isolation.
 - Overlapping note-read and stale-response tests.
 
-Slice 7D assumes Slice 7C has already delivered:
+Slice 7E assumes Slice 7C has already delivered:
+
+- unique identity for every route intent, including repeated same-note history;
+- one latest-intent owner and exact-current continuation checks;
+- selected-versus-rendered and active-load ownership predicates;
+- typed pre-transition gate and terminal route outcomes; and
+- deterministic overlap, cancellation, and URL-repair evidence.
+
+Slice 7E assumes Slice 7D has already delivered:
 
 - exact Markdown authority separated from Milkdown's serialized projection;
-- typed accepted source-input and WYSIWYG-document change origins;
+- typed raw projection, accepted change, publication/snapshot admission, commit,
+  synchronization, durability, cleanup, Discard, and editor-gate seams;
 - synchronization checkpoints that do not create dirty state or drafts;
-- one shared dirty-comparison contract for UI, draft, and save decisions; and
+- one shared dirty-comparison contract plus exact draft disposition;
+- consistent ordered draft reads/mutations and terminal Discard ownership; and
 - regression coverage for pristine mount, mode switching, rapid rich edits,
-  source synchronization, stale editor instances, recovery, and conflict
-  discard.
+  source synchronization, partial publication, cleanup failure, stale editor
+  instances, recovery, and Discard success/failure.
 
-Slice 7D must instrument accepted changes and synchronization truthfully. It
+Slice 7E must instrument accepted changes and synchronization truthfully. It
 must not relabel a suppressed projection echo as user input or reintroduce a
 parallel dirty-state decision for telemetry.
 
-If any of those foundations are missing, Slice 7D should stop and repair the 7A,
-7B, or 7C foundation before adding deeper semantic instrumentation.
+If any foundation is missing or differs materially, Slice 7E stays planned.
+Apply the mandatory refresh and Scope Re-selection During Review; reopen the
+owning prerequisite when it has a correctness defect rather than hiding repair
+inside instrumentation.
 
 ## Architecture
 
 ### Semantic Event Contract
 
-Slice 7D extends the shared event vocabulary established by Slice 7B on top of
+Slice 7E extends the shared event vocabulary established by Slice 7B on top of
 the Slice 7A runtime helper surface. Event names remain lower-case dot-separated
 product vocabulary. Event names describe Azurite behavior, not Sentry mechanics.
 
-Every started event has a matching succeeded, failed, stale, conflict, invalid,
-or visible result when that lifecycle exists. Event attributes use shared
-constants for common fields.
+Every started event has a matching truthful terminal result when that lifecycle
+exists. Event attributes use shared constants for common fields. Started/result
+pairs map to actual Slice 7C/7D result variants; telemetry does not infer
+success from a callback returning or a state value changing.
 
-Frontend semantic events:
+The following table is a **provisional semantic coverage map**, not an approved
+implementation vocabulary. The mandatory post-7D refresh must replace names and
+attributes with the actual exported contracts before promotion.
 
-| Event                                  | Required attributes                                            |
-| -------------------------------------- | -------------------------------------------------------------- |
-| `editor.milkdown.mounted`              | note ID, editor session ID, editor mode                        |
-| `editor.milkdown.destroyed`            | note ID, editor session ID, destroy reason                     |
-| `editor.milkdown.focus.changed`        | note ID, editor session ID, focus state                        |
-| `editor.milkdown.selection.changed`    | note ID, editor session ID, selection summary                  |
-| `editor.milkdown.transaction.observed` | note ID, editor session ID, transaction summary                |
-| `editor.milkdown.markdown_updated`     | note ID, editor session ID, revision, markdown length          |
-| `editor.crepe.block_menu.opened`       | note ID, editor session ID, block-menu context when available  |
-| `editor.crepe.block_menu.closed`       | note ID, editor session ID, close reason when available        |
-| `editor.mode.changed`                  | note ID, editor session ID, previous mode, next mode           |
-| `editor.status.changed`                | note ID, editor session ID, previous status, next status       |
-| `draft.read.started`                   | note ID, cluster ID, editor session ID                         |
-| `draft.read.succeeded`                 | note ID, cluster ID, draft presence, updated time when present |
-| `draft.read.failed`                    | note ID, cluster ID, persistence unavailable reason            |
-| `draft.write.started`                  | note ID, cluster ID, editor session ID, dirty status           |
-| `draft.write.succeeded`                | note ID, cluster ID, dirty status                              |
-| `draft.write.failed`                   | note ID, cluster ID, persistence unavailable reason            |
-| `draft.delete.started`                 | note ID, cluster ID                                            |
-| `draft.delete.succeeded`               | note ID, cluster ID                                            |
-| `recovery.draft.visible`               | note ID, cluster ID, draft updated time                        |
-| `recovery.degraded.visible`            | note ID when known, persistence unavailable reason             |
+| Provisional event family | Identity available at that lifecycle | Required semantic distinction |
+| --- | --- | --- |
+| `editor.milkdown.lifecycle.*` | note ID, editor session ID, instance generation | creating, ready, failed, destroyed, destroy reason |
+| `editor.milkdown.focus_or_selection.*` | note ID, editor session ID | focus/selection summary without changing authority |
+| `editor.milkdown.transaction.observed` | note ID, editor session ID | raw transaction observation only |
+| `editor.projection.observed` | note ID, editor session ID, projection hash/length | raw serialized projection; never synonymous with accepted edit |
+| `editor.authority.publication.*` | note ID, editor session ID, origin, trigger, revision when admitted | acknowledged, no-change, rejected; state ownership and immutable snapshot admission are separate evidence fields |
+| `editor.synchronization.*` | note ID, editor session ID, synchronization cause | synchronized, no-change, failed; never dirty by itself |
+| `editor.commit.*` | note ID, editor session ID, commit cause | acknowledged, no-change, failed projection/publication |
+| `editor.mode.changed` | note ID, editor session ID | previous/next mode plus synchronization result |
+| `editor.gate.*` | outgoing note/session ID and gate cause; route intent only from Slice 7C context | continue/cancel and later Slice 7C terminal outcome without making the editor gate route owner |
+| `editor.crepe.block_menu.*` | note ID, editor session ID | opened/closed and available menu context |
+| `draft.read.*` | cluster ID, note ID, draft operation ID, route/selection operation when available; **no required editor session ID** | consistent-read start/result, presence, validation, failure reason, later-created session correlation |
+| `draft.snapshot.admission.*` | cluster ID, note ID, editor session ID, revision | admitted, coalesced/superseded, failed |
+| `draft.write.*` | cluster ID, note ID, editor session ID, revision | started, durable, superseded, failed |
+| `draft.cleanup.*` | cluster ID, note ID, editor session ID, saved/generated revision | generated-clean or saved-snapshot cleanup; succeeded, superseded, failed/cleanup-required |
+| `draft.cleanup_retry.*` | cluster ID, note ID, editor session ID, disposition | completed, superseded, failed without filesystem Save |
+| `draft.discard.*` | cluster ID, note ID, editor session ID when one exists, recovery kind | terminal barrier admitted, delete completed, superseded, failed/no reload |
+| `draft.disposition.changed` | cluster ID, note ID, editor session ID | exact previous/next disposition and cause |
+| `recovery.visible` | note ID, cluster ID, editor session ID after creation | recovered, conflict, cleanup-required, or persistence-unavailable UI truth |
 
-Slice 7D may enrich Slice 7B note load/save/conflict events with payload context
+Slice 7E may enrich Slice 7B note load/save/conflict events with payload context
 where the volume contract allows it. It must not rename the Slice 7B events or
 fork their attribute shapes.
 
@@ -372,7 +434,7 @@ Backend semantic events:
 | `note.save.failed`                | 7B attributes plus caught error context and payload summary when used |
 | `telemetry.server.test.triggered` | request ID, release, environment, surface, payload test state         |
 
-Slice 7D enriches the truthful 7B note route result that observed a cluster or
+Slice 7E enriches the truthful 7B note route result that observed a cluster or
 filesystem failure. It does not reintroduce a standalone
 `cluster.metadata.failed` event or invent filesystem provenance unavailable at
 the route boundary.
@@ -380,7 +442,7 @@ the route boundary.
 ### Replay Configuration Boundary
 
 Session Replay runs for explicitly enabled local debug sessions. Slice 7A
-installs the runtime Replay configuration. Slice 7D verifies and adjusts the
+installs the runtime Replay configuration. Slice 7E verifies and adjusts the
 current SDK options, through TypeScript types, so replay is useful for editor
 debugging.
 
@@ -409,9 +471,10 @@ mode/status changes, Milkdown lifecycle markers, draft attempts, save button
 intent, recovery visibility, and block-menu observations. Breadcrumbs must help
 replay navigation without carrying every full payload.
 
-Spans measure operations with duration: note load, draft read/write/delete,
-save, frontend API calls, backend request handling, and server route-boundary
-work that calls into cluster metadata and filesystem-backed core helpers. Spans
+Spans measure operations with duration: note load, consistent draft read,
+durability drain, write/cleanup/Discard, Save, frontend API calls, backend
+request handling, and server route-boundary work that calls into cluster
+metadata and filesystem-backed core helpers. Spans
 should attach request ID, operation ID, route, method, note ID, cluster ID,
 result status, and duration where available. This slice does not create direct
 spans inside `packages/core`.
@@ -458,14 +521,17 @@ deliberate test events, and real failure/conflict/recovery evidence.
 
 ### Telemetry Volume Contract
 
-Uncensored does not mean noisy enough to become useless. Slice 7D defines when
+Uncensored does not mean noisy enough to become useless. Slice 7E defines when
 full payloads are sent.
 
 Volume requirements:
 
-- Lifecycle events such as `editor.milkdown.markdown_updated` record note ID,
-  editor session ID, markdown length, dirty status, revision, and hashes by
-  default.
+- High-frequency raw `editor.projection.observed` evidence records note ID,
+  editor session ID, projection length/hash, and available transaction summary.
+  It does not claim a product revision or dirty status before publication.
+- Accepted publication/admission, commit, synchronization, disposition, cleanup,
+  Discard, and gate outcomes bypass raw-projection coalescing because each is a
+  meaningful product result.
 - Full markdown snapshots can be attached only to bounded events where the
   payload explains the failure or state transition: note load success/failure,
   draft recovery visibility, save start, save conflict, save failure, and
@@ -482,15 +548,17 @@ Volume requirements:
 - Larger payloads are represented with
   `azurite.payload_truncated_for_size = true`, original byte length, content
   hash, and diagnostically useful leading/trailing text windows.
-- Draft payloads are attached for draft read/write/delete failures and recovery
-  states, not for every debounced successful write.
+- Draft payloads are attached for eligible consistent-read, admission, write,
+  cleanup, retry, or Discard failures and recovery/disposition states, not for
+  every successful scheduled write.
 - Zustand snapshots are attached for explicit error, conflict, stale-response,
   recovery, or deliberate test events.
 - Repeated high-frequency editor updates are rate-limited, coalesced, or logged
   with metadata-only attributes.
-- `editor.milkdown.markdown_updated` emits at most one metadata-only log per
+- `editor.projection.observed` emits at most one metadata-only log per
   editor session per second during continuous typing, plus explicit result
-  events for save, conflict, recovery, mode changes, and deliberate test events.
+  events for publication/admission, synchronization, commit, Save, conflict,
+  disposition, cleanup, Discard, gate, mode, and deliberate test events.
 - Observability helpers never await Sentry network work inside Milkdown,
   Zustand, Dexie, or save-state mutation paths.
 - Local buffers, timers, or coalescers are cleared when the editor session
@@ -511,7 +579,9 @@ Implementation requirements:
 - Capture focus changes and selection summaries without sending full document
   snapshots through breadcrumbs.
 - Capture observable ProseMirror transaction summaries.
-- Capture markdown update metadata with coalescing.
+- Capture raw projection metadata with coalescing, then observe the Slice 7D
+  typed publication/admission result separately. Never derive accepted authority
+  from the raw listener event.
 - Capture mode/status transitions at the existing app-state boundary.
 - Capture Crepe block-menu open/close behavior and context when the package
   exposes a stable hook or observable state.
@@ -529,8 +599,11 @@ Implementation requirements:
 - Zustand remains the note browser state owner.
 - Dexie remains the durable browser persistence owner.
 - Sentry does not become a cache, source of truth, or recovery mechanism.
-- Draft read/write/delete attempts record started, succeeded, failed, and
-  recovery-visible events.
+- Consistent read, snapshot admission, write, cleanup, cleanup retry, terminal
+  Discard, disposition change, and durability outcomes record started/result
+  evidence that matches Slice 7D's actual variants.
+- Draft reads use cluster/note plus their operation/route identity. They do not
+  require the editor session ID that is created only after the read settles.
 - Draft validation failures and database-unavailable states remain visible in
   the UI and become visible in Sentry.
 - Save/conflict/recovery diagnostics reuse the existing content-hash contract.
@@ -563,7 +636,7 @@ to `packages/core` in this slice.
 ### File-Line And Refactor Boundary
 
 Several implementation targets are already near the 400-line hard limit. Slice
-7D must split files before adding semantic instrumentation where needed.
+7E must split files before adding semantic instrumentation where needed.
 
 Known pressure points:
 
@@ -578,10 +651,10 @@ payload enrichment instead of appending logs to already-large modules.
 
 ## Implementation Plan
 
-### 1. Confirm The Slice 7A And 7B Baseline
+### 1. Execute The Promotion Refresh And Confirm Slices 7A Through 7D
 
-Before adding semantic instrumentation, confirm the Slice 7A runtime foundation
-and Slice 7B correlation foundation are present.
+Before adding semantic instrumentation, complete the mandatory post-7D promotion
+refresh and confirm all four prerequisite foundations are present.
 
 Implementation requirements:
 
@@ -592,6 +665,12 @@ Implementation requirements:
 - Verify runtime note read/save/conflict observability helpers exist.
 - Verify overlapping note-read, concurrent server-request, stale-response, and
   unrelated-event context-isolation tests exist.
+- Verify Slice 7C's route-intent, gate, terminal-outcome, and overlap tests exist.
+- Inspect and record Slice 7D's actual exported result unions, draft disposition,
+  coordinator operations, controller lifecycle, cleanup/Discard outcomes, and
+  file ownership. Replace every provisional event below before promotion.
+- Prove every proposed required identity exists at its event lifecycle,
+  especially pre-session draft reads.
 - Do not proceed by creating a parallel Sentry setup path.
 
 ### 2. Extend Shared Semantic Constants
@@ -601,8 +680,9 @@ and snapshot diagnostics.
 
 Implementation requirements:
 
-- Add shared event names for Milkdown, Crepe, editor mode/status, draft, and
-  recovery events.
+- After the hard-gate refresh, add shared event names for raw editor observation,
+  accepted authority, synchronization, commit, gate outcomes, Crepe behavior,
+  ordered draft persistence, disposition, cleanup, Discard, and recovery.
 - Add shared attribute names for editor session ID, editor mode, focus state,
   selection summary, transaction summary, markdown length, payload kind, payload
   size, truncation status, snapshot kind, draft updated time, and persistence
@@ -610,8 +690,8 @@ Implementation requirements:
 - Add shared result statuses only when they are reusable across web/server
   events.
 - Add beginner-readable TSDoc for exported constants.
-- Add tests proving semantic event names do not drift from this Slice 7D
-  contract.
+- Add tests proving semantic event names do not drift from the refreshed Slice
+  7E contract or collapse distinct Slice 7C/7D outcomes.
 
 ### 3. Add Bounded Payload Helpers
 
@@ -659,28 +739,37 @@ Implementation requirements:
 - Emit `editor.status.changed` for meaningful editor status transitions.
 - Attach note ID, cluster ID when available, editor session ID, route source,
   dirty status, content hash, and UI request sequence where applicable.
+- Observe actual Slice 7D raw projection, accepted publication/admission,
+  synchronization, commit, editor-gate, and Slice 7C terminal route outcomes as
+  separate result unions. Do not reconstruct those classifications from Zustand
+  snapshots.
 - Add tests proving instrumentation does not mutate editor state or break
   current mode switching.
 
-### 6. Instrument Dexie Draft Persistence And Recovery
+### 6. Instrument Ordered Draft Persistence And Recovery
 
 Add semantic diagnostics around draft persistence.
 
 Implementation requirements:
 
-- Emit draft read/write/delete started, succeeded, and failed events.
-- Emit recovery-visible events for recovered drafts.
+- Emit consistent-read, snapshot-admission, write, cleanup, cleanup-retry,
+  terminal-Discard, and disposition-change events from the implemented Slice 7D
+  boundary.
+- Emit recovery-visible events for recovered, conflict, cleanup-required, and
+  unavailable states.
 - Emit degraded recovery-visible events for database unavailable or validation
   failure states.
-- Attach note ID, cluster ID, editor session ID, draft presence, draft updated
-  time, dirty status, base content hash, and persistence unavailable reason
-  where applicable.
+- Attach note ID, cluster ID, draft operation ID, draft presence, updated time,
+  dirty status, disposition, base content hash, revision, and exact failure
+  reason where available. Attach editor session ID only after one exists; link
+  pre-session reads through route/selection/draft operation identity.
 - Attach draft payloads only for eligible failure or recovery states according
   to the volume contract.
 - Preserve Dexie as the draft persistence owner.
 - Preserve UI visibility for degraded draft and validation states.
-- Add tests for successful draft flows, failure flows, recovery-visible events,
-  and disabled Sentry behavior.
+- Add tests for successful, superseded, and failed reads/mutations; cleanup
+  required/retry; Discard no-reload failure; later session correlation; recovery
+  visibility; and disabled Sentry behavior.
 
 ### 7. Instrument Milkdown And Crepe Behavior
 
@@ -692,7 +781,8 @@ Implementation requirements:
 - Emit focus changed events.
 - Emit selection changed summaries.
 - Emit observable ProseMirror transaction summaries.
-- Emit coalesced markdown update metadata.
+- Emit coalesced raw projection metadata and uncoalesced accepted
+  publication/admission, synchronization, and commit results.
 - Emit Crepe block-menu opened and closed events when available.
 - Include block-menu context that helps investigate the current QA finding when
   the editor package exposes it.
@@ -713,7 +803,7 @@ Implementation requirements:
 - Attach full markdown only to eligible save start, save conflict, save failure,
   and deliberate test events according to the volume contract.
 - Attach Zustand snapshots for explicit conflict, stale-response, recovery,
-  degraded, or deliberate test events.
+  cleanup-required, Discard failure, degraded, or deliberate test events.
 - Preserve `expectedContentHash` as the save authority.
 - Preserve conflict responses and UI behavior.
 - Preserve stale-response guards and keep UI request sequence separate from API
@@ -761,10 +851,11 @@ Add telemetry volume controls for high-frequency editor updates.
 
 Implementation requirements:
 
-- `editor.milkdown.markdown_updated` emits at most one metadata-only log per
+- Raw `editor.projection.observed` emits at most one metadata-only log per
   editor session per second during continuous typing.
-- Save, conflict, recovery, mode change, and deliberate test events bypass the
-  high-frequency update coalescer when they are meaningful result events.
+- Publication/admission, synchronization, commit, Save, conflict, disposition,
+  cleanup, Discard, gate, mode, and deliberate test events bypass the
+  high-frequency raw-projection coalescer.
 - Coalesced buffers, timers, and pending metadata are cleared when the editor
   session changes.
 - Stale note content cannot be emitted under a new note ID.
@@ -805,7 +896,8 @@ Required QA:
   before a deliberate edit.
 - Confirm editor breadcrumbs and logs are useful enough to decide the next fix
   slice.
-- Confirm draft read/write/delete and recovery states appear in Sentry.
+- Confirm consistent reads, snapshot admission, writes, cleanup/retry, Discard,
+  and disposition/recovery states appear in Sentry with lifecycle-valid IDs.
 - Save a disposable note and confirm save evidence includes editor session ID,
   operation ID, request ID, content hashes, and payload metadata.
 - Force a save conflict and confirm conflict evidence includes expected content
@@ -816,15 +908,16 @@ Required QA:
   `azurite.payload_truncated_for_size`, original length, content hash, and
   useful leading/trailing text windows.
 - Edit a large real note for several minutes and confirm normal editing remains
-  responsive, high-frequency markdown updates are coalesced/rate-limited, and
-  Sentry remains inspectable.
+  responsive, high-frequency raw projection observations are
+  coalesced/rate-limited, accepted results remain intact, and Sentry remains
+  inspectable.
 - Open the same MagicDNS URL on mobile.
 - Confirm mobile replay includes unmasked note/editor context when Sentry debug
   mode is explicitly enabled.
 
 ## Negative Side-Effect Guardrails
 
-Slice 7D must preserve existing product behavior while adding semantic
+Slice 7E must preserve existing product behavior while adding semantic
 diagnostics.
 
 Existing workflows that must keep working:
@@ -938,8 +1031,10 @@ Run targeted automated tests for:
 - editor mode/status instrumentation preserving current mode switching
 - Milkdown mount/destroy/update instrumentation where current test harness
   support allows it
-- Dexie draft read/write/delete success and failure observability
-- recovery and degraded persistence observability
+- ordered draft read/admission/write/cleanup/Discard success, supersession, and
+  failure observability
+- draft disposition, recovery, cleanup-required, and degraded persistence
+  observability
 - Zustand snapshot capture for explicit error, conflict, stale-response,
   recovery, and deliberate test events
 - save/conflict/recovery payload attachment without changing UI or API behavior
@@ -969,7 +1064,8 @@ Run manual/browser QA:
   before a deliberate edit.
 - Confirm editor semantic breadcrumbs/logs are useful enough to guide the
   follow-up fix slice.
-- Confirm draft read/write/delete and recovery evidence appears in Sentry.
+- Confirm ordered draft read/admission/write/cleanup/Discard and disposition
+  evidence appears in Sentry.
 - Save a disposable note and confirm save evidence includes editor session ID,
   operation ID, request ID, content hashes, and payload metadata.
 - Force a save conflict and confirm conflict evidence includes expected content
@@ -980,8 +1076,9 @@ Run manual/browser QA:
   truncation metadata, original length, content hash, and leading/trailing text
   windows appear.
 - Edit a large real note for several minutes and confirm normal editing remains
-  responsive, high-frequency markdown updates are coalesced/rate-limited, and
-  Sentry remains inspectable.
+  responsive, high-frequency raw projection observations are
+  coalesced/rate-limited, accepted results remain intact, and Sentry remains
+  inspectable.
 - Open the same MagicDNS URL on mobile.
 - Confirm mobile appears as a distinct Sentry web session.
 - Confirm mobile replay includes unmasked note/editor context when Sentry debug
@@ -1000,10 +1097,11 @@ Run manual/browser QA:
   from the visible UI alone.
 - Session Replay captures unmasked editor/debug context in explicitly enabled
   local debug sessions.
-- Editor lifecycle, focus, selection, transaction, markdown update, block-menu,
-  mode, and status events are emitted through shared semantic event names.
-- Draft read/write/delete, recovery, degraded persistence, and validation states
-  are observable.
+- Editor lifecycle, focus, selection, raw projection, accepted
+  publication/admission, synchronization, commit, gate, block-menu, mode, and
+  status events are emitted through refreshed shared semantic event names.
+- Ordered draft read/admission/write/cleanup/retry/Discard, disposition,
+  recovery, degraded persistence, and validation states are observable.
 - Save, conflict, stale-response, and recovery diagnostics include the
   correlation IDs and semantic context needed to inspect failures.
 - Telemetry is mapped intentionally into logs, breadcrumbs, spans, tags, context,
@@ -1021,23 +1119,23 @@ Run manual/browser QA:
   event-volume baseline needed to evaluate a future lightweight daily mode.
 - Backend observability enriches route-level evidence from core outcomes/errors,
   and `packages/core` remains Sentry-free with no new observer contract.
-- Sentry-disabled Azurite behaves the same as before Slice 7A, Slice 7B, and
-  Slice 7D.
+- Sentry-disabled Azurite preserves the completed Slice 7A through Slice 7D
+  behavior exactly.
 - All negative side-effect guardrails remain true.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.
 
-## Immediate Handoff To Editor Correctness
+## Immediate Handoff To Slice 7F Editor Correctness
 
-The first product slice after 7D must fix the mobile Markdown source-mode
+Slice 7F, the first product slice after 7E, must fix the mobile Markdown source-mode
 newline reversion recorded in
 `docs/qa/mobile-markdown-newline-reversion.md`. No unrelated feature slice
 should intervene.
 
-That fix slice must:
+Slice 7F must:
 
 - use the Slice 7A runtime, Slice 7B request/note-operation correlation, and
-  Slice 7C Markdown-authority contract together with Slice 7D editor, Zustand,
+  Slice 7D Markdown-authority contract together with Slice 7E editor, Zustand,
   Dexie, payload, and Replay evidence;
 - convert the observed state-transition evidence into a durable ownership and
   lifecycle correction rather than a mobile-keyboard special case;
@@ -1049,25 +1147,25 @@ That fix slice must:
 - preserve manual-save conflicts, draft durability, WYSIWYG/Markdown
   round-tripping, URL navigation, and Sentry-disabled behavior.
 
-The exact implementation plan should be written from the evidence captured by
-7D. This committed sequence sets the priority and outcome now without guessing
-at the root cause before the diagnostic foundation exists.
+The exact Slice 7F implementation plan must be written from the evidence
+captured by 7E. This committed sequence sets the priority and outcome now
+without guessing at the root cause before the diagnostic foundation exists.
 
-Slice 7D must observe and measure the current statically loaded editor lifecycle
+Slice 7E must observe and measure the current statically loaded editor lifecycle
 rather than introduce the deferred lazy-loading boundary in
 `docs/technical-architecture.md`. Its evidence should leave mount and readiness
 timing understandable so a later focused performance slice can compare the
 loading architectures after the required correctness fix.
 
 If the evidence shows that created, reused, or copied cluster identity
-participates in the recovered-draft failure, the responsible 7D revision or
+participates in the recovered-draft failure, the responsible 7E revision or
 immediate fix must establish and test the separate resolution contract before
 claiming the behavior is understood. If it does not participate, cluster
 lifecycle provenance remains deferred to its dedicated foundation.
 
 ## Completion Note
 
-When Slice 7D is complete, Sentry observability is functionally delivered for
+When Slice 7E is complete, Sentry observability is functionally delivered for
 the current browser, API, editor, client state, IndexedDB draft, and
 filesystem-backed note workflow. Future
 observability work should be framed around the next product capability it
@@ -1077,7 +1175,7 @@ The immediate editor-correctness handoff above takes priority over those later
 capabilities.
 
 After that mandatory fix, a focused Daily Observability Operating Profile may
-use the 7D evidence to compare disabled, lightweight daily, and full-debug
+use the 7E evidence to compare disabled, lightweight daily, and full-debug
 configuration. It may keep the lightweight profile permanently enabled for
 Daniel only when measured editor responsiveness, memory, network, and event
 volume are negligible in daily use. Full debug remains deliberate and

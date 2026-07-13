@@ -12,7 +12,7 @@ backend boundary all passed.
 The Back/sidebar divergence was decisively reproduced in the exact pre-7B tree
 with real API responses under controlled latency. It is a pre-existing
 route-selection race, not a 7B regression, and is ordered separately as Slice
-7F. No route repair was annexed to 7B or 7C.
+7C. No route repair was annexed to 7B or 7D.
 
 The authoritative implementation and QA record is
 `docs/qa/slice-7b-request-correlation.md`. Keep concrete commands, IDs, hashes,
@@ -27,10 +27,10 @@ surface mobile evidence, not to waive those gates.
 Slice 7A is complete and archived in
 `docs/slices/archive/slice-7a-sentry-runtime-delivery-foundation.md`. Its desktop
 and historical physical-phone runtime evidence is now an implemented dependency,
-not a future prerequisite. Slice 7C is the next active product slice in
-`docs/slices/active/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
-Slice 7D remains planned after it in
-`docs/slices/planned/slice-7d-semantic-editor-and-persistence-diagnostics.md`.
+not a future prerequisite. Slice 7D is the next active product slice in
+`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+Slice 7E remains planned after it in
+`docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 
 The historical physical-phone session recorded the mobile Markdown newline
 reversion and unexplained recovered-draft state in
@@ -69,7 +69,7 @@ The durable boundary is:
   or successful single-write semantics.
 
 Slice 7B does not instrument Milkdown, Crepe, Zustand snapshots, Dexie draft
-semantics, or rich payloads. Slice 7D will add those layers on this correlation
+semantics, or rich payloads. Slice 7E will add those layers on this correlation
 contract.
 
 ## User Story
@@ -101,7 +101,7 @@ trace headers through Vite, and flush within a bounded shutdown path. Delivery
 alone does not prove that a browser load, backend read, stale response, save, or
 conflict belongs to one user intent.
 
-Slice 7B supplies that missing semantic join. It also prevents Slice 7D from
+Slice 7B supplies that missing semantic join. It also prevents Slice 7E from
 inventing its own identity, scope, and route event shapes while diagnosing the
 known Milkdown, Markdown source, Zustand, and IndexedDB behavior.
 
@@ -186,7 +186,7 @@ proposal. The implementation must extend these facts:
 | Boundary               | Required decision                                                                                                                                                                                                                                                                                                                             |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Current workflow       | Correlate note list, URL-driven read, manual save, conflict, failure, and stale-response evidence from browser intent through the relative Vite API call to the Fastify route result, while keeping telemetry fail-open and same-note manual saves ordered.                                                                                   |
-| Predictable extensions | Slice 7D editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction. Future multi-process hosting may extend the same-note write coordinator beyond the current single Azurite server process.                                              |
+| Predictable extensions | Slice 7E editor/draft diagnostics and later retry, autosave, create, delete, file-watch, and indexing work reuse the request-attempt and operation-intent distinction. Future multi-process hosting may extend the same-note write coordinator beyond the current single Azurite server process.                                              |
 | Participating layers   | Shared schemas/constants, browser correlation helper, Zustand note actions and active-save ownership, narrow Dexie draft reconciliation after save, typed `NoteBrowserApi`, web API client, fail-open web/server observability adapters, Fastify request hook and note routes, core per-note write coordination, tests, and desktop/phone QA. |
 | Near-term seams        | Typed API metadata, immutable browser operation context, ephemeral per-note load/save records, decorated Fastify request context, bounded span descriptors, explicit event attributes, and a keyed core write coordinator leave room for editor session IDs, retries, autosave, and multiple request attempts per operation.                  |
 | Exclusions             | Rich editor/draft instrumentation, payloads, retries, autosave, new note lifecycle behavior, cluster-resolution provenance, richer filesystem errors, core observers, cross-process/advisory locking, and runtime initialization can wait because the current workflow gains a complete in-process correlation and save-ordering boundary.    |
@@ -236,7 +236,7 @@ proposal. The implementation must extend these facts:
 - Do not add Milkdown, ProseMirror, Crepe, Zustand snapshot, Dexie lifecycle, or
   editor-session instrumentation.
 - Do not add full markdown, draft, request-body, response-body, or state payload
-  carrier machinery. Slice 7D owns bounded rich payloads.
+  carrier machinery. Slice 7E owns bounded rich payloads.
 - Do not change note response schemas, error response schemas, status codes, or
   error codes. Slice 7B strengthens the existing content-hash conflict guarantee
   under concurrent Azurite writes without inventing a new API outcome.
@@ -251,7 +251,7 @@ proposal. The implementation must extend these facts:
   to `packages/core`.
 - Do not add cluster-resolution provenance or expose an internal metadata
   `missing` state through current note responses. The future cluster-lifecycle
-  foundation owns that domain contract unless Slice 7D evidence requires it
+  foundation owns that domain contract unless Slice 7E evidence requires it
   earlier.
 - Do not broaden core filesystem errors solely to restore speculative telemetry
   events. The first create/delete/move, file-watch/indexing, or multi-cluster
@@ -299,7 +299,7 @@ The three current identity classes are deliberately different:
 | `azurite.ui_request_sequence` | Positive integer | Zustand note-browser runtime                                                   | One local list/read sequencing step | Determines whether an async response is still current; never crosses HTTP.      |
 
 Fastify's built-in `request.id` remains a separate server logging identifier.
-Slice 7D's `azurite.editor_session_id` remains a separate browser editor
+Slice 7E's `azurite.editor_session_id` remains a separate browser editor
 identity. Cluster IDs, note IDs, content hashes, and draft keys retain their
 existing product meanings.
 
@@ -536,7 +536,7 @@ Different notes do not share a browser save lock. Their operations may overlap
 and must retain independent context. Draft reconciliation uses one focused Dexie
 transaction keyed by cluster ID and note ID so a late result cannot delete or
 rewrite another note, another editor session, or a newer-baseline record. This is
-save-integrity behavior, not Slice 7D instrumentation. The implementation extends
+save-integrity behavior, not Slice 7E instrumentation. The implementation extends
 the existing save-success, save-failure, save-conflict, draft, and navigation
 tests rather than creating a parallel save state machine.
 
@@ -975,7 +975,7 @@ created before its callback already knows a terminal result.
   Well-formed API responses and expected validation, configuration, not-found,
   and conflict states are not captured as exceptions.
 - Full markdown, drafts, Zustand snapshots, request/response payloads, and local
-  filesystem path enrichment remain Slice 7D work. Existing caught error stacks
+  filesystem path enrichment remain Slice 7E work. Existing caught error stacks
   remain eligible diagnostic data.
 
 ## Implementation Plan
@@ -1331,7 +1331,7 @@ and the Vite development build. Record the emulated Android Chrome user agent,
    the Mac's Tailscale address.
 
 The QA record must explicitly say that Markdown source Enter was not used as the
-save path because its newline reversion remains scheduled for diagnosis in 7D
+save path because its newline reversion remains scheduled for diagnosis in 7E
 and repair immediately afterward.
 
 ### Sentry-Disabled And Carrier-Failure Evidence
@@ -1390,7 +1390,7 @@ Start without enabled Sentry configuration and prove:
 - Desktop and synthetic Pixel 6 Sentry QA produce the exact join evidence
   defined above.
 - The mobile Markdown newline and recovered-draft findings remain explicitly
-  unfixed and handed to 7D.
+  unfixed and handed to 7E.
 - `packages/core` remains Sentry-free and no code file exceeds 400 lines.
 - `/opt/homebrew/bin/pnpm validate`, `/opt/homebrew/bin/pnpm build`, and
   `git diff --check` pass.
@@ -1398,20 +1398,20 @@ Start without enabled Sentry configuration and prove:
   event names, desktop/phone outcomes, and any implementation-time plan change.
 - The completed repository state is clean and pushed to `origin/main`.
 
-## Immediate Handoff To Slice 7C
+## Immediate Handoff To Slice 7D
 
 After the repair, classification, and closing synthetic QA run close Slice 7B,
 promote
-`docs/slices/active/slice-7c-markdown-fidelity-and-honest-dirty-state.md`.
-Slice 7C may rely on repaired exact-session save-result ownership, current
+`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+Slice 7D may rely on repaired exact-session save-result ownership, current
 content-hash conflict behavior, exact draft cleanup, and the correlated note
 workflow. It owns only projection-versus-authoritative Markdown fidelity; it
 must not absorb route selection, block-menu interaction, backend recovery copy,
 or bundle loading.
 
-## Handoff To Slice 7D
+## Handoff To Slice 7E
 
-Slice 7D may rely on these completed 7B truths:
+Slice 7E may rely on these completed 7B truths:
 
 - request-attempt IDs, note-operation IDs, UI request sequences, Fastify request
   IDs, editor session IDs, cluster IDs, and hashes have distinct ownership;
@@ -1429,11 +1429,11 @@ Slice 7D may rely on these completed 7B truths:
 - event-local helper scopes and explicit attributes remain isolated under
   overlap;
 - the canonical save event prefix is `note.save.*`, not `save.*`;
-- 7D must enrich route failures rather than depend on a nonexistent
+- 7E must enrich route failures rather than depend on a nonexistent
   `cluster.metadata.failed` event;
-- 7D must test whether the fresh-cluster recovered-draft finding depends on
+- 7E must test whether the fresh-cluster recovered-draft finding depends on
   cluster identity being created, reused, or copied. If that distinction is
-  required to explain the behavior, revise 7D or its immediate fix to introduce
+  required to explain the behavior, revise 7E or its immediate fix to introduce
   the domain-level resolution result described in
   `docs/technical-architecture.md`; otherwise defer it to the future Cluster
   Opening And Lifecycle Foundation;
@@ -1457,7 +1457,7 @@ matrix, authenticated Sentry views, and finding classifications. Concisely:
 - closing Sentry Replay and Trace Explorer visibly join the unmasked Pixel
   workflow to the correlated Fastify save and report no unexpected issue;
 - Fastify remains loopback-only and unreachable directly over Tailscale;
-- the Back/sidebar race predates 7B and has a separate Slice 7F owner;
-- Slice 7C is refreshed against this completed baseline and promoted next.
+- the Back/sidebar race predates 7B and has a separate Slice 7C owner;
+- Slice 7D is refreshed against this completed baseline and promoted next.
 
 There are no unresolved Slice 7B implementation or acceptance questions.

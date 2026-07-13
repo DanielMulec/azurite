@@ -10,7 +10,7 @@
   and post-persistence revalidation, with five deterministic race regressions.
 - Back/sidebar classification: closed as a pre-7B route-state defect. The exact
   historical tree reproduced it with real API responses under controlled
-  latency; it is ordered separately as Slice 7F.
+  latency; it is ordered separately as Slice 7C.
 - Closing Playwright matrix: passed on desktop Chrome and Pixel 6 across Vite
   development and optimized production, each with Sentry enabled and disabled.
 - Authenticated Sentry proof: passed through a disposable full Chrome clone;
@@ -242,8 +242,8 @@ classification, or closing synthetic-matrix gates.
 
 | Severity | Finding                                                                                   | Evidence                                                                                                                                                                                                                               | Disposition                                                                                                                                                                   |
 | -------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1       | Untouched Markdown can become dirty and save an unintended formatting rewrite.            | Fresh enabled-production Pixel 6 sessions opened `index.md` and the nested note as `Unsaved changes`; a no-input save changed `-` list markers to `*`, added blank lines, and reformatted table separators.                            | Confirmed existing Slice 7C Markdown Fidelity And Honest Dirty State finding. It remains outside 7B.                                                                          |
-| P2       | A failed note selection triggers two identical read attempts after the backend goes down. | One Pixel 6 click on `nested/overlap-and-conflict.md` generated two `502` reads and two failed-resource lines, then showed the recovery error. The relevant navigation code predates 7B in the 2026-07-08 `271c820`/`f068375` history. | Add to the already separate local-runtime resilience and recovery-copy outcome; do not annex it to 7B or 7C. It needs a dedicated failure-navigation and error-copy contract. |
+| P1       | Untouched Markdown can become dirty and save an unintended formatting rewrite.            | Fresh enabled-production Pixel 6 sessions opened `index.md` and the nested note as `Unsaved changes`; a no-input save changed `-` list markers to `*`, added blank lines, and reformatted table separators.                            | Confirmed existing Slice 7D Markdown Fidelity And Honest Dirty State finding. It remains outside 7B.                                                                          |
+| P2       | A failed note selection triggers two identical read attempts after the backend goes down. | One Pixel 6 click on `nested/overlap-and-conflict.md` generated two `502` reads and two failed-resource lines, then showed the recovery error. The relevant navigation code predates 7B in the 2026-07-08 `271c820`/`f068375` history. | Add to the already separate local-runtime resilience and recovery-copy outcome; do not annex it to 7B or 7D. It needs a dedicated failure-navigation and error-copy contract. |
 | P3       | Backend-unavailable copy mislabels the proxy failure.                                     | With Fastify stopped, the mobile UI said `Azurite returned an unexpected response shape.` after the proxy returned `502`.                                                                                                              | Confirmed existing production-desktop finding; same separate local-runtime resilience and recovery-copy outcome as the duplicate-attempt finding.                             |
 | P3       | Vite development sessions emit a Vue feature-flags warning.                               | Both enabled and disabled Pixel 6 dev sessions logged the missing `__VUE_OPTIONS_API__`, `__VUE_PROD_DEVTOOLS__`, and `__VUE_PROD_HYDRATION_MISMATCH_DETAILS__` warning. Production preview had no warning.                            | Separate dev-tooling/console-noise candidate. In enabled debug mode it can contaminate Sentry console evidence.                                                               |
 | Advisory | Save and editor-mode controls are smaller than a common 44-pixel touch target.            | Save is `38` pixels high; WYSIWYG and Markdown are `36` pixels.                                                                                                                                                                        | Record as a future mobile ergonomics review, not a hard accessibility failure or Slice 7B scope.                                                                              |
@@ -299,9 +299,9 @@ proved the timing-dependent defect predates 7B:
   the last Back.
 
 This is a pre-existing route-selection race, not a 7B regression. Repair is
-therefore excluded from 7B and 7C and ordered as Slice 7F, URL Selection And
+therefore excluded from 7B and 7D and ordered as Slice 7C, URL Selection And
 History Coherence. Ordinary awaited Back/Forward navigation remained coherent
-in every final matrix cell. Slice 7F owns the overlapping-history failure.
+in every final matrix cell. Slice 7C owns the overlapping-history failure.
 
 ### Final Eight-Cell Playwright Matrix
 
@@ -330,7 +330,7 @@ one browser failed-resource line for `409` and no unhandled product error.
 The Pixel 6 cells verified Android Chrome, a `412` by `839` viewport, `412` by
 `915` screen, DPR `2.625`, one touch point, coarse pointer, no hover, and zero
 horizontal overflow. WYSIWYG was the phone save path. The separate physical
-Android source-mode Enter finding remains unfixed and assigned to 7D diagnosis
+Android source-mode Enter finding remains unfixed and assigned to 7E diagnosis
 plus its required follow-up repair.
 
 ### Exact Closing Correlation Examples

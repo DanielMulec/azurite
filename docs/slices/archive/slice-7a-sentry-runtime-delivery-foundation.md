@@ -20,7 +20,7 @@ They were superseded as close-out gates by this amendment and were later
 satisfied through the follow-up evidence.
 
 Slice 7A implements only the runtime delivery foundation. Slice 7B adds request
-correlation and note route evidence on top of this runtime. Slice 7D then adds
+correlation and note route evidence on top of this runtime. Slice 7E then adds
 semantic editor and persistence diagnostics.
 
 ## Product Decision
@@ -84,9 +84,9 @@ of debugging Sentry setup while also debugging Azurite product instrumentation.
 | Boundary               | Decision                                                                                                                                                                                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Current workflow       | Start the local web and API runtimes with Sentry explicitly enabled or cleanly disabled; prove web/server events, Replay, console capture, tracing headers through the Vite proxy, and bounded backend shutdown on desktop and Tailscale mobile access. |
-| Predictable extensions | Slice 7B adds request and note-operation correlation; Slice 7D adds editor, draft, payload, and recovery diagnostics.                                                                                                                                   |
+| Predictable extensions | Slice 7B adds request and note-operation correlation; Slice 7E adds editor, draft, payload, and recovery diagnostics.                                                                                                                                   |
 | Participating layers   | Root environment examples, Vite config, web initialization and error boundary, shared runtime contracts, server preload and lifecycle, development-only test triggers, automated tests, and desktop/mobile runtime QA.                                  |
-| Near-term seams        | Typed runtime helpers accept controlled serializable attributes; shared route and event contracts allow 7B/7D to extend telemetry without another SDK setup path.                                                                                       |
+| Near-term seams        | Typed runtime helpers accept controlled serializable attributes; shared route and event contracts allow 7B/7E to extend telemetry without another SDK setup path.                                                                                       |
 | Exclusions             | Note workflow correlation, editor/Dexie/Zustand diagnostics, payload capture, source-map upload, workers, public telemetry policy, and `packages/core` instrumentation wait because the runtime can be proven independently.                            |
 
 ## Goals
@@ -374,7 +374,7 @@ Accepted Replay behavior:
 - Runtime replay QA confirms one desktop Replay and one mobile/Tailscale Replay
   arrive in `azurite-web`.
 - Slice 7A does not need to prove that Milkdown editor text, textarea text,
-  selection context, or block-menu context are useful in Replay. Slice 7D proves
+  selection context, or block-menu context are useful in Replay. Slice 7E proves
   and adjusts that semantic editor-debugging fidelity.
 
 Accepted logs, console, and tracing behavior:
@@ -413,7 +413,7 @@ Runtime mapping:
   development test events, and error-boundary captures.
 - Breadcrumbs must not carry full markdown or draft payloads.
 - Slice 7A test events may include small explicit marker payloads that prove
-  event context delivery. They must not implement the full Slice 7D
+  event context delivery. They must not implement the full Slice 7E
   `azurite.debug_payload` under-limit and over-limit contract.
 
 ### Runtime Helper Extension Surface
@@ -512,7 +512,7 @@ Confirm this is the only active product slice before implementation begins.
 Implementation requirements:
 
 - Keep this active 7A proposal focused on runtime delivery only.
-- Treat the 7B and 7D documents in `docs/slices/planned/` as future handoffs,
+- Treat the 7B and 7E documents in `docs/slices/planned/` as future handoffs,
   not concurrent implementation authority.
 - Use Git history for superseded Sentry drafts instead of restoring backup files.
 
@@ -718,7 +718,7 @@ Implementation requirements:
   carrier mapping used by real Slice 7A observability events.
 - Web test events include a simple visible diagnostics marker that manual Replay
   QA can use to confirm runtime Replay text is not masked in local debug mode.
-- Test events do not implement the full Slice 7D under-limit and over-limit
+- Test events do not implement the full Slice 7E under-limit and over-limit
   debug payload contract.
 
 ### 10. Add Tailscale Runtime QA Support
@@ -920,7 +920,7 @@ Run manual/browser QA:
 - Sentry-disabled shutdown behavior remains unchanged.
 - Frontend and backend events include shared release/environment metadata.
 - Desktop Session Replay delivery is proven in `azurite-web`; physical-phone
-  Replay proof is deferred, and Slice 7D owns editor-specific Replay usefulness.
+  Replay proof is deferred, and Slice 7E owns editor-specific Replay usefulness.
 - Replay uses uncensored local debug defaults when explicitly enabled, and a
   diagnostics marker is visible without default text masking.
 - Browser console warnings/errors are captured in Sentry so incidental editor or
@@ -1021,7 +1021,7 @@ commit `f347a85` plus the final review corrections recorded in this close-out:
   `PUT /api/notes/content` with a `200` response. It also exposed a Markdown
   source-mode newline reversion and an unexplained recovered-draft state. Those
   editor findings do not weaken the 7A runtime proof and are recorded in
-  `docs/qa/mobile-markdown-newline-reversion.md` for the 7D diagnostic handoff
+  `docs/qa/mobile-markdown-newline-reversion.md` for the 7E diagnostic handoff
   and a later editor-correctness slice.
 
 Slice 7B remains planned and unpromoted. Its phone-QA prerequisite is complete;
@@ -1039,7 +1039,7 @@ Slice 7B may begin only after Slice 7A proves:
 - Desktop and physical-phone web sessions and Session Replays are visible in
   Sentry, with the phone Replay distinct from the desktop Replay.
 - Replay debug defaults are uncensored at the runtime configuration layer, with
-  editor-specific usefulness left to 7D.
+  editor-specific usefulness left to 7E.
 - Browser console warning/error capture is visible in Sentry.
 - Structured Sentry logs and sampled frontend-to-backend tracing work as runtime
   carriers.

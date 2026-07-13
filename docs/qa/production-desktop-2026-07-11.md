@@ -41,8 +41,8 @@ coverage gaps and shared defects, not an optimized-build-only regression.
 
 | Severity | Finding                                                                                 | Evidence                                                                                                                                                                       | Disposition                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| P1       | An untouched Markdown note can immediately become dirty.                                | Several real-format documents showed `Unsaved changes` and enabled Save before input.                                                                                          | Slice 7C, Markdown Fidelity And Honest Dirty State.                                                                |
-| P2       | Browser Back can restore URL and content while leaving the wrong sidebar item selected. | Product Vision content returned while Technical Architecture remained `aria-current`; the exact pre-7B tree later reproduced the persistent split with real delayed responses. | Classified as pre-existing and ordered as Slice 7F, URL Selection And History Coherence. It is not 7B or 7C scope. |
+| P1       | An untouched Markdown note can immediately become dirty.                                | Several real-format documents showed `Unsaved changes` and enabled Save before input.                                                                                          | Slice 7D, Markdown Fidelity And Honest Dirty State.                                                                |
+| P2       | Browser Back can restore URL and content while leaving the wrong sidebar item selected. | Product Vision content returned while Technical Architecture remained `aria-current`; the exact pre-7B tree later reproduced the persistent split with real delayed responses. | Classified as pre-existing and ordered as Slice 7C, URL Selection And History Coherence. It is not 7B or 7D scope. |
 | P2       | Crepe's block `+` handle can insert a blank paragraph instead of keeping its menu open. | Reproduced in production and development without a console error.                                                                                                              | Existing editor-interaction finding; not part of the fidelity slice.                                               |
 | P3       | A stopped backend produces misleading recovery copy.                                    | Vite's proxy `502` body became “Azurite returned an unexpected response shape.”                                                                                                | Separate local-runtime resilience and recovery-copy work.                                                          |
 | P3       | The production entry bundle remains large.                                              | Main JavaScript was about 1.51 MB raw and 471 KB gzip; Vite emitted its chunk warning.                                                                                         | Existing measured editor-loading and bundle-performance candidate after correctness work.                          |
@@ -75,7 +75,7 @@ and unnecessary conflicts.
 
 ## Slice Boundary
 
-Slice 7C owns only the P1 fidelity and dirty-state capability. It must preserve
+Slice 7D owns only the P1 fidelity and dirty-state capability. It must preserve
 the exact loaded or recovered Markdown until Daniel actually edits content,
 keep mode-only navigation clean, and prove that no draft or file write follows
 from editor projection normalization.
@@ -83,9 +83,9 @@ from editor projection normalization.
 The Back/sidebar divergence, block-menu interaction, backend-unavailable copy,
 and bundle size are independently useful outcomes with different state owners
 or verification boundaries. The working agreement's scope re-selection rule
-therefore keeps them out of Slice 7C.
+therefore keeps them out of Slice 7D.
 
-## Required Regression Matrix For Slice 7C
+## Required Regression Matrix For Slice 7D
 
 - pristine open remains clean after editor readiness and listener debounce;
 - WYSIWYG to Markdown to WYSIWYG mode switches remain clean;

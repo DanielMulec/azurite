@@ -134,7 +134,7 @@ AZURITE-SENTRY-7A-UNMASKED-REPLAY-MARKER
 Replay is intentionally uncensored for this explicit debug mode:
 `maskAllText=false`, `maskAllInputs=false`, and `blockAllMedia=false`.
 Password fields retain the installed SDK's credential protection. The Slice 7A
-proof requires the marker to be readable; Slice 7D owns editor-specific Replay
+proof requires the marker to be readable; Slice 7E owns editor-specific Replay
 fidelity.
 
 The backend route exists only outside production when its test-event flag is
