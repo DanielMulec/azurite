@@ -75,6 +75,25 @@ context-consumer files, which falls by 113 lines. Searches return zero
 `createRouteRollbackContext`, late cast, or `setCurrentRouteIntent`
 occurrences in production.
 
+Reproduction commands:
+
+```sh
+git show 8a37b3d:apps/web/src/state/note-browser-contracts.ts \
+  | sed -n '/export type StoreContext = {/,/^};/p' | rg -c '^  readonly '
+git grep -l StoreContext 8a37b3d -- apps/web/src
+git grep -o StoreContext 8a37b3d -- apps/web/src | wc -l
+git grep -l StoreContext 8a37b3d -- apps/web/src | cut -d: -f2- \
+  | while read -r file; do git show 8a37b3d:"$file" | wc -l; done \
+  | awk '{ total += $1 } END { print total }'
+rg --files apps/web/src/state -g '*.ts' | xargs wc -l
+rg -o 'StoreContext|getActiveNoteSave|setActiveNoteSave|clearActiveNoteSave' \
+  apps/web/src -g '*.ts' -g '*.tsx'
+sed -n '/export type NoteBrowserStore =/,/^};/p' \
+  apps/web/src/state/note-browser-contracts.ts | rg -c '^  readonly '
+sed -n '/export type RouteStoreExecutor = {/,/^};/p' \
+  apps/web/src/routing/route-store-executor.ts | rg -c '^  readonly '
+```
+
 Deleted files:
 
 - `apps/web/src/state/baseline-route-draft-gate.ts`;
@@ -186,6 +205,21 @@ draft records, ports 3000/4173/5173, and server/Vite runtimes were removed.
 
 ## Independent Review And Delivery
 
-The required bounded independent review is recorded after the final integrated
-diff review. Task 3E, Slice 7E, Slice 7F, Route Failure Resilience, performance
-work, and unrelated product changes remain untouched and unapproved.
+The bounded read-only review of `8a37b3d..780271f` found zero code or
+architecture blockers. It independently reran the focused proof at **15 files /
+116 tests**, passed `git diff --check`, reproduced the structural measurements,
+confirmed that the route and draft access types are narrow workflow boundaries,
+and verified that Task 3E and Slice 7E were untouched.
+
+The review raised one Task 3D documentation blocker: this section still
+contained a placeholder instead of the actual review and delivery evidence.
+This repair records the result and disposition; no implementation repair or
+proportional code rerun was required beyond the already-passing final suite.
+
+At review time, `HEAD`, `origin/main`, and `origin/HEAD` were equal at
+`780271faf1e2e985436f2820268e3f9fa7992a57`; the root was clean and no worker
+worktree or branch remained. After this evidence repair, delivery verification
+again requires clean equality of those three refs; the task's final report
+records the exact delivery commit. Task 3E, Slice 7E, Slice 7F, Route Failure
+Resilience, performance work, and unrelated product changes remain untouched
+and unapproved.
