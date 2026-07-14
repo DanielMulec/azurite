@@ -15,6 +15,7 @@ import {
   createLoadedStore,
   createMemoryDraftPersistence,
   createNote,
+  publishSourceMarkdown,
   readyClusterIdentity,
   requireMockCall,
   toSummary,
@@ -42,10 +43,10 @@ describe("note browser store stale save success hardening", () => {
       draftPersistence: drafts.persistence,
     });
 
-    store.getState().updateDraftMarkdown("# Home\nSaved snapshot");
+    publishSourceMarkdown(store, "# Home\nSaved snapshot");
     await store.getState().flushPendingDraft();
     const save = store.getState().saveSelectedNote();
-    store.getState().updateDraftMarkdown("# Home\nNewer edit");
+    publishSourceMarkdown(store, "# Home\nNewer edit");
     await store.getState().flushPendingDraft();
     saveResponse.resolve({
       clusterIdentity: readyClusterIdentity,
@@ -93,9 +94,9 @@ describe("note browser store stale save failure hardening", () => {
       draftPersistence: drafts.persistence,
     });
 
-    store.getState().updateDraftMarkdown("# Home\nWill fail");
+    publishSourceMarkdown(store, "# Home\nWill fail");
     const save = store.getState().saveSelectedNote();
-    store.getState().updateDraftMarkdown("# Home\nStill typing");
+    publishSourceMarkdown(store, "# Home\nStill typing");
     await store.getState().flushPendingDraft();
     saveFailure.reject(new Error("Temporary save failure."));
     await save;
@@ -127,9 +128,9 @@ describe("note browser store stale save conflict hardening", () => {
       draftPersistence: drafts.persistence,
     });
 
-    store.getState().updateDraftMarkdown("# Home\nOld save body");
+    publishSourceMarkdown(store, "# Home\nOld save body");
     const save = store.getState().saveSelectedNote();
-    store.getState().updateDraftMarkdown("# Home\nNewest draft");
+    publishSourceMarkdown(store, "# Home\nNewest draft");
     saveConflict.reject(
       new WebApiError("Changed on disk.", {
         code: apiErrorCodes.noteWriteConflict,
@@ -212,7 +213,7 @@ describe("note browser store route application rollback", () => {
     await vi.waitFor(() => {
       expect(readNote).toHaveBeenCalledOnce();
     });
-    store.getState().updateDraftMarkdown("# Home\nEdit during navigation");
+    publishSourceMarkdown(store, "# Home\nEdit during navigation");
     await store.getState().flushPendingDraft();
     projectRead.resolve({
       clusterIdentity: readyClusterIdentity,

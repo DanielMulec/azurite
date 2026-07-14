@@ -11,6 +11,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   createSeededStore,
+  publishSourceMarkdown,
   readyClusterIdentity,
 } from "./note-browser-store-test-helpers.js";
 import { selectTestNote } from "./note-browser-route-test-helpers.js";
@@ -59,12 +60,12 @@ describe("save failure post-persistence ownership", () => {
         draftPersistence,
       });
 
-      store.getState().updateDraftMarkdown("# Save snapshot");
+      publishSourceMarkdown(store, "# Save snapshot");
       const save = store.getState().saveSelectedNote();
-      store.getState().updateDraftMarkdown("# Edit before persistence");
+      publishSourceMarkdown(store, "# Edit before persistence");
       saveResult.reject(error);
       await writeStarted.promise;
-      store.getState().updateDraftMarkdown("# Edit during persistence");
+      publishSourceMarkdown(store, "# Edit during persistence");
       releaseWrite.resolve(undefined);
       await save;
 
@@ -136,7 +137,7 @@ describe("save result editor-session ownership", () => {
       });
 
       await selectTestNote(store, "index.md");
-      store.getState().updateDraftMarkdown("# Saved snapshot");
+      publishSourceMarkdown(store, "# Saved snapshot");
       const originalSession = getReadySession(store.getState().noteState);
       const save = store.getState().saveSelectedNote();
       await selectTestNote(store, "Projects/azurite.md");

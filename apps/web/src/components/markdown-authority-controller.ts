@@ -2,26 +2,20 @@ import type {
   CommitCause,
   CommitResult,
   PublicationCommand,
-  PublicationResult,
   PublicationTrigger,
   SynchronizationResult,
 } from "../domain/markdown-authority-types.js";
-import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+import type { EditorSession } from "../state/note-browser-types.js";
 import {
-  createControllerCommitNoChange,
   createCreationCheckpoint,
-  createRetryReversion,
   createSourceCandidate,
-  getAcceptedAuthorityPatch,
+  getAcceptedProjection,
   getCheckpointProjection,
-  getImmediateCommitResult,
   getWysiwygIgnoreReason,
   isCommitProjectionCurrent,
-  isControllerUnavailable,
   publishRetryCandidate,
   readAuthorityProjection,
   resolveProjectionCandidate,
-  toProjectionCommitResult,
   type AuthorityCheckpoint,
   type AuthorityRetryCandidate,
 } from "./markdown-authority-decisions.js";
@@ -30,44 +24,33 @@ import type {
   AuthorityControllerInput,
   MarkdownAuthorityState,
 } from "./markdown-authority-controller-types.js";
-import { MarkdownAuthorityStateOwner } from "./markdown-authority-state-owner.js";
 import {
   callAuthorityPublication,
-  createCommitFailure,
   createSynchronizationFailure,
-  createSynchronizationNoChange,
-  createSynchronizationSuccess,
   toPublicationTrigger,
 } from "./markdown-authority-results.js";
+import { MarkdownAuthorityStateOwner } from "./markdown-authority-state-owner.js";
 
 /**
- * Owns exact Markdown authority versus Crepe's serialized projection.
- * It contains no React, route, persistence, or editor implementation state.
+ * Adapts exact Zustand editor authority to Crepe projection checkpoints.
+ * Accepted live content is always read synchronously from the current session.
  */
 export class MarkdownAuthorityController {
   readonly #input: AuthorityControllerInput;
   readonly #state: MarkdownAuthorityStateOwner;
-  #acknowledgedAuthority: string;
   #acknowledgedProjection: string | undefined;
   #checkpoint: AuthorityCheckpoint | undefined;
-  #disposition: DraftDisposition;
-  #frozen = false;
   #isPublishing = false;
   #isSynchronizing = false;
   #retry: AuthorityRetryCandidate | undefined;
-  #revision: number;
 
   constructor(input: AuthorityControllerInput) {
     this.#input = input;
-    this.#acknowledgedAuthority = input.initialMarkdown;
-    this.#disposition = input.initialDisposition;
-    this.#revision = input.initialRevision;
     this.#state = new MarkdownAuthorityStateOwner({
       editorError: undefined,
       hasPublicationRetry: false,
       lifecycle: "creating",
-      mode: input.initialMode,
-      sourceMarkdown: input.initialMarkdown,
+      rejectedMarkdown: undefined,
     });
   }
 
@@ -76,21 +59,21 @@ export class MarkdownAuthorityController {
     return this.#input.sessionKey;
   }
 
-  /** Returns the current immutable render snapshot. */
+  /** Returns the current immutable adapter view snapshot. */
   getSnapshot = (): MarkdownAuthorityState => this.#state.getSnapshot();
 
-  /** Subscribes React or tests to local controller state. */
+  /** Subscribes React or tests to local adapter state. */
   subscribe = (listener: () => void): (() => void) =>
     this.#state.subscribe(listener);
 
   /** Completes Crepe creation without publishing its serialized projection. */
-  markReady(): SynchronizationResult {
+  markReady(creationMarkdown: string): SynchronizationResult {
     if (this.#state.current.lifecycle !== "creating") {
-      return createSynchronizationFailure(
-        "creation",
-        "stale_session",
-        this.sessionKey,
-      );
+      return createSynchronizationFailure("creation", "stale_session");
+    }
+    const session = this.#readSession();
+    if (session === undefined) {
+      return createSynchronizationFailure("creation", "stale_session");
     }
     const projectionRead = readAuthorityProjection(
       this.#input.readProjection,
@@ -99,59 +82,39 @@ export class MarkdownAuthorityController {
         return createSynchronizationFailure(
           "creation",
           "projection_read_failed",
-          this.sessionKey,
         );
       },
     );
     if (projectionRead.status === "failed") {
       return projectionRead.result;
     }
-    const projection = projectionRead.projection;
     this.#checkpoint = createCreationCheckpoint(
       {
-        acknowledgedAuthority: this.#acknowledgedAuthority,
-        initialMarkdown: this.#input.initialMarkdown,
-        mode: this.#state.current.mode,
+        creationMarkdown,
+        currentMarkdown: session.currentMarkdown,
+        mode: session.editorMode,
       },
-      projection,
+      projectionRead.projection,
     );
     this.#acknowledgedProjection = getCheckpointProjection(this.#checkpoint);
     this.#state.clearAvailability({ lifecycle: "ready" });
-    return createSynchronizationSuccess({
-      cause: "creation",
-      exactAuthority: this.#acknowledgedAuthority,
-      projection,
-      sessionKey: this.sessionKey,
-    });
+    return { cause: "creation", status: "synchronized" };
   }
 
   /** Falls back to exact editable source without inventing a content change. */
   markFailed(message: string): void {
-    if (this.#state.current.lifecycle === "destroyed") {
+    const session = this.#readSession();
+    if (session === undefined) {
       return;
     }
-    this.#state.setAvailabilityFailure(message, {
-      lifecycle: "failed",
-      mode: "markdown",
-    });
-    this.#input.onModeChange("markdown");
-  }
-
-  /** Permanently rejects late work from this instance generation. */
-  destroy(): void {
-    this.#frozen = true;
-    this.#patch({ lifecycle: "destroyed" });
-    this.#state.clearListeners();
-  }
-
-  /** Prevents accepted changes while a destructive handoff owns the surface. */
-  setFrozen(frozen: boolean): void {
-    this.#frozen = frozen;
+    this.#state.setAvailabilityFailure(message, { lifecycle: "failed" });
+    if (session.editorMode !== "markdown") {
+      this.#input.onModeChange("markdown");
+    }
   }
 
   /** Accepts exact textarea input before any editor serialization boundary. */
   publishSource(markdown: string): AcceptedChangeResult {
-    this.#patch({ sourceMarkdown: markdown });
     return this.#publishCandidate(
       createSourceCandidate(markdown),
       "direct_input",
@@ -163,20 +126,23 @@ export class MarkdownAuthorityController {
     markdown: string,
     trigger: PublicationTrigger = "listener",
   ): AcceptedChangeResult {
+    const session = this.#readSession();
+    if (session === undefined) {
+      return { reason: "lifecycle", status: "ignored" };
+    }
     const reason = getWysiwygIgnoreReason({
-      frozen: this.#frozen,
+      frozen: this.#input.isSessionFrozen(this.sessionKey),
       isPublishing: this.#isPublishing,
       isSynchronizing: this.#isSynchronizing,
       lifecycle: this.#state.current.lifecycle,
-      mode: this.#state.current.mode,
+      mode: session.editorMode,
     });
-    if (reason !== undefined) {
-      return { reason, status: "ignored" };
-    }
-    return this.#publishCandidate(
-      resolveProjectionCandidate(markdown, this.#checkpoint),
-      trigger,
-    );
+    return reason === undefined
+      ? this.#publishCandidate(
+          resolveProjectionCandidate(markdown, this.#checkpoint),
+          trigger,
+        )
+      : { reason, status: "ignored" };
   }
 
   /** Retries the exact unacknowledged visible value without another edit. */
@@ -186,22 +152,24 @@ export class MarkdownAuthorityController {
     );
   }
 
-  /** Commits a live rich projection before a same-session or route action. */
+  /** Retains the live rich projection before a same-session or route action. */
   commit(cause: CommitCause): CommitResult {
-    const immediate = getImmediateCommitResult({
-      cause,
-      lifecycle: this.#state.current.lifecycle,
-      mode: this.#state.current.mode,
-      revision: this.#revision,
-      sessionKey: this.sessionKey,
-    });
-    if (immediate !== undefined) {
-      return immediate;
+    const session = this.#readAvailableSession();
+    if (session === undefined) {
+      return { reason: "stale_session", status: "block" };
+    }
+    if (
+      session.editorMode === "markdown" ||
+      this.#state.current.lifecycle !== "ready"
+    ) {
+      return { status: "proceed" };
     }
     const projectionRead = readAuthorityProjection(
       this.#input.readProjection,
-      () =>
-        createCommitFailure(cause, "projection_read_failed", this.sessionKey),
+      (): CommitResult => ({
+        reason: "projection_read_failed",
+        status: "block",
+      }),
     );
     return projectionRead.status === "failed"
       ? projectionRead.result
@@ -216,76 +184,76 @@ export class MarkdownAuthorityController {
         projection,
       })
     ) {
-      return createControllerCommitNoChange(
-        {
-          cause,
-          revision: this.#revision,
-          sessionKey: this.sessionKey,
-        },
-        "projection_unchanged",
-      );
+      return { status: "proceed" };
     }
     const change = this.publishWysiwyg(projection, toPublicationTrigger(cause));
-    return toProjectionCommitResult(cause, this.sessionKey, change);
+    if (change.status === "accepted") {
+      return { status: "proceed" };
+    }
+    return change.status === "rejected"
+      ? { reason: change.reason, status: "block" }
+      : { reason: "stale_session", status: "block" };
   }
 
   /** Commits WYSIWYG and activates exact source only when that commit succeeds. */
   showSource(): CommitResult {
-    if (this.#state.current.mode === "markdown") {
-      return createControllerCommitNoChange(
-        {
-          cause: "mode_switch",
-          revision: this.#revision,
-          sessionKey: this.sessionKey,
-        },
-        "source_authority_current",
-      );
+    const session = this.#readAvailableSession();
+    if (session === undefined) {
+      return { reason: "stale_session", status: "block" };
+    }
+    if (session.editorMode === "markdown") {
+      return { status: "proceed" };
     }
     const commit = this.commit("mode_switch");
-    if (commit.status === "failed") {
+    if (commit.status === "block") {
       return commit;
     }
-    this.#patch({
-      mode: "markdown",
-      sourceMarkdown: this.#acknowledgedAuthority,
-    });
+    if (this.#readAvailableSession() === undefined) {
+      return { reason: "stale_session", status: "block" };
+    }
     this.#input.onModeChange("markdown");
     return commit;
   }
 
   /** Synchronizes exact source into ready Crepe before revealing WYSIWYG. */
   showWysiwyg(): SynchronizationResult {
-    if (this.#state.current.mode === "wysiwyg") {
-      return createSynchronizationNoChange(this.sessionKey);
+    const session = this.#readAvailableSession();
+    if (session === undefined) {
+      return createSynchronizationFailure("source_to_wysiwyg", "stale_session");
+    }
+    if (session.editorMode === "wysiwyg") {
+      return { cause: "same_mode", status: "no_change" };
     }
     if (this.#state.current.lifecycle !== "ready") {
       return createSynchronizationFailure(
         "source_to_wysiwyg",
         "editor_not_ready",
-        this.sessionKey,
       );
     }
-    return this.#synchronizeSourceToWysiwyg();
+    return this.#synchronizeSourceToWysiwyg(session.currentMarkdown);
   }
 
-  #synchronizeSourceToWysiwyg(): SynchronizationResult {
+  #synchronizeSourceToWysiwyg(authority: string): SynchronizationResult {
     this.#isSynchronizing = true;
     try {
-      this.#input.replaceProjection(this.#acknowledgedAuthority);
+      this.#input.replaceProjection(authority);
       const projection = this.#input.readProjection();
-      this.#checkpoint = {
-        exactAuthority: this.#acknowledgedAuthority,
-        projection,
-      };
+      const session = this.#readAvailableSession();
+      if (
+        session === undefined ||
+        session.editorMode !== "markdown" ||
+        session.currentMarkdown !== authority
+      ) {
+        return createSynchronizationFailure(
+          "source_to_wysiwyg",
+          "stale_session",
+        );
+      }
+      this.#checkpoint = { exactAuthority: authority, projection };
       this.#acknowledgedProjection = projection;
-      this.#state.clearAvailability({ mode: "wysiwyg" });
+      this.#state.clearAvailability({});
       this.#input.onModeChange("wysiwyg");
-      return createSynchronizationSuccess({
-        cause: "source_to_wysiwyg",
-        exactAuthority: this.#acknowledgedAuthority,
-        projection,
-        sessionKey: this.sessionKey,
-      });
+      return { cause: "source_to_wysiwyg", status: "synchronized" };
     } catch {
       this.#state.setAvailabilityFailure(
         "The rich editor could not apply the Markdown source.",
@@ -293,7 +261,6 @@ export class MarkdownAuthorityController {
       return createSynchronizationFailure(
         "source_to_wysiwyg",
         "document_replace_failed",
-        this.sessionKey,
       );
     } finally {
       this.#isSynchronizing = false;
@@ -304,30 +271,17 @@ export class MarkdownAuthorityController {
     candidate: AuthorityRetryCandidate,
     trigger: PublicationTrigger,
   ): AcceptedChangeResult {
-    if (isControllerUnavailable(this.#frozen, this.#state.current.lifecycle)) {
+    const session = this.#readAvailableSession();
+    if (session === undefined) {
       return { reason: "lifecycle", status: "ignored" };
     }
-    const reverted = createRetryReversion({
-      acknowledgedAuthority: this.#acknowledgedAuthority,
-      candidate,
-      disposition: this.#disposition,
-      retry: this.#retry,
-      revision: this.#revision,
-      sessionKey: this.sessionKey,
-      trigger,
-    });
-    if (reverted !== undefined) {
-      this.#retry = undefined;
-      this.#state.settlePublication({ hasPublicationRetry: false });
-      return reverted;
+    if (
+      this.#retry !== undefined &&
+      candidate.markdown === session.currentMarkdown
+    ) {
+      this.#acceptCandidate(candidate);
+      return { status: "accepted" };
     }
-    return this.#publishPreparedCandidate(candidate, trigger);
-  }
-
-  #publishPreparedCandidate(
-    candidate: AuthorityRetryCandidate,
-    trigger: PublicationTrigger,
-  ): AcceptedChangeResult {
     const command: PublicationCommand = {
       markdown: candidate.markdown,
       origin: candidate.origin,
@@ -336,56 +290,41 @@ export class MarkdownAuthorityController {
       trigger,
     };
     this.#isPublishing = true;
-    const publication = callAuthorityPublication({
-      command,
-      disposition: this.#disposition,
-      publish: this.#input.publish,
-      revision: this.#revision,
-      sessionKey: this.sessionKey,
-    });
+    const publication = callAuthorityPublication(command, this.#input.publish);
     this.#isPublishing = false;
-    this.#settlePublishedCandidate(candidate, publication);
-    return { markdown: candidate.markdown, publication, status: "processed" };
-  }
-
-  #settlePublishedCandidate(
-    candidate: AuthorityRetryCandidate,
-    publication: PublicationResult,
-  ): void {
     if (publication.status === "rejected") {
       this.#retry = candidate;
-      this.#patch({
+      this.#state.patch({
         editorError: "The latest editor change has not been acknowledged.",
         hasPublicationRetry: true,
+        rejectedMarkdown: candidate.markdown,
       });
-      return;
+      return publication;
     }
-    this.#acceptPublication(candidate, publication);
+    this.#acceptCandidate(candidate);
+    return publication;
   }
 
-  #acceptPublication(
-    candidate: AuthorityRetryCandidate,
-    publication: Exclude<PublicationResult, { status: "rejected" }>,
-  ): void {
-    const accepted = getAcceptedAuthorityPatch(
-      candidate,
-      publication,
-      this.#checkpoint,
-    );
-    this.#acknowledgedAuthority = accepted.authority;
-    if (accepted.projection !== undefined) {
-      this.#acknowledgedProjection = accepted.projection;
+  #acceptCandidate(candidate: AuthorityRetryCandidate): void {
+    const projection = getAcceptedProjection(candidate, this.#checkpoint);
+    if (projection !== undefined) {
+      this.#acknowledgedProjection = projection;
     }
-    this.#revision = accepted.revision;
-    this.#disposition = accepted.disposition;
     this.#retry = undefined;
     this.#state.settlePublication({
       hasPublicationRetry: false,
-      sourceMarkdown: candidate.markdown,
+      rejectedMarkdown: undefined,
     });
   }
 
-  #patch(patch: Partial<MarkdownAuthorityState>): void {
-    this.#state.patch(patch);
+  #readSession(): EditorSession | undefined {
+    const session = this.#input.readSession(this.sessionKey);
+    return session?.sessionKey === this.sessionKey ? session : undefined;
+  }
+
+  #readAvailableSession(): EditorSession | undefined {
+    return this.#input.isSessionFrozen(this.sessionKey)
+      ? undefined
+      : this.#readSession();
   }
 }

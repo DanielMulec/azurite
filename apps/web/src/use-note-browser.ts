@@ -17,6 +17,7 @@ import {
 } from "./state/note-browser-store.js";
 import type {
   DraftRecoveryStatus,
+  EditorSessionReader,
   LoadableNotes,
   NoteViewState,
 } from "./state/note-browser-types.js";
@@ -45,13 +46,13 @@ export type NoteBrowserState = {
   readonly publishMarkdownChange: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly readEditorSession: EditorSessionReader;
   readonly retryBrowserRecovery: () => Promise<unknown>;
   readonly retryDraftCleanup: () => Promise<void>;
   readonly retryDraftPersistence: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
-  readonly updateDraftMarkdown: (markdown: string) => void;
   readonly updateEditorMode: (editorMode: "markdown" | "wysiwyg") => void;
 };
 
@@ -62,6 +63,15 @@ export function useNoteBrowser(
 ): NoteBrowserState {
   const [store] = useState(createNoteBrowserStore);
   const [editorSessionGate] = useState(() => createEditorSessionGate(store));
+  const [readEditorSession] = useState<EditorSessionReader>(
+    () => (sessionKey: string) => {
+      const noteState = store.getState().noteState;
+      return noteState.status === "ready" &&
+        noteState.editor.sessionKey === sessionKey
+        ? noteState.editor
+        : undefined;
+    },
+  );
   useRouteRuntimeRegistration({
     createRouteGate,
     editorSessionGate,
@@ -77,7 +87,7 @@ export function useNoteBrowser(
     [transitionOwner],
   );
 
-  return { ...state, editorSessionGate, selectNote };
+  return { ...state, editorSessionGate, readEditorSession, selectNote };
 }
 
 function useRouteRuntimeRegistration(input: {
@@ -127,7 +137,6 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
     ),
     saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
     selectedNoteId: useStore(store, (state) => state.selectedNoteId),
-    updateDraftMarkdown: useStore(store, (state) => state.updateDraftMarkdown),
     updateEditorMode: useStore(store, (state) => state.updateEditorMode),
   };
 }

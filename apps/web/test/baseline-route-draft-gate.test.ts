@@ -9,6 +9,7 @@ import {
   createDeferred,
   createLoadedStore,
   createMemoryDraftPersistence,
+  publishSourceMarkdown,
 } from "./note-browser-store-test-helpers.js";
 
 afterEach(() => {
@@ -25,13 +26,13 @@ describe("baseline route draft gate ownership", () => {
       .mockResolvedValue({ status: "written" });
     const store = createGateStore(writeDraft);
     const gate = createBaselineRouteDraftGate(store);
-    store.getState().updateDraftMarkdown("# First edit");
+    publishSourceMarkdown(store, "# First edit");
 
     const first = gate.prepare(createInput("lease-one"));
     await vi.waitFor(() => {
       expect(writeDraft).toHaveBeenCalledOnce();
     });
-    store.getState().updateDraftMarkdown("# Later edit");
+    publishSourceMarkdown(store, "# Later edit");
     const second = gate.prepare(createInput("lease-two"));
     expect(writeDraft).toHaveBeenCalledOnce();
     firstWrite.resolve({ status: "written" });
@@ -51,7 +52,7 @@ describe("baseline route draft gate degradation", () => {
       Promise.resolve({ reason: "quota_exceeded", status: "unavailable" }),
     );
     const store = createGateStore(writeDraft);
-    store.getState().updateDraftMarkdown("# Quota pressure");
+    publishSourceMarkdown(store, "# Quota pressure");
 
     await expect(
       createBaselineRouteDraftGate(store).prepare(createInput("lease")),
@@ -78,7 +79,7 @@ describe("baseline route draft gate degradation", () => {
       }
     });
     const gate = createBaselineRouteDraftGate(store);
-    store.getState().updateDraftMarkdown("# Failed attempt");
+    publishSourceMarkdown(store, "# Failed attempt");
 
     await expect(gate.prepare(createInput("lease-one"))).resolves.toEqual({
       status: "continue",
@@ -87,7 +88,7 @@ describe("baseline route draft gate degradation", () => {
       failure: { reason: "queue_task_failed", source: "coordinator" },
     });
     unsubscribe();
-    store.getState().updateDraftMarkdown("# Retry attempt");
+    publishSourceMarkdown(store, "# Retry attempt");
     await expect(gate.prepare(createInput("lease-two"))).resolves.toEqual({
       status: "continue",
     });

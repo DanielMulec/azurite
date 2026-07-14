@@ -39,25 +39,7 @@ export function createTestEditorSessionGate(): EditorSessionGate {
 
 /** Creates a publisher that acknowledges exact component-test changes. */
 export function createAcknowledgingPublisher(): (
-  command: PublicationCommand,
+  _command: PublicationCommand,
 ) => PublicationResult {
-  let revision = 0;
-  return (command) => {
-    revision += 1;
-    return {
-      completion: "normal",
-      disposition: "generated_pending",
-      editorMode: "wysiwyg",
-      markdown: command.markdown,
-      origin: command.origin,
-      persistenceIssue: undefined,
-      resolution: command.resolution,
-      revision,
-      sessionKey: command.sessionKey,
-      snapshotKey: `${command.sessionKey}:${String(revision)}`,
-      stateEffect: "revision_applied",
-      status: "acknowledged",
-      trigger: command.trigger,
-    };
-  };
+  return () => ({ status: "accepted" });
 }

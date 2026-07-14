@@ -16,9 +16,10 @@ truth.
 
 ## Current Sequence
 
-The StrictMode lifecycle-conformance foundation is completed. No slice is
-currently active. The post-StrictMode ownership-simplification proposal now
-precedes Slice 7E; both remain unimplemented and require explicit approval.
+The StrictMode lifecycle-conformance foundation and Task 3B editor-session
+authority consolidation are completed. The post-StrictMode simplification
+program remains the authoritative active document, but Tasks 3C–3E and Slice 7E
+remain unapproved and unimplemented.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -48,12 +49,10 @@ precedes Slice 7E; both remain unimplemented and require explicit approval.
    Azurite-owned router, editor-adapter, registration, persistence, and action
    lifecycles are generation-safe. Milkdown remains officially released and
    unmodified, with rejected-create private cleanup qualified explicitly.
-6. Proposed:
-   [Post-StrictMode Ownership Simplification](planned/post-strictmode-ownership-simplification.md).
-   Four serial implementation units consolidate editor authority, persistence
-   results, store workflow boundaries, and shared Sentry fail-open machinery.
-   The proposal is unpromoted and production work requires Daniel's explicit
-   approval.
+6. Active program; Task 3B completed:
+   [Post-StrictMode Ownership Simplification](active/post-strictmode-ownership-simplification.md).
+   Task 3B consolidated editor-session authority. The later persistence,
+   workflow-boundary, and Sentry units remain separate unapproved checkpoints.
 7. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle
    prerequisite is complete, but it remains unimplemented and cannot be
    refreshed or promoted until all four selected ownership-simplification units

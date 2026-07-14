@@ -8,6 +8,7 @@ import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { DraftRetryAction } from "../persistence/draft-workflow-types.js";
 import { canSaveEditor } from "../state/note-browser-action-utils.js";
 import type { EditorSession } from "../state/note-browser-types.js";
+import type { EditorSessionReader } from "../state/note-browser-types.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
 import { MilkdownEditor } from "./MilkdownEditor.js";
 
@@ -22,6 +23,7 @@ type SaveableNoteEditorProps = {
   readonly onRetryDraftCleanup: () => Promise<void>;
   readonly onRetryDraftPersistence: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
+  readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
 };
 
@@ -35,6 +37,7 @@ export function SaveableNoteEditor({
   onRetryDraftCleanup,
   onRetryDraftPersistence,
   onSaveNote,
+  readEditorSession,
   sessionGate,
 }: SaveableNoteEditorProps): ReactElement {
   const isDirty = hasMarkdownDifference(
@@ -50,7 +53,7 @@ export function SaveableNoteEditor({
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
         onSave={async () => {
           const commit = sessionGate.commitCurrent("manual_save");
-          if (commit?.status !== "failed") {
+          if (commit?.status !== "block") {
             await onSaveNote();
           }
         }}
@@ -60,16 +63,11 @@ export function SaveableNoteEditor({
         sessionGate={sessionGate}
       />
       <MilkdownEditor
-        initialDisposition={editor.draftDisposition}
-        initialMarkdown={editor.currentMarkdown}
-        initialMode={editor.editorMode}
-        initialRevision={editor.revision}
-        noteId={editor.note.id}
+        editor={editor}
         onEditorModeChange={onEditorModeChange}
         onPublishMarkdown={onPublishMarkdown}
+        readEditorSession={readEditorSession}
         sessionGate={sessionGate}
-        sessionKey={editor.sessionKey}
-        title={editor.note.title}
       />
     </>
   );

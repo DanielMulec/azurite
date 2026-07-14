@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed from the documentation-only Task 3A analysis at commit
-`2812920ac5a299cc1df3cfeeb4a13f744114f54b`. No production implementation is
-approved or active. Daniel must approve production implementation of the
-sequential units; Slice 7E remains planned, unrefreshed, unpromoted, and
-unimplemented until all four selected units below are complete, unless Daniel
+Active. Daniel accepted the documentation-only Task 3A analysis at commit
+`9bb787889ad6cad4e4d55ae02ed7c0397dce494f` and authorized Task 3B, the first
+implementation unit, on 2026-07-14. Task 3B is complete with authoritative
+evidence in `docs/qa/post-strictmode-editor-session-authority.md`. Tasks 3C–3E
+remain unapproved; Slice 7E remains planned, unrefreshed, unpromoted, and
+unimplemented until the selected units below are complete unless Daniel
 explicitly reselects this proposal's scope.
 
 Follow the bounded-review and concise-document rules in
@@ -58,7 +59,7 @@ Physical envelopes overlap and must not be summed:
 
 | Seam               |                                                                   Current physical production envelope | Verified vocabulary and caller evidence                                                                                                                                                                                 |
 | ------------------ | -----------------------------------------------------------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor session     | 4,274 lines: store/contracts 1,204; controller family 935; Crepe/hook 532; gate 569; React chain 1,034 | 15-field `EditorSession`; four mirrored controller fields; publication 3 statuses/6 reasons; synchronization 3 statuses/5 causes/4 failure reasons; commit 4 variants/3 statuses/6 reasons; gate preparation 5 variants |
+| Editor session     | 4,274 lines: store/contracts 1,204; controller family 935; Crepe/hook 532; gate 569; React chain 1,034 | 14-field `EditorSession`; four mirrored controller fields; publication 3 statuses/6 reasons; synchronization 3 statuses/5 causes/4 failure reasons; commit 4 variants/3 statuses/6 reasons; gate preparation 5 variants |
 | Persistence ladder |      6,859 lines across 34 files: storage/coordinator 1,532; Zustand translations 3,813; gate/UI 1,514 | 12 result families, 55 union members, 22 status literals, 18 failure/rejection reasons, 8 dispositions, 6 operations, and 4 retry actions                                                                               |
 | Store engine       |               4,925 lines across the 20 `StoreContext` consumers; 5,723 lines in the full state folder | 26 injected context members, only 24 consumed; 120 `context.*` calls; Zustand exposes 16 actions plus 7 state fields                                                                                                    |
 | Sentry fail-open   |                            900 lines: shared runtime contract 287, web adapter 299, server adapter 314 | Web/server adapter diff changes only 22/37 lines; both implement the same record, capture, scope, attribute, error-context, and span decisions                                                                          |

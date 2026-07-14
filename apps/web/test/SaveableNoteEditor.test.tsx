@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SaveableNoteEditor } from "../src/components/SaveableNoteEditor.js";
+import type { EditorSessionGate } from "../src/components/editor-session-gate.js";
 import type { PublicationCommand } from "../src/domain/markdown-authority-types.js";
 import type { EditorSession } from "../src/state/note-browser-types.js";
 import {
@@ -15,26 +16,24 @@ import { markdownEqualityCases } from "./markdown-fidelity-cases.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
   MilkdownEditor: ({
-    initialMarkdown,
-    initialMode,
+    editor,
     onEditorModeChange,
     onPublishMarkdown,
   }: {
-    readonly initialMarkdown: string;
-    readonly initialMode: "markdown" | "wysiwyg";
+    readonly editor: EditorSession;
     readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
     readonly onPublishMarkdown?: (command: PublicationCommand) => unknown;
   }) => (
     <div data-testid="milkdown-editor">
-      <p>Mode: {initialMode}</p>
-      <pre>{initialMarkdown}</pre>
+      <p>Mode: {editor.editorMode}</p>
+      <pre>{editor.currentMarkdown}</pre>
       <button
         onClick={() => {
           onPublishMarkdown?.({
-            markdown: `${initialMarkdown}\nDraft edit`,
+            markdown: `${editor.currentMarkdown}\nDraft edit`,
             origin: "source_input",
             resolution: "exact_input",
-            sessionKey: "test-session",
+            sessionKey: editor.sessionKey,
             trigger: "direct_input",
           });
         }}
@@ -65,6 +64,7 @@ type RenderEditorOptions = {
   readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
   readonly onMarkdownChange?: (markdown: string) => void;
   readonly onSaveNote?: () => Promise<void>;
+  readonly sessionGate?: EditorSessionGate;
 };
 
 describe("SaveableNoteEditor save state", () => {
@@ -91,6 +91,21 @@ describe("SaveableNoteEditor save state", () => {
 
     expect(onSaveNote).toHaveBeenCalledTimes(1);
     expect(onMarkdownChange).toHaveBeenCalledWith("# Home\nDraft\nDraft edit");
+  });
+
+  it("blocks save when the visible editor publication is still rejected", () => {
+    const editor = createEditor({ currentMarkdown: "# Visible rejected edit" });
+    const onSaveNote = vi.fn(() => Promise.resolve());
+    const sessionGate = createTestEditorSessionGate();
+    sessionGate.registerController({
+      commit: () => ({ reason: "state_update_failed", status: "block" }),
+      sessionKey: editor.sessionKey,
+    });
+
+    renderEditor({ editor, onSaveNote, sessionGate });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSaveNote).not.toHaveBeenCalled();
   });
 
   it("normalizes CRLF and LF before deciding the note is dirty", () => {
@@ -171,9 +186,11 @@ describe("SaveableNoteEditor recovery state", () => {
 });
 
 function renderEditor(options: RenderEditorOptions = {}): void {
+  const editor = getEditor(options);
+
   render(
     <SaveableNoteEditor
-      editor={getEditor(options)}
+      editor={editor}
       onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
       onEditorModeChange={getEditorModeAction(options)}
       onPublishMarkdown={getPublisher(options)}
@@ -181,7 +198,10 @@ function renderEditor(options: RenderEditorOptions = {}): void {
       onRetryDraftCleanup={() => Promise.resolve()}
       onRetryDraftPersistence={() => Promise.resolve()}
       onSaveNote={getSaveAction(options)}
-      sessionGate={createTestEditorSessionGate()}
+      readEditorSession={(sessionKey) =>
+        sessionKey === editor.sessionKey ? editor : undefined
+      }
+      sessionGate={options.sessionGate ?? createTestEditorSessionGate()}
     />,
   );
 }

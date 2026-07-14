@@ -93,7 +93,6 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly retryDraftPersistence: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly reportHistoryUnavailable: RouteStoreExecutor["reportHistoryUnavailable"];
-  readonly updateDraftMarkdown: (markdown: string) => void;
   readonly updateEditorMode: (editorMode: EditorMode) => void;
 };
 

@@ -1,23 +1,12 @@
 import type {
   AuthorityResolution,
   ChangeOrigin,
-  CommitCause,
-  CommitResult,
-  PublicationResult,
-  PublicationTrigger,
 } from "../domain/markdown-authority-types.js";
 import type { EditorMode } from "../persistence/draft-records.js";
-import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
 import type {
   AcceptedChangeResult,
   EditorLifecycle,
 } from "./markdown-authority-controller-types.js";
-import {
-  createCommitFailure,
-  createCommitNoChange,
-  createRetryReverted,
-  toCommitResult,
-} from "./markdown-authority-results.js";
 
 /** Exact source and matching rich-editor serialization at synchronization. */
 export type AuthorityCheckpoint = {
@@ -25,7 +14,7 @@ export type AuthorityCheckpoint = {
   readonly projection: string;
 };
 
-/** Visible change retained locally until publication is acknowledged. */
+/** Visible change retained locally until publication is accepted. */
 export type AuthorityRetryCandidate = {
   readonly markdown: string;
   readonly origin: ChangeOrigin;
@@ -64,29 +53,18 @@ export function readAuthorityProjection<Failure>(
   }
 }
 
-/** Returns whether readiness still represents the unedited initial document. */
-export function shouldInstallCreationCheckpoint(input: {
-  readonly acknowledgedAuthority: string;
-  readonly initialMarkdown: string;
-  readonly mode: EditorMode;
-}): boolean {
-  return (
-    input.mode === "wysiwyg" &&
-    input.acknowledgedAuthority === input.initialMarkdown
-  );
-}
-
-/** Creates the initial checkpoint only for the unchanged rich document. */
+/** Creates the initial checkpoint only while Crepe still projects its source. */
 export function createCreationCheckpoint(
   input: {
-    readonly acknowledgedAuthority: string;
-    readonly initialMarkdown: string;
+    readonly creationMarkdown: string;
+    readonly currentMarkdown: string;
     readonly mode: EditorMode;
   },
   projection: string,
 ): AuthorityCheckpoint | undefined {
-  return shouldInstallCreationCheckpoint(input)
-    ? { exactAuthority: input.acknowledgedAuthority, projection }
+  return input.mode === "wysiwyg" &&
+    input.currentMarkdown === input.creationMarkdown
+    ? { exactAuthority: input.currentMarkdown, projection }
     : undefined;
 }
 
@@ -95,60 +73,6 @@ export function getCheckpointProjection(
   checkpoint: AuthorityCheckpoint | undefined,
 ): string | undefined {
   return checkpoint?.projection;
-}
-
-/** Resolves commits that need no live Crepe projection read. */
-export function getImmediateCommitResult(input: {
-  readonly cause: CommitCause;
-  readonly lifecycle: EditorLifecycle;
-  readonly mode: EditorMode;
-  readonly revision: number;
-  readonly sessionKey: string;
-}): CommitResult | undefined {
-  if (input.lifecycle === "destroyed") {
-    return createCommitFailure(input.cause, "stale_session", input.sessionKey);
-  }
-  return getInactiveCommitResult(input);
-}
-
-function getInactiveCommitResult(input: {
-  readonly cause: CommitCause;
-  readonly lifecycle: EditorLifecycle;
-  readonly mode: EditorMode;
-  readonly revision: number;
-  readonly sessionKey: string;
-}): CommitResult | undefined {
-  if (input.mode === "markdown") {
-    return createControllerCommitNoChange(input, "source_authority_current");
-  }
-  if (input.lifecycle !== "ready") {
-    return createControllerCommitNoChange(input, "source_authority_current");
-  }
-  return undefined;
-}
-
-/** Creates a no-op commit from the controller's current exact-session state. */
-export function createControllerCommitNoChange(
-  input: {
-    readonly cause: CommitCause;
-    readonly revision: number;
-    readonly sessionKey: string;
-  },
-  reason: "projection_unchanged" | "source_authority_current",
-): CommitResult {
-  return createCommitNoChange({ ...input, reason });
-}
-
-/** Maps a live projection publication into its exact-session commit result. */
-export function toProjectionCommitResult(
-  cause: CommitCause,
-  sessionKey: string,
-  change: AcceptedChangeResult,
-): CommitResult {
-  if (change.status === "ignored") {
-    return createCommitFailure(cause, "stale_session", sessionKey);
-  }
-  return toCommitResult(cause, sessionKey, change.publication);
 }
 
 /** Classifies whether a Milkdown listener may publish into the current session. */
@@ -162,39 +86,23 @@ export function getWysiwygIgnoreReason(input: {
   if (input.lifecycle !== "ready") {
     return "lifecycle";
   }
-  return getActiveWysiwygIgnoreReason(input);
-}
-
-function getActiveWysiwygIgnoreReason(input: {
-  readonly frozen: boolean;
-  readonly isPublishing: boolean;
-  readonly isSynchronizing: boolean;
-  readonly mode: EditorMode;
-}): "inactive_mode" | "synchronization" | undefined {
   if (input.mode !== "wysiwyg") {
     return "inactive_mode";
   }
   if (input.frozen) {
     return "inactive_mode";
   }
-  return getSynchronizationIgnoreReason(input);
+  if (hasSynchronizationGuard(input)) {
+    return "synchronization";
+  }
+  return undefined;
 }
 
-function getSynchronizationIgnoreReason(input: {
+function hasSynchronizationGuard(input: {
   readonly isPublishing: boolean;
   readonly isSynchronizing: boolean;
-}): "synchronization" | undefined {
-  return input.isSynchronizing || input.isPublishing
-    ? "synchronization"
-    : undefined;
-}
-
-/** Returns whether a controller can no longer accept a visible candidate. */
-export function isControllerUnavailable(
-  frozen: boolean,
-  lifecycle: EditorLifecycle,
-): boolean {
-  return frozen || lifecycle === "destroyed";
+}): boolean {
+  return input.isSynchronizing || input.isPublishing;
 }
 
 /** Returns whether a live projection needs no publication work. */
@@ -224,7 +132,7 @@ export function resolveProjectionCandidate(
       };
 }
 
-/** Derives the acknowledged rich projection after a successful publication. */
+/** Derives the acknowledged rich projection after an accepted publication. */
 export function getAcceptedProjection(
   candidate: AuthorityRetryCandidate,
   checkpoint: AuthorityCheckpoint | undefined,
@@ -232,59 +140,7 @@ export function getAcceptedProjection(
   if (candidate.origin !== "wysiwyg_document") {
     return undefined;
   }
-  if (candidate.resolution === "checkpoint_restore") {
-    return getCheckpointProjection(checkpoint);
-  }
-  return candidate.markdown;
-}
-
-/** Creates the typed no-op when visible content cancels a rejected candidate. */
-export function createRetryReversion(input: {
-  readonly acknowledgedAuthority: string;
-  readonly candidate: AuthorityRetryCandidate;
-  readonly disposition: DraftDisposition;
-  readonly retry: AuthorityRetryCandidate | undefined;
-  readonly revision: number;
-  readonly sessionKey: string;
-  readonly trigger: PublicationTrigger;
-}): AcceptedChangeResult | undefined {
-  if (input.candidate.markdown !== input.acknowledgedAuthority) {
-    return undefined;
-  }
-  if (input.retry === undefined) {
-    return undefined;
-  }
-  return {
-    markdown: input.candidate.markdown,
-    publication: createRetryReverted({
-      disposition: input.disposition,
-      origin: input.candidate.origin,
-      revision: input.revision,
-      sessionKey: input.sessionKey,
-      trigger: input.trigger,
-    }),
-    status: "processed",
-  };
-}
-
-/** Product fields adopted after a non-rejected authority publication. */
-export type AcceptedAuthorityPatch = {
-  readonly authority: string;
-  readonly disposition: DraftDisposition;
-  readonly projection: string | undefined;
-  readonly revision: number;
-};
-
-/** Derives controller authority fields from an acknowledged or no-op result. */
-export function getAcceptedAuthorityPatch(
-  candidate: AuthorityRetryCandidate,
-  publication: Exclude<PublicationResult, { readonly status: "rejected" }>,
-  checkpoint: AuthorityCheckpoint | undefined,
-): AcceptedAuthorityPatch {
-  return {
-    authority: candidate.markdown,
-    disposition: publication.disposition,
-    projection: getAcceptedProjection(candidate, checkpoint),
-    revision: publication.revision,
-  };
+  return candidate.resolution === "checkpoint_restore"
+    ? getCheckpointProjection(checkpoint)
+    : candidate.markdown;
 }

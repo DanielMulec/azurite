@@ -12,42 +12,32 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AzuriteRouterProvider } from "../src/app-router.js";
+import type { EditorSession } from "../src/state/note-browser-types.js";
 
 vi.mock("../src/components/MilkdownEditor.js", async () => {
   const { useEffect } = await import("react");
   return {
     MilkdownEditor: (props: {
-      readonly initialMarkdown: string;
-      readonly noteId: string;
+      readonly editor: EditorSession;
       readonly sessionGate: {
         readonly registerController: (controller: {
           readonly commit: (cause: string) => unknown;
           readonly sessionKey: string;
-          readonly setFrozen: (frozen: boolean) => void;
         }) => () => void;
       };
-      readonly sessionKey: string;
-      readonly title: string;
     }) => {
       useEffect(
         () =>
           props.sessionGate.registerController({
-            commit: (cause) => ({
-              cause,
-              reason: "source_authority_current",
-              revision: 0,
-              sessionKey: props.sessionKey,
-              status: "no_change",
-            }),
-            sessionKey: props.sessionKey,
-            setFrozen: () => {},
+            commit: () => ({ status: "proceed" }),
+            sessionKey: props.editor.sessionKey,
           }),
-        [props.sessionGate, props.sessionKey],
+        [props.editor.sessionKey, props.sessionGate],
       );
       return (
-        <div data-testid="milkdown-editor" data-note-id={props.noteId}>
-          <p>Mock editor for {props.title}</p>
-          <pre>{props.initialMarkdown}</pre>
+        <div data-testid="milkdown-editor" data-note-id={props.editor.note.id}>
+          <p>Mock editor for {props.editor.note.title}</p>
+          <pre>{props.editor.currentMarkdown}</pre>
         </div>
       );
     },

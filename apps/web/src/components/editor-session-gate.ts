@@ -7,25 +7,23 @@ import type {
 import type { DurabilityResult } from "../persistence/draft-workflow-types.js";
 import type {
   RouteGatePrepareInput,
+  RouteGateResult,
   RouteGateSettlement,
 } from "../routing/route-transition-types.js";
 import type { NoteBrowserStore } from "../state/note-browser-contracts.js";
 import {
   createUnavailableQueueDurability,
   getFocusedElement,
-  mapEditorRouteResult,
   restoreFocus,
   retainedSurface,
 } from "./editor-session-gate-results.js";
 import type {
   EditorControllerCapability,
-  EditorGatePreparationResult,
   EditorSessionGate,
   EditorSessionGateSnapshot,
 } from "./editor-session-gate-types.js";
 export type {
   EditorControllerCapability,
-  EditorGatePreparationResult,
   EditorSessionGate,
   EditorSessionGateSnapshot,
 } from "./editor-session-gate-types.js";
@@ -36,10 +34,7 @@ type ActiveLease = {
   readonly sessionKey: string;
 };
 
-type SharedPreparation = Promise<{
-  readonly commit: Exclude<CommitResult, { status: "failed" }>;
-  readonly durability: DurabilityResult;
-}>;
+type SharedPreparation = Promise<DurabilityResult>;
 
 type ResolvedPreparationOwner =
   | {
@@ -47,14 +42,14 @@ type ResolvedPreparationOwner =
       readonly status: "ready";
     }
   | {
-      readonly result: EditorGatePreparationResult;
+      readonly result: RouteGateResult;
       readonly status: "resolved";
     };
 
 type AcquiredPreparation =
   | { readonly preparation: SharedPreparation; readonly status: "ready" }
   | {
-      readonly result: EditorGatePreparationResult;
+      readonly result: RouteGateResult;
       readonly status: "resolved";
     };
 
@@ -72,8 +67,7 @@ export function createEditorSessionGate(
     isSessionFrozen: (sessionKey) => runtime.isSessionFrozen(sessionKey),
     registerController: (controller) => runtime.registerController(controller),
     routeGate: {
-      prepare: async (input) =>
-        mapEditorRouteResult(await runtime.prepare(input)),
+      prepare: async (input) => await runtime.prepare(input),
       settle: (settlement) => {
         runtime.settle(settlement);
       },
@@ -127,7 +121,7 @@ class EditorSessionGateRuntime {
     cause: "pagehide" | "unmount" | "visibilitychange",
   ): Promise<void> {
     const commit = this.commitCurrent(cause);
-    if (commit?.status === "failed") {
+    if (commit?.status === "block") {
       return;
     }
     await this.#store.getState().flushPendingDraft(cause);
@@ -137,62 +131,46 @@ class EditorSessionGateRuntime {
     return this.#snapshot.frozenSessionKey === sessionKey;
   }
 
-  async prepare(
-    input: RouteGatePrepareInput,
-  ): Promise<EditorGatePreparationResult> {
+  async prepare(input: RouteGatePrepareInput): Promise<RouteGateResult> {
     const owner = this.#resolvePreparationOwner(input);
     if (owner.status === "resolved") {
       return owner.result;
     }
-    const acquired = this.#acquirePreparation(owner.controller, input.leaseKey);
+    const acquired = this.#acquirePreparation(owner.controller);
     if (acquired.status === "resolved") {
       return acquired.result;
     }
     this.#activateLease(input.leaseKey, owner.controller);
-    return await this.#resolvePreparation(
-      input.leaseKey,
-      owner.controller,
-      acquired.preparation,
-    );
+    return await this.#resolvePreparation(acquired.preparation);
   }
 
   #resolvePreparationOwner(
     input: RouteGatePrepareInput,
   ): ResolvedPreparationOwner {
     if (input.outgoingOwnerKey === undefined) {
-      return this.#noEditorOwner(input.leaseKey);
+      return this.#noEditorOwner();
     }
     if (this.#hasNoEditor()) {
-      return this.#noEditorOwner(input.leaseKey);
+      return this.#noEditorOwner();
     }
-    return this.#resolveControllerOwner(input.leaseKey, input.outgoingOwnerKey);
+    return this.#resolveControllerOwner(input.outgoingOwnerKey);
   }
 
-  #noEditorOwner(leaseKey: string): ResolvedPreparationOwner {
+  #noEditorOwner(): ResolvedPreparationOwner {
     return {
-      result: {
-        leaseKey,
-        reason: "no_editor_session",
-        sessionKey: undefined,
-        status: "continue",
-      },
+      result: { status: "continue" },
       status: "resolved",
     };
   }
 
-  #resolveControllerOwner(
-    leaseKey: string,
-    ownerKey: string,
-  ): ResolvedPreparationOwner {
+  #resolveControllerOwner(ownerKey: string): ResolvedPreparationOwner {
     const controller = this.#controllers.get(ownerKey);
     if (controller !== undefined) {
       return { controller, status: "ready" };
     }
     return {
       result: {
-        leaseKey,
-        reason: "owner_lost",
-        sessionKey: ownerKey,
+        reason: "outgoing_owner_lost",
         status: "cancel",
       },
       status: "resolved",
@@ -201,53 +179,37 @@ class EditorSessionGateRuntime {
 
   #acquirePreparation(
     controller: EditorControllerCapability,
-    leaseKey: string,
   ): AcquiredPreparation {
     const existing = this.#preparations.get(controller.sessionKey);
     if (existing !== undefined) {
       return { preparation: existing, status: "ready" };
     }
     const commit = controller.commit("route_transition");
-    if (commit.status === "failed") {
+    if (commit.status === "block") {
       return {
         result: {
-          commit,
-          leaseKey,
-          reason: "commit_failed",
-          sessionKey: controller.sessionKey,
+          reason: "prerequisite_failed",
           status: "cancel",
         },
         status: "resolved",
       };
     }
-    const preparation = this.#startPreparation(controller, commit);
+    const preparation = this.#startPreparation(controller);
     this.#preparations.set(controller.sessionKey, preparation);
     return { preparation, status: "ready" };
   }
 
   async #resolvePreparation(
-    leaseKey: string,
-    controller: EditorControllerCapability,
     preparation: SharedPreparation,
-  ): Promise<EditorGatePreparationResult> {
-    const result = await preparation;
-    if (result.durability.status === "unavailable") {
+  ): Promise<RouteGateResult> {
+    const durability = await preparation;
+    if (durability.status === "unavailable") {
       return {
-        commit: result.commit,
-        durability: result.durability,
-        leaseKey,
-        reason: "durability_unavailable",
-        sessionKey: controller.sessionKey,
+        reason: "prerequisite_unavailable",
         status: "cancel",
       };
     }
-    return {
-      commit: result.commit,
-      durability: result.durability,
-      leaseKey,
-      sessionKey: controller.sessionKey,
-      status: "continue",
-    };
+    return { status: "continue" };
   }
 
   settle(settlement: RouteGateSettlement): void {
@@ -279,7 +241,6 @@ class EditorSessionGateRuntime {
     if (this.#controllers.get(lease.sessionKey) !== lease.controller) {
       return;
     }
-    lease.controller.setFrozen(false);
     restoreFocus(lease.focusedElement);
   }
 
@@ -291,31 +252,23 @@ class EditorSessionGateRuntime {
     if (controller === undefined) {
       return;
     }
-    controller.setFrozen(true);
     this.#setSnapshot(sessionKey, "Discarding browser draft...");
     try {
       await action();
     } finally {
       if (this.#controllers.get(sessionKey) === controller) {
-        controller.setFrozen(false);
         this.#publishSnapshot();
       }
     }
   }
 
-  #startPreparation(
-    controller: EditorControllerCapability,
-    commit: Exclude<CommitResult, { status: "failed" }>,
-  ): SharedPreparation {
+  #startPreparation(controller: EditorControllerCapability): SharedPreparation {
     return this.#store
       .getState()
       .flushPendingDraft("route_transition")
       .then(
-        (durability) => ({ commit, durability }),
-        () => ({
-          commit,
-          durability: createUnavailableQueueDurability(controller, this.#store),
-        }),
+        (durability) => durability,
+        () => createUnavailableQueueDurability(controller, this.#store),
       );
   }
 
@@ -329,7 +282,6 @@ class EditorSessionGateRuntime {
       focusedElement,
       sessionKey: controller.sessionKey,
     });
-    controller.setFrozen(true);
     this.#setSnapshot(controller.sessionKey, "Opening note...");
   }
 

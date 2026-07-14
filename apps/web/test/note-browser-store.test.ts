@@ -12,6 +12,7 @@ import {
   createNote,
   createSeededStore,
   createTestDraft,
+  publishSourceMarkdown,
   readyClusterIdentity,
   toSummary,
   unavailableClusterIdentity,
@@ -72,7 +73,7 @@ describe("note browser store draft persistence", () => {
     const drafts = createMemoryDraftPersistence();
     const store = createLoadedStore({ draftPersistence: drafts.persistence });
 
-    store.getState().updateDraftMarkdown("# Home\nUnsaved");
+    publishSourceMarkdown(store, "# Home\nUnsaved");
     await store.getState().flushPendingDraft();
 
     expect(
@@ -91,7 +92,7 @@ describe("note browser store draft persistence", () => {
       draftPersistence: { ...drafts.persistence, writeDraft },
     });
 
-    store.getState().updateDraftMarkdown("# Exact unmount draft");
+    publishSourceMarkdown(store, "# Exact unmount draft");
     expect(vi.getTimerCount()).toBe(1);
 
     const flush = store.getState().flushPendingDraft("unmount");
@@ -125,7 +126,7 @@ describe("note browser store save handling", () => {
       draftPersistence: drafts.persistence,
     });
 
-    store.getState().updateDraftMarkdown("# Home\nSaved");
+    publishSourceMarkdown(store, "# Home\nSaved");
     await store.getState().flushPendingDraft();
     await store.getState().saveSelectedNote();
 
@@ -162,7 +163,7 @@ describe("note browser store conflict handling", () => {
       draftPersistence: drafts.persistence,
     });
 
-    store.getState().updateDraftMarkdown("# Home\nConflict draft");
+    publishSourceMarkdown(store, "# Home\nConflict draft");
     await store.getState().saveSelectedNote();
 
     expect(
@@ -246,7 +247,7 @@ describe("note browser store async guards", () => {
     const drafts = createMemoryDraftPersistence();
     const store = createLoadedStore({ draftPersistence: drafts.persistence });
 
-    store.getState().updateDraftMarkdown("# Home\nBefore switch");
+    publishSourceMarkdown(store, "# Home\nBefore switch");
     await selectTestNote(store, "Projects/azurite.md");
 
     expect(
@@ -318,7 +319,7 @@ describe("note browser store degraded recovery", () => {
     await loadTestRoute(store, "index.md", {
       replaceSelectedNote: vi.fn(),
     });
-    store.getState().updateDraftMarkdown("# Saved");
+    publishSourceMarkdown(store, "# Saved");
     await store.getState().saveSelectedNote();
 
     expect(api.saveNote).toHaveBeenCalledTimes(1);
@@ -350,7 +351,7 @@ describe("note browser store draft write degradation", () => {
       },
     });
 
-    store.getState().updateDraftMarkdown("# Home\nNo durable write");
+    publishSourceMarkdown(store, "# Home\nNo durable write");
     await store.getState().flushPendingDraft();
 
     expect(getReadyEditor(store).persistenceIssue).toMatchObject({

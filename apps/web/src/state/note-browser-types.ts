@@ -68,6 +68,11 @@ export type EditorSession = {
   readonly sessionKey: string;
 };
 
+/** Synchronous exact-key read of the current Zustand editor session. */
+export type EditorSessionReader = (
+  sessionKey: string,
+) => EditorSession | undefined;
+
 /** Recovered draft for a note that no longer exists on disk. */
 export type MissingNoteDraft = {
   readonly editorMode: EditorMode;

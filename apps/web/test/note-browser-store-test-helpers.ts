@@ -83,6 +83,24 @@ export function createSeededStore(options: SeededStoreOptions = {}) {
   return store;
 }
 
+/** Publishes exact source input through the real store command boundary. */
+export function publishSourceMarkdown(
+  store: ReturnType<typeof createNoteBrowserStore>,
+  markdown: string,
+) {
+  const state = store.getState();
+  if (state.noteState.status !== "ready") {
+    throw new Error("A ready editor is required to publish Markdown.");
+  }
+  return state.publishMarkdownChange({
+    markdown,
+    origin: "source_input",
+    resolution: "exact_input",
+    sessionKey: state.noteState.editor.sessionKey,
+    trigger: "direct_input",
+  });
+}
+
 export function createApi(patch: Partial<NoteBrowserApi> = {}): NoteBrowserApi {
   const home = createNote("index.md", "# Home", "sha256-home");
   const project = createNote(

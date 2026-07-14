@@ -7,6 +7,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   createTestDraft,
+  publishSourceMarkdown,
   readyClusterIdentity,
 } from "./note-browser-store-test-helpers.js";
 import { markdownEqualityCases } from "./markdown-fidelity-cases.js";
@@ -33,7 +34,7 @@ describe("store dirty, draft, and defensive Save decisions", () => {
         note: createNote("index.md", saved, "sha256-equality"),
       });
 
-      store.getState().updateDraftMarkdown(current);
+      publishSourceMarkdown(store, current);
       await store.getState().flushPendingDraft();
 
       expect(

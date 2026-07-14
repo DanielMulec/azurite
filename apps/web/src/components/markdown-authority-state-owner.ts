@@ -56,9 +56,4 @@ export class MarkdownAuthorityStateOwner {
   settlePublication(patch: Partial<MarkdownAuthorityState>): void {
     this.patch({ ...patch, editorError: this.#availabilityError });
   }
-
-  /** Releases subscribers after this controller generation is destroyed. */
-  clearListeners(): void {
-    this.#listeners.clear();
-  }
 }

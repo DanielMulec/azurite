@@ -1,9 +1,3 @@
-import type { EditorMode } from "../persistence/draft-records.js";
-import type {
-  DraftDisposition,
-  DraftPersistenceIssue,
-} from "../persistence/draft-workflow-types.js";
-
 /** Product origin of one accepted content change. */
 export type ChangeOrigin = "source_input" | "wysiwyg_document";
 
@@ -32,74 +26,38 @@ export type PublicationCommand = {
   readonly trigger: PublicationTrigger;
 };
 
-/** Typed acknowledgement of one exact-session authority command. */
+/** Precise reason why one exact-session publication was rejected. */
+export type PublicationRejectionReason =
+  | "closed_epoch"
+  | "snapshot_admission_failed"
+  | "stale_session"
+  | "state_update_failed";
+
+/** Caller decision for one exact-session authority command. */
 export type PublicationResult =
+  | { readonly status: "accepted" }
   | {
-      readonly completion: "normal" | "subscriber_threw_after_apply";
-      readonly disposition: DraftDisposition;
-      readonly editorMode: EditorMode;
-      readonly markdown: string;
-      readonly origin: ChangeOrigin;
-      readonly persistenceIssue: DraftPersistenceIssue | undefined;
-      readonly resolution: AuthorityResolution;
-      readonly revision: number;
-      readonly sessionKey: string;
-      readonly snapshotKey: string;
-      readonly stateEffect: "revision_applied";
-      readonly status: "acknowledged";
-      readonly trigger: PublicationTrigger;
-    }
-  | {
-      readonly disposition: DraftDisposition;
-      readonly origin: ChangeOrigin;
-      readonly reason: "authority_unchanged" | "retry_reverted";
-      readonly revision: number;
-      readonly sessionKey: string;
-      readonly stateEffect: "none";
-      readonly status: "no_change";
-      readonly trigger: PublicationTrigger;
-    }
-  | {
-      readonly attemptedMarkdown: string;
-      readonly attemptedRevision: number;
-      readonly disposition: DraftDisposition;
-      readonly origin: ChangeOrigin;
-      readonly reason:
-        | "closed_epoch"
-        | "snapshot_admission_failed"
-        | "stale_session"
-        | "state_update_failed";
-      readonly sessionKey: string;
-      readonly stateEffect: "none";
+      readonly reason: PublicationRejectionReason;
       readonly status: "rejected";
-      readonly trigger: PublicationTrigger;
     };
 
 /** Observable result of projecting authority into the rich editor. */
 export type SynchronizationResult =
   | {
-      readonly cause: "checkpoint_restore" | "creation" | "source_to_wysiwyg";
-      readonly exactAuthority: string;
-      readonly projection: string;
-      readonly sessionKey: string;
-      readonly stateEffect: "none";
+      readonly cause: "creation" | "source_to_wysiwyg";
       readonly status: "synchronized";
     }
   | {
-      readonly cause: "already_current" | "same_mode";
-      readonly sessionKey: string;
-      readonly stateEffect: "none";
+      readonly cause: "same_mode";
       readonly status: "no_change";
     }
   | {
-      readonly cause: "checkpoint_restore" | "creation" | "source_to_wysiwyg";
+      readonly cause: "creation" | "source_to_wysiwyg";
       readonly reason:
         | "document_replace_failed"
         | "editor_not_ready"
         | "projection_read_failed"
         | "stale_session";
-      readonly sessionKey: string;
-      readonly stateEffect: "none";
       readonly status: "failed";
     };
 
@@ -112,35 +70,10 @@ export type CommitCause =
   | "pagehide"
   | "unmount";
 
-/** Exact result of committing a live rich-editor projection. */
+/** Caller decision after retaining the current live rich-editor projection. */
 export type CommitResult =
+  | { readonly status: "proceed" }
   | {
-      readonly cause: CommitCause;
-      readonly publication: Extract<
-        PublicationResult,
-        { status: "acknowledged" }
-      >;
-      readonly sessionKey: string;
-      readonly status: "acknowledged";
-    }
-  | {
-      readonly cause: CommitCause;
-      readonly reason: "projection_unchanged" | "source_authority_current";
-      readonly revision: number;
-      readonly sessionKey: string;
-      readonly status: "no_change";
-    }
-  | {
-      readonly cause: CommitCause;
-      readonly reason:
-        "editor_not_ready" | "projection_read_failed" | "stale_session";
-      readonly sessionKey: string;
-      readonly status: "failed";
-    }
-  | {
-      readonly cause: CommitCause;
-      readonly publication: Extract<PublicationResult, { status: "rejected" }>;
-      readonly reason: "publication_rejected";
-      readonly sessionKey: string;
-      readonly status: "failed";
+      readonly reason: PublicationRejectionReason | "projection_read_failed";
+      readonly status: "block";
     };

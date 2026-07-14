@@ -5,6 +5,11 @@ import type {
   PublicationCommand,
   PublicationResult,
 } from "../src/domain/markdown-authority-types.js";
+import type { EditorSession } from "../src/state/note-browser-types.js";
+import {
+  createLoadedStore,
+  createNote,
+} from "./note-browser-store-test-helpers.js";
 
 describe("Markdown authority creation", () => {
   it("records a normalized setup projection without publishing it", () => {
@@ -13,35 +18,33 @@ describe("Markdown authority creation", () => {
       projection: "* exact item\n",
     });
 
-    expect(harness.controller.markReady()).toMatchObject({
-      exactAuthority: "- exact item\n",
-      projection: "* exact item\n",
+    expect(harness.markReady()).toEqual({
+      cause: "creation",
       status: "synchronized",
     });
     expect(harness.publish).not.toHaveBeenCalled();
-    expect(harness.controller.commit("manual_save")).toMatchObject({
-      reason: "projection_unchanged",
-      status: "no_change",
+    expect(harness.controller.commit("manual_save")).toEqual({
+      status: "proceed",
     });
   });
 
   it("keeps pre-ready source input authoritative and synchronizes after ready", () => {
     const harness = createHarness({ projection: "# Stale construction" });
 
-    expect(harness.controller.showSource()).toMatchObject({
-      status: "no_change",
+    expect(harness.controller.showSource()).toEqual({ status: "proceed" });
+    expect(harness.getSession().editorMode).toBe("markdown");
+    expect(harness.controller.publishSource("# Exact pre-ready edit")).toEqual({
+      status: "accepted",
     });
-    harness.controller.publishSource("# Exact pre-ready edit");
-    expect(harness.publish).toHaveBeenCalledOnce();
+    expect(harness.getSession().currentMarkdown).toBe("# Exact pre-ready edit");
     expect(harness.controller.getSnapshot()).toMatchObject({
       lifecycle: "creating",
-      mode: "markdown",
-      sourceMarkdown: "# Exact pre-ready edit",
+      rejectedMarkdown: undefined,
     });
 
-    harness.controller.markReady();
-    expect(harness.controller.showWysiwyg()).toMatchObject({
-      exactAuthority: "# Exact pre-ready edit",
+    harness.markReady();
+    expect(harness.controller.showWysiwyg()).toEqual({
+      cause: "source_to_wysiwyg",
       status: "synchronized",
     });
     expect(harness.replaceProjection).toHaveBeenCalledWith(
@@ -52,36 +55,26 @@ describe("Markdown authority creation", () => {
 });
 
 describe("Markdown authority creation failures", () => {
-  it("falls back to exact source when creation fails", () => {
-    const harness = createHarness();
-
-    harness.controller.markFailed("Creation failed.");
-
-    expect(harness.controller.getSnapshot()).toMatchObject({
-      editorError: "Creation failed.",
-      lifecycle: "failed",
-      mode: "markdown",
-      sourceMarkdown: "# Exact",
-    });
-    expect(harness.modes).toEqual(["markdown"]);
-    expect(harness.publish).not.toHaveBeenCalled();
-  });
-
   it("keeps the creation failure visible while source editing remains accepted", () => {
     const harness = createHarness();
     harness.controller.markFailed("Creation failed.");
 
-    expect(
-      harness.controller.publishSource("# Exact after failure"),
-    ).toMatchObject({
-      publication: { status: "acknowledged" },
+    expect(harness.getSession()).toMatchObject({
+      currentMarkdown: "# Exact",
+      editorMode: "markdown",
+    });
+    expect(harness.modes).toEqual(["markdown"]);
+    expect(harness.controller.publishSource("# Exact after failure")).toEqual({
+      status: "accepted",
     });
     expect(harness.controller.getSnapshot()).toMatchObject({
       editorError: "Creation failed.",
       lifecycle: "failed",
-      sourceMarkdown: "# Exact after failure",
+      rejectedMarkdown: undefined,
     });
-    expect(harness.controller.showWysiwyg()).toMatchObject({
+    expect(harness.getSession().currentMarkdown).toBe("# Exact after failure");
+    expect(harness.controller.showWysiwyg()).toEqual({
+      cause: "source_to_wysiwyg",
       reason: "editor_not_ready",
       status: "failed",
     });
@@ -94,7 +87,7 @@ describe("Markdown authority accepted changes", () => {
       initialMarkdown: "- exact item\n",
       projection: "* exact item\n",
     });
-    harness.controller.markReady();
+    harness.markReady();
 
     harness.controller.publishWysiwyg("* edited item\n");
     harness.controller.publishWysiwyg("* exact item\n");
@@ -108,45 +101,42 @@ describe("Markdown authority accepted changes", () => {
       markdown: "- exact item\n",
       resolution: "checkpoint_restore",
     });
-    expect(harness.controller.getSnapshot().sourceMarkdown).toBe(
-      "- exact item\n",
-    );
+    expect(harness.getSession().currentMarkdown).toBe("- exact item\n");
+    expect(harness.controller.getSnapshot().rejectedMarkdown).toBeUndefined();
   });
 
   it("captures a live edit synchronously before source mode", () => {
     const harness = createHarness();
-    harness.controller.markReady();
+    harness.markReady();
     harness.setProjection("# Edited before listener debounce");
 
-    expect(harness.controller.showSource()).toMatchObject({
-      status: "acknowledged",
-    });
+    expect(harness.controller.showSource()).toEqual({ status: "proceed" });
     expect(harness.commands).toHaveLength(1);
     expect(harness.commands[0]).toMatchObject({
       markdown: "# Edited before listener debounce",
       trigger: "pre_mode_switch",
     });
-    expect(harness.controller.getSnapshot()).toMatchObject({
-      mode: "markdown",
-      sourceMarkdown: "# Edited before listener debounce",
+    expect(harness.getSession()).toMatchObject({
+      currentMarkdown: "# Edited before listener debounce",
+      editorMode: "markdown",
     });
   });
 
-  it("ignores listener work before readiness, in source, and after destruction", () => {
+  it("ignores listener work before readiness, in source, and after owner loss", () => {
     const harness = createHarness();
 
-    expect(harness.controller.publishWysiwyg("# Early")).toMatchObject({
+    expect(harness.controller.publishWysiwyg("# Early")).toEqual({
       reason: "lifecycle",
       status: "ignored",
     });
-    harness.controller.markReady();
+    harness.markReady();
     harness.controller.showSource();
-    expect(harness.controller.publishWysiwyg("# Hidden")).toMatchObject({
+    expect(harness.controller.publishWysiwyg("# Hidden")).toEqual({
       reason: "inactive_mode",
       status: "ignored",
     });
-    harness.controller.destroy();
-    expect(harness.controller.publishWysiwyg("# Late")).toMatchObject({
+    harness.removeSession();
+    expect(harness.controller.publishWysiwyg("# Late")).toEqual({
       reason: "lifecycle",
       status: "ignored",
     });
@@ -154,86 +144,133 @@ describe("Markdown authority accepted changes", () => {
   });
 });
 
+describe("Markdown authority exact-session reads", () => {
+  it("uses a mode-only revision change before its next decision", () => {
+    const harness = createHarness();
+    harness.markReady();
+    harness.updateSession({ editorMode: "markdown", revision: 7 });
+
+    expect(harness.controller.publishWysiwyg("# Wrong mode")).toEqual({
+      reason: "inactive_mode",
+      status: "ignored",
+    });
+    expect(harness.controller.showWysiwyg()).toEqual({
+      cause: "source_to_wysiwyg",
+      status: "synchronized",
+    });
+    expect(harness.replaceProjection).toHaveBeenCalledWith("# Exact");
+    expect(harness.getSession()).toMatchObject({
+      editorMode: "wysiwyg",
+      revision: 8,
+    });
+  });
+
+  it("uses the asynchronously settled disposition before publishing again", () => {
+    const harness = createHarness();
+    harness.markReady();
+    harness.controller.publishWysiwyg("# First edit");
+    harness.updateSession({ draftDisposition: "generated_durable" });
+
+    expect(harness.controller.publishWysiwyg("# Second edit")).toEqual({
+      status: "accepted",
+    });
+    expect(harness.publicationSessions.at(-1)).toMatchObject({
+      currentMarkdown: "# First edit",
+      draftDisposition: "generated_durable",
+      revision: 1,
+    });
+    expect(harness.getSession()).toMatchObject({
+      currentMarkdown: "# Second edit",
+      revision: 2,
+    });
+  });
+});
+
 describe("Markdown authority failure ownership", () => {
   it("restores an availability failure after publication retry succeeds", () => {
     let reject = true;
     const harness = createHarness({
-      publishResult: (command, revision) =>
-        reject ? rejected(command, revision) : acknowledged(command, revision),
+      publishResult: () => (reject ? rejected() : accepted()),
     });
     harness.controller.markFailed("Creation failed.");
     harness.controller.publishSource("# Retry after failure");
     expect(harness.controller.getSnapshot()).toMatchObject({
       editorError: "The latest editor change has not been acknowledged.",
       hasPublicationRetry: true,
+      rejectedMarkdown: "# Retry after failure",
     });
 
     reject = false;
-    harness.controller.retryPublication();
+    expect(harness.controller.retryPublication()).toEqual({
+      status: "accepted",
+    });
 
     expect(harness.controller.getSnapshot()).toMatchObject({
       editorError: "Creation failed.",
       hasPublicationRetry: false,
-      sourceMarkdown: "# Retry after failure",
+      rejectedMarkdown: undefined,
     });
+    expect(harness.getSession().currentMarkdown).toBe("# Retry after failure");
   });
 
   it("retains a rejected value and publishes it once through explicit retry", () => {
     let reject = true;
     const harness = createHarness({
-      publishResult: (command, revision) =>
-        reject ? rejected(command, revision) : acknowledged(command, revision),
+      publishResult: () => (reject ? rejected() : accepted()),
     });
-    harness.controller.markReady();
+    harness.markReady();
 
-    expect(harness.controller.publishWysiwyg("# Retry me")).toMatchObject({
-      publication: { status: "rejected" },
+    expect(harness.controller.publishWysiwyg("# Retry me")).toEqual({
+      reason: "snapshot_admission_failed",
+      status: "rejected",
     });
     expect(harness.controller.getSnapshot()).toMatchObject({
       hasPublicationRetry: true,
+      rejectedMarkdown: "# Retry me",
     });
     reject = false;
 
-    expect(harness.controller.retryPublication()).toMatchObject({
-      publication: { status: "acknowledged", trigger: "explicit_retry" },
+    expect(harness.controller.retryPublication()).toEqual({
+      status: "accepted",
     });
     expect(harness.commands).toHaveLength(2);
-    expect(harness.commands[1]?.markdown).toBe("# Retry me");
+    expect(harness.commands[1]).toMatchObject({
+      markdown: "# Retry me",
+      trigger: "explicit_retry",
+    });
     expect(harness.controller.getSnapshot()).toMatchObject({
       editorError: undefined,
       hasPublicationRetry: false,
+      rejectedMarkdown: undefined,
     });
   });
 });
 
 describe("Markdown authority retry cancellation", () => {
   it("cancels a rejected source retry when visible input returns to authority", () => {
-    const harness = createHarness({
-      publishResult: (command, revision) => rejected(command, revision),
-    });
+    const harness = createHarness({ publishResult: rejected });
     harness.controller.showSource();
     harness.controller.publishSource("# Rejected");
 
-    expect(harness.controller.publishSource("# Exact")).toMatchObject({
-      publication: { reason: "retry_reverted", status: "no_change" },
+    expect(harness.controller.publishSource("# Exact")).toEqual({
+      status: "accepted",
     });
     expect(harness.publish).toHaveBeenCalledOnce();
     expect(harness.controller.getSnapshot()).toMatchObject({
       hasPublicationRetry: false,
-      sourceMarkdown: "# Exact",
+      rejectedMarkdown: undefined,
     });
+    expect(harness.getSession().currentMarkdown).toBe("# Exact");
   });
 
   it("reports a projection read failure instead of a clean commit", () => {
     const harness = createHarness();
-    harness.controller.markReady();
+    harness.markReady();
     harness.failProjectionRead();
 
     expect(harness.controller.commit("route_transition")).toEqual({
-      cause: "route_transition",
       reason: "projection_read_failed",
-      sessionKey: "session-1",
-      status: "failed",
+      status: "block",
     });
   });
 });
@@ -243,33 +280,44 @@ type HarnessOptions = {
   readonly projection?: string;
   readonly publishResult?: (
     command: PublicationCommand,
-    revision: number,
+    session: EditorSession,
   ) => PublicationResult;
 };
 
 function createHarness(options: HarnessOptions = {}) {
-  const initialMarkdown = getHarnessInitialMarkdown(options);
-  let projection = getHarnessProjection(options, initialMarkdown);
+  const initialMarkdown = options.initialMarkdown ?? "# Exact";
+  let projection = options.projection ?? initialMarkdown;
+  let session: EditorSession | undefined =
+    createHarnessSession(initialMarkdown);
   let throwRead = false;
-  let revision = 0;
   const commands: PublicationCommand[] = [];
-  const modes: string[] = [];
-  const publishResult = getHarnessPublisher(options);
-  const publish = vi.fn((command: PublicationCommand) => {
-    revision += 1;
+  const modes: EditorSession["editorMode"][] = [];
+  const publicationSessions: EditorSession[] = [];
+  const publishResult = options.publishResult ?? accepted;
+  const publish = vi.fn((command: PublicationCommand): PublicationResult => {
+    const current = requireSession(session);
     commands.push(command);
-    return publishResult(command, revision);
+    publicationSessions.push(current);
+    const result = publishResult(command, current);
+    if (result.status === "accepted") {
+      session = applyAcceptedCommand(current, command);
+    }
+    return result;
   });
   const replaceProjection = vi.fn((markdown: string) => {
     projection = markdown;
   });
   const controller = new MarkdownAuthorityController({
-    initialDisposition: "none",
-    initialMarkdown,
-    initialMode: "wysiwyg",
-    initialRevision: 0,
+    isSessionFrozen: () => false,
     onModeChange: (mode) => {
       modes.push(mode);
+      const current = requireSession(session);
+      session = {
+        ...current,
+        editorMode: mode,
+        revision:
+          current.editorMode === mode ? current.revision : current.revision + 1,
+      };
     },
     publish,
     readProjection: () => {
@@ -277,6 +325,9 @@ function createHarness(options: HarnessOptions = {}) {
         throw new Error("Injected projection failure.");
       }
       return projection;
+    },
+    readSession: (sessionKey) => {
+      return session?.sessionKey === sessionKey ? session : undefined;
     },
     replaceProjection,
     sessionKey: "session-1",
@@ -287,66 +338,61 @@ function createHarness(options: HarnessOptions = {}) {
     failProjectionRead: () => {
       throwRead = true;
     },
+    getSession: () => requireSession(session),
+    markReady: () => controller.markReady(initialMarkdown),
     modes,
+    publicationSessions,
     publish,
+    removeSession: () => {
+      session = undefined;
+    },
     replaceProjection,
     setProjection: (markdown: string) => {
       projection = markdown;
     },
+    updateSession: (patch: Partial<EditorSession>) => {
+      session = { ...requireSession(session), ...patch };
+    },
   };
 }
 
-function getHarnessInitialMarkdown(options: HarnessOptions): string {
-  return options.initialMarkdown ?? "# Exact";
+function createHarnessSession(markdown: string): EditorSession {
+  const store = createLoadedStore({
+    note: createNote("note.md", markdown, "sha256-exact"),
+  });
+  const state = store.getState().noteState;
+  if (state.status !== "ready") {
+    throw new Error("Expected the harness store to own an editor.");
+  }
+  return { ...state.editor, sessionKey: "session-1" };
 }
 
-function getHarnessProjection(
-  options: HarnessOptions,
-  initialMarkdown: string,
-): string {
-  return options.projection ?? initialMarkdown;
-}
-
-function getHarnessPublisher(
-  options: HarnessOptions,
-): NonNullable<HarnessOptions["publishResult"]> {
-  return options.publishResult ?? acknowledged;
-}
-
-function acknowledged(
+function applyAcceptedCommand(
+  session: EditorSession,
   command: PublicationCommand,
-  revision: number,
-): PublicationResult {
+): EditorSession {
   return {
-    completion: "normal",
-    disposition: "generated_pending",
-    editorMode: "wysiwyg",
-    markdown: command.markdown,
-    origin: command.origin,
-    persistenceIssue: undefined,
-    resolution: command.resolution,
-    revision,
-    sessionKey: command.sessionKey,
-    snapshotKey: `snapshot-${String(revision)}`,
-    stateEffect: "revision_applied",
-    status: "acknowledged",
-    trigger: command.trigger,
+    ...session,
+    currentMarkdown: command.markdown,
+    draftDisposition:
+      session.draftDisposition === "none"
+        ? "generated_pending"
+        : session.draftDisposition,
+    revision: session.revision + 1,
   };
 }
 
-function rejected(
-  command: PublicationCommand,
-  revision: number,
-): PublicationResult {
-  return {
-    attemptedMarkdown: command.markdown,
-    attemptedRevision: revision,
-    disposition: "none",
-    origin: command.origin,
-    reason: "snapshot_admission_failed",
-    sessionKey: command.sessionKey,
-    stateEffect: "none",
-    status: "rejected",
-    trigger: command.trigger,
-  };
+function requireSession(session: EditorSession | undefined): EditorSession {
+  if (session === undefined) {
+    throw new Error("Expected an exact editor session.");
+  }
+  return session;
+}
+
+function accepted(): PublicationResult {
+  return { status: "accepted" };
+}
+
+function rejected(): PublicationResult {
+  return { reason: "snapshot_admission_failed", status: "rejected" };
 }

@@ -10,8 +10,10 @@ import type {
   PublicationCommand,
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
-import type { EditorMode } from "../persistence/draft-records.js";
-import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+import type {
+  EditorSession,
+  EditorSessionReader,
+} from "../state/note-browser-types.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
 import {
   createCrepeRuntime,
@@ -24,16 +26,15 @@ import type { MarkdownAuthorityState } from "./markdown-authority-controller-typ
 /** Inputs that bind one React hook lifetime to one editor session. */
 export type MilkdownControllerInput = {
   readonly createRuntime?: CrepeRuntimeFactory;
-  readonly initialDisposition: DraftDisposition;
-  readonly initialMarkdown: string;
-  readonly initialMode: EditorMode;
-  readonly initialRevision: number;
-  readonly onEditorModeChange: (editorMode: EditorMode) => void;
+  readonly editor: EditorSession;
+  readonly onEditorModeChange: (
+    editorMode: EditorSession["editorMode"],
+  ) => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
-  readonly sessionKey: string;
 };
 
 /** Render-safe view and commands exposed to the production editor component. */
@@ -66,8 +67,14 @@ export function useMilkdownEditorController(
     resources.callbacks.update({
       onEditorModeChange: input.onEditorModeChange,
       onPublishMarkdown: input.onPublishMarkdown,
+      readEditorSession: input.readEditorSession,
     });
-  }, [input.onEditorModeChange, input.onPublishMarkdown, resources.callbacks]);
+  }, [
+    input.onEditorModeChange,
+    input.onPublishMarkdown,
+    input.readEditorSession,
+    resources.callbacks,
+  ]);
   const state = useSyncExternalStore(
     resources.controller.subscribe,
     resources.controller.getSnapshot,
@@ -78,7 +85,7 @@ export function useMilkdownEditorController(
     [input.sessionGate, resources.controller],
   );
   useCrepeLifecycle(resources);
-  return createControllerView(resources, state);
+  return createControllerView(resources, state, input.editor);
 }
 
 function createControllerResources(
@@ -87,20 +94,18 @@ function createControllerResources(
   const callbacks = new EditorCallbackBridge(input);
   const generations = new CrepeGenerationLifecycle({
     createRuntime: input.createRuntime ?? createCrepeRuntime,
-    initialMarkdown: input.initialMarkdown,
+    initialMarkdown: input.editor.currentMarkdown,
   });
   const controller = new MarkdownAuthorityController({
-    initialDisposition: input.initialDisposition,
-    initialMarkdown: input.initialMarkdown,
-    initialMode: input.initialMode,
-    initialRevision: input.initialRevision,
+    isSessionFrozen: input.sessionGate.isSessionFrozen,
     onModeChange: callbacks.onModeChange,
     publish: callbacks.publish,
     readProjection: () => generations.requireCurrentRuntime().getMarkdown(),
+    readSession: callbacks.readSession,
     replaceProjection: (markdown) => {
       generations.requireCurrentRuntime().replaceMarkdown(markdown);
     },
-    sessionKey: input.sessionKey,
+    sessionKey: input.editor.sessionKey,
   });
   return {
     callbacks,
@@ -113,12 +118,13 @@ function createControllerResources(
 function createControllerView(
   resources: ControllerResources,
   state: MarkdownAuthorityState,
+  editor: EditorSession,
 ): MilkdownControllerView {
   return {
     editorError: state.editorError,
     hasPublicationRetry: state.hasPublicationRetry,
     isEditorReady: state.lifecycle === "ready",
-    isSourceMode: state.mode === "markdown",
+    isSourceMode: editor.editorMode === "markdown",
     setEditorRoot: resources.root.set,
     retryPublication: () => {
       resources.controller.retryPublication();
@@ -129,7 +135,7 @@ function createControllerView(
     showWysiwygMode: () => {
       resources.controller.showWysiwyg();
     },
-    sourceMarkdown: state.sourceMarkdown,
+    sourceMarkdown: state.rejectedMarkdown ?? editor.currentMarkdown,
     updateSourceMarkdown: (markdown) => {
       resources.controller.publishSource(markdown);
     },
@@ -148,7 +154,8 @@ function useCrepeLifecycle(input: ControllerResources): void {
       markCreationFailed: () => {
         controller.markFailed("The Milkdown editor could not be created.");
       },
-      markReady: () => controller.markReady().status !== "failed",
+      markReady: (creationMarkdown) =>
+        controller.markReady(creationMarkdown).status !== "failed",
       markTeardownFailed: () => {
         controller.markFailed("The Milkdown editor could not be released.");
       },
@@ -161,7 +168,7 @@ function useCrepeLifecycle(input: ControllerResources): void {
 
 type EditorCallbacks = Pick<
   MilkdownControllerInput,
-  "onEditorModeChange" | "onPublishMarkdown"
+  "onEditorModeChange" | "onPublishMarkdown" | "readEditorSession"
 >;
 
 class EditorCallbackBridge {
@@ -175,12 +182,15 @@ class EditorCallbackBridge {
     this.#callbacks = callbacks;
   }
 
-  onModeChange = (mode: EditorMode): void => {
+  onModeChange = (mode: EditorSession["editorMode"]): void => {
     this.#callbacks.onEditorModeChange(mode);
   };
 
   publish = (command: PublicationCommand): PublicationResult =>
     this.#callbacks.onPublishMarkdown(command);
+
+  readSession = (sessionKey: string): EditorSession | undefined =>
+    this.#callbacks.readEditorSession(sessionKey);
 }
 
 class EditorRootOwner {

@@ -10,6 +10,7 @@ import {
   createMemoryDraftPersistence,
   createNote,
   createTestDraft,
+  publishSourceMarkdown,
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
@@ -119,10 +120,10 @@ describe("manual save operation ownership", () => {
     const deferred = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const saveNote = vi.fn<NoteBrowserApi["saveNote"]>(() => deferred.promise);
     const store = createLoadedStore({ api: createApi({ saveNote }) });
-    store.getState().updateDraftMarkdown("# Snapshot");
+    publishSourceMarkdown(store, "# Snapshot");
 
     const first = store.getState().saveSelectedNote();
-    store.getState().updateDraftMarkdown("# Newer edit");
+    publishSourceMarkdown(store, "# Newer edit");
     const second = store.getState().saveSelectedNote();
 
     expect(second).toBe(first);
@@ -155,7 +156,7 @@ describe("saved draft reconciliation after navigation", () => {
       api: createApi({ saveNote: () => deferred.promise }),
       draftPersistence: drafts.persistence,
     });
-    store.getState().updateDraftMarkdown("# Saved elsewhere");
+    publishSourceMarkdown(store, "# Saved elsewhere");
     await store.getState().flushPendingDraft();
     const save = store.getState().saveSelectedNote();
     await selectTestNote(store, "Projects/azurite.md");
@@ -180,7 +181,7 @@ describe("newer draft reconciliation after navigation", () => {
       api: createApi({ saveNote: () => deferred.promise }),
       draftPersistence: drafts.persistence,
     });
-    store.getState().updateDraftMarkdown("# Saved snapshot");
+    publishSourceMarkdown(store, "# Saved snapshot");
     await store.getState().flushPendingDraft();
     const save = store.getState().saveSelectedNote();
     const savedDraft = drafts.read(readyClusterIdentity.clusterId, "index.md");
@@ -216,10 +217,10 @@ describe("overlapping different-note saves", () => {
       input.noteId === "index.md" ? homeSave.promise : projectSave.promise,
     );
     const store = createLoadedStore({ api: createApi({ saveNote }) });
-    store.getState().updateDraftMarkdown("# Home save");
+    publishSourceMarkdown(store, "# Home save");
     const first = store.getState().saveSelectedNote();
     await selectTestNote(store, "Projects/azurite.md");
-    store.getState().updateDraftMarkdown("# Project save");
+    publishSourceMarkdown(store, "# Project save");
     const second = store.getState().saveSelectedNote();
 
     expect(saveNote).toHaveBeenCalledTimes(2);

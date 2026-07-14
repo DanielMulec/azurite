@@ -182,9 +182,6 @@ function createInitialState(
     },
     saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
     selectedNoteId: undefined,
-    updateDraftMarkdown: (markdown) => {
-      updateDraftMarkdown(markdown, runtime.context);
-    },
     updateEditorMode: (editorMode) => {
       updateEditorModeWithSnapshot(editorMode, runtime.context);
     },
@@ -200,23 +197,6 @@ function reportHistoryUnavailable(set: StoreContext["set"]): void {
       status: "degraded",
     },
   });
-}
-
-function updateDraftMarkdown(markdown: string, context: StoreContext): void {
-  const noteState = context.get().noteState;
-  if (noteState.status !== "ready") {
-    return;
-  }
-  publishMarkdownChange(
-    {
-      markdown,
-      origin: "source_input",
-      resolution: "exact_input",
-      sessionKey: noteState.editor.sessionKey,
-      trigger: "direct_input",
-    },
-    context,
-  );
 }
 
 function configureContext(

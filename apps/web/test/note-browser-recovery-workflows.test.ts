@@ -7,6 +7,7 @@ import {
   createLoadedStore,
   createMemoryDraftPersistence,
   createTestDraft,
+  publishSourceMarkdown,
   readyClusterIdentity,
 } from "./note-browser-store-test-helpers.js";
 import { loadTestRoute } from "./note-browser-route-test-helpers.js";
@@ -76,7 +77,7 @@ describe("dirty browser recovery retry", () => {
       draftPersistence: createPersistence({ readDraft }),
     });
     await loadTestRoute(store, "index.md");
-    store.getState().updateDraftMarkdown("# Exact live edit");
+    publishSourceMarkdown(store, "# Exact live edit");
 
     expect(getEditor(store).persistenceIssue?.retryAction).toBeUndefined();
     await expect(
@@ -117,7 +118,7 @@ describe("protected future-version recovery", () => {
     await loadTestRoute(store, "index.md");
 
     store.getState().updateEditorMode("markdown");
-    store.getState().updateDraftMarkdown("# Save without touching future data");
+    publishSourceMarkdown(store, "# Save without touching future data");
     await store.getState().flushPendingDraft();
     await store.getState().saveSelectedNote();
     await store.getState().discardDraftAndReloadDiskVersion();

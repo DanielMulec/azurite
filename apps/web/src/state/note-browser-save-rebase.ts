@@ -100,7 +100,6 @@ function applyPostSaveSnapshot(
     });
   } catch {
     // A subscriber may throw after the exact updater already applied.
-    tracker.recordSubscriberThrow();
   }
   return tracker;
 }

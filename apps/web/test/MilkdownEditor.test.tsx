@@ -8,14 +8,23 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MilkdownEditor } from "../src/components/MilkdownEditor.js";
+import {
+  MilkdownEditor,
+  type MilkdownEditorProps,
+} from "../src/components/MilkdownEditor.js";
 import type { CrepeRuntimeFactory } from "../src/components/crepe-runtime.js";
+import type { EditorSession } from "../src/state/note-browser-types.js";
 import {
   createAcknowledgingPublisher,
   createTestEditorSessionGate,
 } from "./editor-session-gate-test-helpers.js";
+import {
+  createDeferred,
+  createNote,
+} from "./note-browser-store-test-helpers.js";
 
 type MockFunction = ReturnType<typeof vi.fn>;
 type MockCrepeInstance = {
@@ -25,18 +34,14 @@ type MockCrepeInstance = {
   readonly editor: { readonly action: MockFunction };
   markdown: string;
 };
-
 const replaceAllMock = vi.hoisted(() => vi.fn());
 const crepeInstances = vi.hoisted(() => [] as MockCrepeInstance[]);
-
 vi.mock("@milkdown/kit/utils", () => ({
   replaceAll: replaceAllMock,
 }));
-
 vi.mock("@milkdown/crepe", () => ({
   Crepe: class MockCrepe {
     static Feature = {};
-
     readonly config: MockCrepeConfig;
     readonly destroy = vi.fn(async () => {});
     readonly create = vi.fn(async () => {});
@@ -45,20 +50,16 @@ vi.mock("@milkdown/crepe", () => ({
         action("mock-context");
       }),
     };
-
     markdown = "";
     markdownUpdated: ((markdown: string) => void) | undefined;
-
     constructor(config: MockCrepeConfig) {
       this.config = config;
       this.markdown = config.defaultValue;
       crepeInstances.push(this);
     }
-
     getMarkdown(): string {
       return this.markdown;
     }
-
     on(register: (listener: MockListener) => void): this {
       register({
         markdownUpdated: (callback) => {
@@ -83,20 +84,12 @@ describe("MilkdownEditor lifecycle", () => {
   it("creates and destroys a Crepe editor with the selected markdown", async () => {
     const publish = vi.fn(createAcknowledgingPublisher());
     const { unmount } = render(
-      <MilkdownEditor
-        initialDisposition="none"
-        initialMarkdown="# Home"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
-        onEditorModeChange={() => {}}
+      <SessionEditor
+        editor={createEditorSession()}
         onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="index.md:1"
-        title="Home"
       />,
     );
-
     await waitFor(() => {
       expect(crepeInstances).toHaveLength(2);
       expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
@@ -105,46 +98,35 @@ describe("MilkdownEditor lifecycle", () => {
     expect(crepeInstances[1]?.config.defaultValue).toBe("# Home");
     expect(crepeInstances[1]?.destroy).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
-
     unmount();
-
     expect(crepeInstances[1]?.destroy).toHaveBeenCalledOnce();
   });
 });
 
 describe("MilkdownEditor replacement", () => {
   it("recreates the editor when the selected note changes", async () => {
+    const home = createEditorSession();
+    const project = createEditorSession({
+      currentMarkdown: "# Project",
+      note: createNote("Projects/azurite.md", "# Project", "sha256-project"),
+      savedMarkdown: "# Project",
+      sessionKey: "Projects/azurite.md:1",
+    });
     const { rerender } = render(
-      <MilkdownEditor
-        initialDisposition="none"
-        initialMarkdown="# Home"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
-        onEditorModeChange={() => {}}
-        onPublishMarkdown={createAcknowledgingPublisher()}
+      <SessionEditor
+        editor={home}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="index.md:1"
-        title="Home"
       />,
     );
-
     await waitFor(() => {
       expect(crepeInstances).toHaveLength(2);
       expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
     rerender(
-      <MilkdownEditor
-        initialDisposition="none"
-        initialMarkdown="# Project"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="Projects/azurite.md"
-        onEditorModeChange={() => {}}
-        onPublishMarkdown={createAcknowledgingPublisher()}
+      <SessionEditor
+        key={project.sessionKey}
+        editor={project}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="Projects/azurite.md:1"
-        title="Project"
       />,
     );
 
@@ -163,40 +145,32 @@ describe("MilkdownEditor session stability", () => {
   it("retains one Crepe instance across same-session product rerenders", async () => {
     const gate = createTestEditorSessionGate();
     const publish = createAcknowledgingPublisher();
-    const { rerender } = render(
+    let editor = createEditorSession({ sessionKey: "index.md:stable" });
+    const renderCurrentEditor = () => (
       <MilkdownEditor
-        initialDisposition="none"
-        initialMarkdown="# Home"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
+        editor={editor}
         onEditorModeChange={() => {}}
         onPublishMarkdown={publish}
+        readEditorSession={(sessionKey) =>
+          sessionKey === editor.sessionKey ? editor : undefined
+        }
         sessionGate={gate}
-        sessionKey="index.md:stable"
-        title="Home"
-      />,
+      />
     );
+    const { rerender } = render(renderCurrentEditor());
     await waitFor(() => {
       expect(crepeInstances).toHaveLength(2);
       expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
     expect(crepeInstances[0]?.destroy).toHaveBeenCalledOnce();
 
-    rerender(
-      <MilkdownEditor
-        initialDisposition="generated_durable"
-        initialMarkdown="# Same live document"
-        initialMode="wysiwyg"
-        initialRevision={4}
-        noteId="index.md"
-        onEditorModeChange={() => {}}
-        onPublishMarkdown={publish}
-        sessionGate={gate}
-        sessionKey="index.md:stable"
-        title="Home"
-      />,
-    );
+    editor = {
+      ...editor,
+      currentMarkdown: "# Same live document",
+      draftDisposition: "generated_durable",
+      revision: 4,
+    };
+    rerender(renderCurrentEditor());
 
     expect(crepeInstances).toHaveLength(2);
     expect(crepeInstances[1]?.destroy).not.toHaveBeenCalled();
@@ -220,18 +194,16 @@ describe("MilkdownEditor controllable creation", () => {
     const publish = vi.fn(createAcknowledgingPublisher());
 
     render(
-      <MilkdownEditor
+      <SessionEditor
         createRuntime={createRuntime}
-        initialDisposition="none"
-        initialMarkdown="# Exact source"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
+        editor={createEditorSession({
+          currentMarkdown: "# Exact source",
+          savedMarkdown: "# Exact source",
+          sessionKey: "pending-session",
+        })}
         onEditorModeChange={onEditorModeChange}
         onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="pending-session"
-        title="Home"
       />,
     );
     expect(screen.queryByLabelText("Markdown source for Home")).toBeNull();
@@ -266,18 +238,15 @@ describe("MilkdownEditor creation failure", () => {
     const publish = vi.fn(createAcknowledgingPublisher());
 
     render(
-      <MilkdownEditor
+      <SessionEditor
         createRuntime={createRuntime}
-        initialDisposition="none"
-        initialMarkdown="# Exact survives"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
-        onEditorModeChange={() => {}}
+        editor={createEditorSession({
+          currentMarkdown: "# Exact survives",
+          savedMarkdown: "# Exact survives",
+          sessionKey: "failed-session",
+        })}
         onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="failed-session"
-        title="Home"
       />,
     );
 
@@ -294,22 +263,16 @@ describe("MilkdownEditor creation failure", () => {
 
 describe("MilkdownEditor source mode", () => {
   it("shows current editor markdown in source mode and applies local edits", async () => {
+    const publish = vi.fn(createAcknowledgingPublisher());
     replaceAllMock.mockReturnValue((context: string) => {
       expect(context).toBe("mock-context");
     });
 
     render(
-      <MilkdownEditor
-        initialDisposition="none"
-        initialMarkdown="# Home"
-        initialMode="wysiwyg"
-        initialRevision={0}
-        noteId="index.md"
-        onEditorModeChange={() => {}}
-        onPublishMarkdown={createAcknowledgingPublisher()}
+      <SessionEditor
+        editor={createEditorSession()}
+        onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
-        sessionKey="index.md:1"
-        title="Home"
       />,
     );
 
@@ -320,6 +283,7 @@ describe("MilkdownEditor source mode", () => {
     setCurrentCrepeMarkdown("# Edited in WYSIWYG");
 
     fireEvent.click(screen.getByRole("button", { name: "Markdown" }));
+    expect(publish).toHaveBeenCalledOnce();
     const source = screen.getByLabelText("Markdown source for Home");
     expect(source).toHaveValue("# Edited in WYSIWYG");
 
@@ -343,14 +307,77 @@ function setCurrentCrepeMarkdown(markdown: string): void {
   currentCrepe.markdown = markdown;
 }
 
-function createDeferred<Value>() {
-  let resolvePromise: (value: Value) => void = () => {};
-  let rejectPromise: (reason?: unknown) => void = () => {};
-  const promise = new Promise<Value>((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
-  });
-  return { promise, reject: rejectPromise, resolve: resolvePromise };
+type SessionEditorProps = Omit<
+  MilkdownEditorProps,
+  "editor" | "onEditorModeChange" | "onPublishMarkdown" | "readEditorSession"
+> & {
+  readonly editor: EditorSession;
+  readonly onEditorModeChange?: MilkdownEditorProps["onEditorModeChange"];
+  readonly onPublishMarkdown?: MilkdownEditorProps["onPublishMarkdown"];
+};
+
+function SessionEditor(props: SessionEditorProps) {
+  const [editor, setEditorState] = useState(props.editor);
+  const editorRef = useRef(editor);
+  const updateEditor = (next: EditorSession): void => {
+    editorRef.current = next;
+    setEditorState(next);
+  };
+  const onEditorModeChange: MilkdownEditorProps["onEditorModeChange"] = (
+    editorMode,
+  ) => {
+    updateEditor({ ...editorRef.current, editorMode });
+    props.onEditorModeChange?.(editorMode);
+  };
+  const onPublishMarkdown: MilkdownEditorProps["onPublishMarkdown"] = (
+    command,
+  ) => {
+    const result = props.onPublishMarkdown?.(command) ?? { status: "accepted" };
+    if (result.status === "accepted") {
+      updateEditor({
+        ...editorRef.current,
+        currentMarkdown: command.markdown,
+        revision: editorRef.current.revision + 1,
+      });
+    }
+    return result;
+  };
+  return (
+    <MilkdownEditor
+      {...props}
+      editor={editor}
+      onEditorModeChange={onEditorModeChange}
+      onPublishMarkdown={onPublishMarkdown}
+      readEditorSession={(sessionKey) =>
+        editorRef.current.sessionKey === sessionKey
+          ? editorRef.current
+          : undefined
+      }
+    />
+  );
+}
+
+function createEditorSession(
+  patch: Partial<EditorSession> = {},
+): EditorSession {
+  const markdown = patch.currentMarkdown ?? "# Home";
+  return {
+    baseContentHash: "sha256-home",
+    currentMarkdown: markdown,
+    draftDisposition: "none",
+    draftEpoch: 0,
+    durableSnapshotKey: undefined,
+    editorMode: "wysiwyg",
+    lastSnapshotKey: undefined,
+    note: createNote("index.md", markdown, "sha256-home"),
+    persistenceIssue: undefined,
+    preservedSchemaVersion: undefined,
+    revision: 0,
+    savedMarkdown: markdown,
+    saveStatus: "idle",
+    sessionKey: "index.md:1",
+    ...patch,
+  };
 }
 
 type MockCrepeConfig = {

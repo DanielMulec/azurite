@@ -3,7 +3,7 @@ import type { CrepeRuntime, CrepeRuntimeFactory } from "./crepe-runtime.js";
 /** Session callbacks invoked only by the currently accepted Crepe generation. */
 export type CrepeGenerationCallbacks = {
   readonly markCreationFailed: (failure: unknown) => void;
-  readonly markReady: () => boolean;
+  readonly markReady: (creationMarkdown: string) => boolean;
   readonly markTeardownFailed: (failure: unknown) => void;
   readonly publishMarkdown: (markdown: string) => void;
 };
@@ -34,7 +34,6 @@ export class CrepeGenerationLifecycle {
   #current: CrepeGeneration | undefined;
   #generation = 0;
   readonly #initialMarkdown: string;
-  #runtime: { generation: CrepeGeneration; value: CrepeRuntime } | undefined;
   #tail: Promise<GenerationOutcome> | undefined;
 
   constructor(input: {
@@ -68,15 +67,16 @@ export class CrepeGenerationLifecycle {
 
   /** Returns the ready runtime accepted by the current session generation. */
   requireCurrentRuntime(): CrepeRuntime {
-    const current = this.#runtime;
+    const current = this.#current;
     if (
       current === undefined ||
-      !current.generation.active ||
-      current.generation !== this.#current
+      !current.active ||
+      !current.ready ||
+      current.runtime === undefined
     ) {
       throw new Error("The Crepe runtime is not ready.");
     }
-    return current.value;
+    return current.runtime;
   }
 
   #startAfterPredecessor(
@@ -152,8 +152,11 @@ export class CrepeGenerationLifecycle {
       this.#destroyRetired(generation, runtime);
       return;
     }
-    this.#runtime = { generation, value: runtime };
-    generation.ready = generation.callbacks?.markReady() === true;
+    // The accepted generation must be synchronously readable while its
+    // readiness callback validates the initial projection checkpoint.
+    generation.ready = true;
+    generation.ready =
+      generation.callbacks?.markReady(this.#initialMarkdown) === true;
   }
 
   #failCreation(generation: CrepeGeneration, failure: unknown): void {
@@ -179,9 +182,6 @@ export class CrepeGenerationLifecycle {
     generation.host?.setAttribute("hidden", "");
     if (this.#current === generation) {
       this.#current = undefined;
-    }
-    if (this.#runtime?.generation === generation) {
-      this.#runtime = undefined;
     }
   }
 
@@ -234,9 +234,6 @@ export class CrepeGenerationLifecycle {
     if (this.#current === generation) {
       this.#current = undefined;
     }
-    if (this.#runtime?.generation === generation) {
-      this.#runtime = undefined;
-    }
     this.#releaseGeneration(generation);
   }
 
@@ -251,7 +248,7 @@ export class CrepeGenerationLifecycle {
       generation.active &&
       generation.ready &&
       generation === this.#current &&
-      this.#runtime?.generation === generation
+      generation.runtime !== undefined
     );
   }
 

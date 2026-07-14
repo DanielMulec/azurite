@@ -153,7 +153,10 @@ before permitting destructive handoff. It consumes the same target-free Slice
 changes history, or becomes another route owner. Clean unread or future-version
 browser recovery may be preserved through handoff, while dirty authority
 without matching browser durability cancels the transition and retains the same
-editor session for retry or Save.
+editor session for retry or Save. The gate runtime is the sole freeze and lease
+authority: controller publication and commit synchronously consult that exact
+gate state, and the gate returns the existing `RouteGateResult` directly after
+its proceed/block commit decision and unchanged durability check.
 
 The deterministic route fault controller is available only through dedicated
 development and optimized QA entries. It is absent from the ordinary Vite
@@ -285,10 +288,13 @@ editing path. Dirty state compares authoritative current Markdown with the exact
 saved baseline using CRLF-to-LF equivalence only; it does not trim whitespace,
 parse an AST, or treat serializer-equivalent syntax as clean.
 
-One replay-stable React-owned Markdown-authority controller owns each editor
-`sessionKey`. It survives StrictMode's diagnostic effect cleanup and remains the
-synchronous projection/checkpoint adapter for that accepted product session; it
-is not durable storage. A separate Crepe-generation lifecycle serializes
+Zustand's exact current `EditorSession` is the sole accepted live editor truth.
+One replay-stable React-owned Markdown-authority controller adapts each
+`sessionKey`; a narrow synchronous exact-key reader supplies its current
+Markdown, revision, draft disposition, and mode without copying those fields.
+The controller survives StrictMode's diagnostic effect cleanup and remains the
+projection/checkpoint adapter for that accepted product session; it is not
+product state or durable storage. A separate Crepe-generation lifecycle serializes
 disposable WYSIWYG generations. Each committed generation receives a unique DOM
 host and callback identity, retires before teardown, and must still be current
 before it can publish, focus, replace Markdown, or change readiness. Successful
@@ -310,14 +316,18 @@ private partial resources or internal retry timer after that upstream failure.
 Successful Milkdown generations are destroyed through the documented public
 API and leave no live Azurite-owned generation on final unmount.
 
-The controller keeps authoritative Markdown, the acknowledged serialized
-projection, and a synchronization checkpoint distinct. Exact source input
-publishes synchronously. Ready active WYSIWYG updates publish through Milkdown's
-bounded listener, while Save, mode changes, route transitions,
+The controller keeps only adapter-local projection truth: the acknowledged
+serialized projection, exact/projection checkpoint, rejected visible candidate,
+readiness/error state, and publication/synchronization guards. Exact source
+input publishes synchronously. Ready active WYSIWYG updates publish through
+Milkdown's bounded listener, while Save, mode changes, route transitions,
 `visibilitychange`, and `pagehide` first read the live public `getMarkdown()`
 projection synchronously. Returning to the checkpoint projection restores its
 exact source spelling. A rejected publication remains visible and explicitly
-retryable; it cannot authorize destruction. Rich-editor creation or
+retryable but is never accepted authority and cannot authorize Save or
+destruction. Publication returns accepted/rejected with the exact rejection
+cause; commit returns proceed/block. Neither result echoes store-owned session
+content or metadata. Rich-editor creation or
 synchronization failure remains visible beneath temporary publication failures
 while exact source editing continues.
 

@@ -61,6 +61,7 @@ export function App({
           onRetryBrowserRecovery={browser.retryBrowserRecovery}
           onRetryDraftCleanup={browser.retryDraftCleanup}
           onRetryDraftPersistence={browser.retryDraftPersistence}
+          readEditorSession={browser.readEditorSession}
           sessionGate={browser.editorSessionGate}
         />
       </div>

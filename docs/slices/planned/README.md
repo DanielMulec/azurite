@@ -13,11 +13,10 @@ retain only risks unique to that slice.
 
 Current order after the completed StrictMode lifecycle foundation:
 
-1. Obtain Daniel's explicit approval for the
-   [Post-StrictMode Ownership Simplification](post-strictmode-ownership-simplification.md),
-   then implement its four units serially: editor authority, persistence
-   results, store workflow boundaries, and shared Sentry fail-open extraction.
-   The proposal is unpromoted and no production work is active.
+1. Task 3B editor authority is complete in the active
+   [Post-StrictMode Ownership Simplification](../active/post-strictmode-ownership-simplification.md),
+   so request explicit approval separately for Tasks 3C–3E. No later unit is
+   active or authorized.
 2. Refresh Slice 7E, semantic editor and persistence diagnostics, against the
    completed Slice 7D and
    [StrictMode lifecycle](../archive/strictmode-lifecycle-conformance-foundation.md)

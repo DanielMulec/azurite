@@ -26,10 +26,6 @@ import {
   getSnapshotAdmissionIssue,
   shouldPersistDraftMode,
 } from "./note-browser-draft-settlement.js";
-import {
-  createNoChangePublication,
-  createRejectedPublication,
-} from "./note-browser-publication-results.js";
 import { StateApplicationTracker } from "./note-browser-state-application.js";
 
 /** Publishes exact accepted Markdown with synchronous snapshot admission. */
@@ -39,11 +35,7 @@ export function publishMarkdownChange(
 ): PublicationResult {
   const editor = getExactEditor(command.sessionKey, context);
   if (editor === undefined) {
-    return createRejectedPublication(command, {
-      attemptedRevision: 0,
-      disposition: "none",
-      reason: "stale_session",
-    });
+    return { reason: "stale_session", status: "rejected" };
   }
   return publishEditorMarkdown(command, editor, context);
 }
@@ -54,16 +46,12 @@ function publishEditorMarkdown(
   context: StoreContext,
 ): PublicationResult {
   if (editor.currentMarkdown === command.markdown) {
-    return createNoChangePublication(command, editor, "authority_unchanged");
+    return { status: "accepted" };
   }
   const snapshot = createAuthoritySnapshot(command.markdown, editor, context);
   const prepared = prepareSnapshot(snapshot, context);
   if (prepared.status === "rejected") {
-    return createRejectedPublication(command, {
-      attemptedRevision: prepared.attemptedRevision,
-      disposition: editor.draftDisposition,
-      reason: prepared.reason,
-    });
+    return { reason: prepared.reason, status: "rejected" };
   }
   return applyPreparedPublication({ command, context, editor, snapshot });
 }
@@ -139,7 +127,7 @@ function applyPreparedModeState(input: {
       });
     });
   } catch {
-    tracker.recordSubscriberThrow();
+    // The applied marker remains authoritative when a subscriber throws.
   }
   return tracker;
 }
@@ -212,15 +200,11 @@ function applyPreparedPublication(input: {
   const tracker = applyPublicationState(input);
   if (!tracker.didApply()) {
     input.context.draftCoordinator.cancelPrepared(input.snapshot.snapshotKey);
-    return createRejectedPublication(input.command, {
-      attemptedRevision: input.snapshot.revision,
-      disposition: input.editor.draftDisposition,
-      reason: "state_update_failed",
-    });
+    return { reason: "state_update_failed", status: "rejected" };
   }
   input.context.draftCoordinator.commitPrepared(input.snapshot.snapshotKey);
   input.context.draftCleanupRetries.delete(input.editor.sessionKey);
-  return createAcknowledgedPublication(input, tracker);
+  return { status: "accepted" };
 }
 
 function applyPublicationState(input: {
@@ -251,43 +235,9 @@ function applyPublicationState(input: {
       });
     });
   } catch {
-    tracker.recordSubscriberThrow();
+    // The applied marker remains authoritative when a subscriber throws.
   }
   return tracker;
-}
-
-function createAcknowledgedPublication(
-  input: {
-    readonly command: PublicationCommand;
-    readonly context: StoreContext;
-    readonly editor: EditorSession;
-    readonly snapshot: DraftMutationSnapshot;
-  },
-  tracker: StateApplicationTracker,
-): PublicationResult {
-  return {
-    completion: tracker.getCompletion(),
-    disposition: input.snapshot.disposition,
-    editorMode: input.snapshot.editorMode,
-    markdown: input.snapshot.markdown,
-    origin: input.command.origin,
-    persistenceIssue: getCurrentPersistenceIssue(input),
-    resolution: input.command.resolution,
-    revision: input.snapshot.revision,
-    sessionKey: input.editor.sessionKey,
-    snapshotKey: input.snapshot.snapshotKey,
-    stateEffect: "revision_applied",
-    status: "acknowledged",
-    trigger: input.command.trigger,
-  };
-}
-
-function getCurrentPersistenceIssue(input: {
-  readonly context: StoreContext;
-  readonly editor: EditorSession;
-}) {
-  const current = getExactEditor(input.editor.sessionKey, input.context);
-  return current === undefined ? undefined : current.persistenceIssue;
 }
 
 function prepareSnapshot(

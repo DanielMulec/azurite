@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 
 import type {
   DraftRecoveryStatus,
+  EditorSessionReader,
   NoteViewState,
 } from "../state/note-browser-types.js";
 import type { RouteHistoryStatus } from "../routing/route-transition-types.js";
@@ -28,6 +29,7 @@ type NoteEditorSurfaceProps = {
   readonly onRetryDraftCleanup: () => Promise<void>;
   readonly onRetryDraftPersistence: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
+  readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
 };
 type NonReadyNote = Exclude<
@@ -47,6 +49,7 @@ export function NoteEditorSurface({
   onRetryDraftCleanup,
   onRetryDraftPersistence,
   onSaveNote,
+  readEditorSession,
   routeHistoryStatus,
   sessionGate,
 }: NoteEditorSurfaceProps): ReactElement {
@@ -65,6 +68,7 @@ export function NoteEditorSurface({
         onRetryDraftCleanup,
         onRetryDraftPersistence,
         onSaveNote,
+        readEditorSession,
         routeHistoryStatus,
         sessionGate,
       })}
@@ -98,6 +102,7 @@ function SelectedNote({
   onRetryDraftCleanup,
   onRetryDraftPersistence,
   onSaveNote,
+  readEditorSession,
   sessionGate,
 }: NoteEditorSurfaceProps & {
   readonly editor: Extract<
@@ -127,6 +132,7 @@ function SelectedNote({
         onRetryDraftCleanup={onRetryDraftCleanup}
         onRetryDraftPersistence={onRetryDraftPersistence}
         onSaveNote={onSaveNote}
+        readEditorSession={readEditorSession}
         sessionGate={sessionGate}
       />
       <FrozenStatus isFrozen={isFrozen} message={gateSnapshot.message} />
@@ -144,6 +150,7 @@ function EditorInteractionRegion(
     | "onRetryDraftCleanup"
     | "onRetryDraftPersistence"
     | "onSaveNote"
+    | "readEditorSession"
     | "sessionGate"
   > & {
     readonly editor: Extract<NoteViewState, { status: "ready" }>["editor"];
@@ -174,6 +181,7 @@ function EditorInteractionRegion(
         onRetryDraftCleanup={props.onRetryDraftCleanup}
         onRetryDraftPersistence={props.onRetryDraftPersistence}
         onSaveNote={props.onSaveNote}
+        readEditorSession={props.readEditorSession}
         sessionGate={props.sessionGate}
       />
     </div>

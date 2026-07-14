@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-
 import { renderHook } from "@testing-library/react";
 import { useSyncExternalStore } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +28,7 @@ import {
   createNote,
   createSeededStore,
   createTestDraft,
+  publishSourceMarkdown,
   readyClusterIdentity,
   requireMockCall,
 } from "./note-browser-store-test-helpers.js";
@@ -277,10 +277,10 @@ describe("manual-save lifecycle evidence", () => {
     const deferred = createDeferred<ReturnType<NoteBrowserApi["saveNote"]>>();
     const saveNote = vi.fn<NoteBrowserApi["saveNote"]>(() => deferred.promise);
     const store = createLoadedStore({ api: createApi({ saveNote }) });
-    store.getState().updateDraftMarkdown("# Saved snapshot");
+    publishSourceMarkdown(store, "# Saved snapshot");
 
     const first = store.getState().saveSelectedNote();
-    store.getState().updateDraftMarkdown("# Newer markdown");
+    publishSourceMarkdown(store, "# Newer markdown");
     const second = store.getState().saveSelectedNote();
     deferred.resolve({
       clusterIdentity: readyClusterIdentity,
@@ -316,7 +316,7 @@ describe("manual-save lifecycle evidence", () => {
         ),
       );
       const store = createLoadedStore({ api: createApi({ saveNote }) });
-      store.getState().updateDraftMarkdown("# Attempt");
+      publishSourceMarkdown(store, "# Attempt");
 
       await store.getState().saveSelectedNote();
 

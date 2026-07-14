@@ -1,33 +1,15 @@
 import type { StoreApi } from "zustand/vanilla";
 
 import type { DurabilityResult } from "../persistence/draft-workflow-types.js";
-import type {
-  RouteGateResult,
-  RouteGateSettlement,
-} from "../routing/route-transition-types.js";
+import type { RouteGateSettlement } from "../routing/route-transition-types.js";
 import type { NoteBrowserStore } from "../state/note-browser-contracts.js";
 import type { NoteViewState } from "../state/note-browser-types.js";
-import type {
-  EditorControllerCapability,
-  EditorGatePreparationResult,
-} from "./editor-session-gate-types.js";
+import type { EditorControllerCapability } from "./editor-session-gate-types.js";
 
 type ReadyEditor = Extract<
   NoteViewState,
   { readonly status: "ready" }
 >["editor"];
-
-/** Maps the editor-owned result onto Slice 7C's target-free gate contract. */
-export function mapEditorRouteResult(
-  result: EditorGatePreparationResult,
-): RouteGateResult {
-  return result.status === "continue"
-    ? { status: "continue" }
-    : {
-        reason: routeCancelReasonByEditorReason[result.reason],
-        status: "cancel",
-      };
-}
 
 /** Captures the focused outgoing control for restoration after cancellation. */
 export function getFocusedElement(): HTMLElement | undefined {
@@ -112,12 +94,6 @@ function getIssueClusterId(editor: ReadyEditor): string | undefined {
     ? undefined
     : editor.persistenceIssue.clusterId;
 }
-
-const routeCancelReasonByEditorReason = {
-  commit_failed: "prerequisite_failed",
-  durability_unavailable: "prerequisite_unavailable",
-  owner_lost: "outgoing_owner_lost",
-} as const;
 
 const retainedSurfaceEffects = new Set<RouteGateSettlement["surfaceEffect"]>([
   "none",

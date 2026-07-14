@@ -7,8 +7,10 @@ import type {
   PublicationCommand,
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
-import type { EditorMode } from "../persistence/draft-records.js";
-import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
+import type {
+  EditorSession,
+  EditorSessionReader,
+} from "../state/note-browser-types.js";
 import type { CrepeRuntimeFactory } from "./crepe-runtime.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
 import { useMilkdownEditorController } from "./use-milkdown-editor-controller.js";
@@ -16,23 +18,20 @@ import { useMilkdownEditorController } from "./use-milkdown-editor-controller.js
 /** Immutable inputs that establish one production editor session. */
 export type MilkdownEditorProps = {
   readonly createRuntime?: CrepeRuntimeFactory;
-  readonly initialDisposition: DraftDisposition;
-  readonly initialMarkdown: string;
-  readonly initialMode: EditorMode;
-  readonly initialRevision: number;
-  readonly noteId: string;
-  readonly onEditorModeChange: (editorMode: EditorMode) => void;
+  readonly editor: EditorSession;
+  readonly onEditorModeChange: (
+    editorMode: EditorSession["editorMode"],
+  ) => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
+  readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
-  readonly sessionKey: string;
-  readonly title: string;
 };
 
 /** Editable Crepe surface whose lifetime is one exact editor session. */
 export function MilkdownEditor(props: MilkdownEditorProps): ReactElement {
-  return <MilkdownEditorSession key={props.sessionKey} {...props} />;
+  return <MilkdownEditorSession key={props.editor.sessionKey} {...props} />;
 }
 
 function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
@@ -42,8 +41,8 @@ function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
   return (
     <div
       className="azurite-editor-surface"
-      data-editor-session={props.sessionKey}
-      data-note-id={props.noteId}
+      data-editor-session={props.editor.sessionKey}
+      data-note-id={props.editor.note.id}
     >
       <EditorModeToolbar
         isReady={editor.isEditorReady}
@@ -63,7 +62,7 @@ function MilkdownEditorSession(props: MilkdownEditorProps): ReactElement {
         setEditorRoot={editor.setEditorRoot}
         sourceInputId={sourceInputId}
         sourceMarkdown={editor.sourceMarkdown}
-        title={props.title}
+        title={props.editor.note.title}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import type {
   PublicationResult,
 } from "../domain/markdown-authority-types.js";
 import type { EditorMode } from "../persistence/draft-records.js";
+import type { EditorSession } from "../state/note-browser-types.js";
 import type {
   CrepeRuntime,
   CrepeRuntimeFactory,
@@ -20,7 +21,9 @@ export type MarkdownFidelityQaSnapshot = {
 export type MarkdownFidelityQaController = {
   readonly acknowledge: (command: PublicationCommand) => PublicationResult;
   readonly createRuntime: CrepeRuntimeFactory;
+  readonly getEditorSession: () => EditorSession;
   readonly getSnapshot: () => MarkdownFidelityQaSnapshot;
+  readonly readEditorSession: (sessionKey: string) => EditorSession | undefined;
   readonly rejectCreation: () => void;
   readonly resetPending: () => void;
   readonly resolveCreation: () => void;
@@ -43,6 +46,7 @@ export function createMarkdownFidelityQaController(): MarkdownFidelityQaControll
 class MarkdownFidelityQaControllerRuntime implements MarkdownFidelityQaController {
   readonly #listeners = new Set<() => void>();
   #creation = createDeferredCreation();
+  #markdown = initialMarkdown;
   #revision = 0;
   #snapshot: MarkdownFidelityQaSnapshot = {
     creationState: "pending",
@@ -52,6 +56,35 @@ class MarkdownFidelityQaControllerRuntime implements MarkdownFidelityQaControlle
   };
 
   getSnapshot = (): MarkdownFidelityQaSnapshot => this.#snapshot;
+
+  getEditorSession = (): EditorSession => ({
+    baseContentHash: "qa-base-hash",
+    currentMarkdown: this.#markdown,
+    draftDisposition: this.#revision === 0 ? "none" : "generated_pending",
+    draftEpoch: 0,
+    durableSnapshotKey: undefined,
+    editorMode: this.#snapshot.mode,
+    lastSnapshotKey: this.#revision === 0 ? undefined : this.#getSnapshotKey(),
+    note: {
+      contentHash: "qa-base-hash",
+      fileName: "markdown-fidelity.md",
+      id: "qa/markdown-fidelity.md",
+      lastModifiedAt: "2026-07-14T00:00:00.000Z",
+      markdown: initialMarkdown,
+      relativePath: "qa/markdown-fidelity.md",
+      sizeBytes: initialMarkdown.length,
+      title: "Markdown fidelity lifecycle QA",
+    },
+    persistenceIssue: undefined,
+    preservedSchemaVersion: undefined,
+    revision: this.#revision,
+    savedMarkdown: initialMarkdown,
+    saveStatus: "idle",
+    sessionKey: this.#getSessionKey(),
+  });
+
+  readEditorSession = (sessionKey: string): EditorSession | undefined =>
+    sessionKey === this.#getSessionKey() ? this.getEditorSession() : undefined;
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener);
@@ -81,23 +114,13 @@ class MarkdownFidelityQaControllerRuntime implements MarkdownFidelityQaControlle
   };
 
   acknowledge = (command: PublicationCommand): PublicationResult => {
+    if (command.sessionKey !== this.#getSessionKey()) {
+      return { reason: "stale_session", status: "rejected" };
+    }
     this.#revision += 1;
+    this.#markdown = command.markdown;
     this.#patch({ publicationCount: this.#snapshot.publicationCount + 1 });
-    return {
-      completion: "normal",
-      disposition: "generated_pending",
-      editorMode: this.#snapshot.mode,
-      markdown: command.markdown,
-      origin: command.origin,
-      persistenceIssue: undefined,
-      resolution: command.resolution,
-      revision: this.#revision,
-      sessionKey: command.sessionKey,
-      snapshotKey: `${command.sessionKey}:${String(this.#revision)}`,
-      stateEffect: "revision_applied",
-      status: "acknowledged",
-      trigger: command.trigger,
-    };
+    return { status: "accepted" };
   };
 
   setMode = (mode: EditorMode): void => {
@@ -125,6 +148,7 @@ class MarkdownFidelityQaControllerRuntime implements MarkdownFidelityQaControlle
       this.#creation.reject(new Error("QA generation reset."));
     }
     this.#creation = createDeferredCreation();
+    this.#markdown = initialMarkdown;
     this.#revision = 0;
     this.#snapshot = {
       creationState: "pending",
@@ -145,7 +169,17 @@ class MarkdownFidelityQaControllerRuntime implements MarkdownFidelityQaControlle
       listener();
     }
   }
+
+  #getSessionKey(): string {
+    return `markdown-fidelity-qa:${String(this.#snapshot.generation)}`;
+  }
+
+  #getSnapshotKey(): string {
+    return `${this.#getSessionKey()}:${String(this.#revision)}`;
+  }
 }
+
+const initialMarkdown = "# Exact pending source\n\n- hyphen item\n";
 
 function createDeferredCreation(): DeferredCreation {
   let rejectPromise: (error: Error) => void = () => {};

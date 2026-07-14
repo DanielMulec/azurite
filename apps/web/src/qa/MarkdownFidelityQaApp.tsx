@@ -21,9 +21,12 @@ export function MarkdownFidelityQaApp({
     controller.getSnapshot,
     controller.getSnapshot,
   );
-  const sessionKey = `markdown-fidelity-qa:${String(snapshot.generation)}`;
+  const editor = controller.getEditorSession();
   return (
-    <main className="mx-auto max-w-4xl p-5 md:p-8">
+    <main
+      className="mx-auto max-w-4xl p-5 md:p-8"
+      data-qa-generation={snapshot.generation}
+    >
       <header className="mb-6 border-b border-[var(--azurite-border)] pb-5">
         <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--azurite-muted)]">
           Isolated test harness
@@ -40,16 +43,11 @@ export function MarkdownFidelityQaApp({
       <section className="mt-6 border border-[var(--azurite-border)] bg-[var(--azurite-reading-surface)] p-5">
         <MilkdownEditor
           createRuntime={controller.createRuntime}
-          initialDisposition="none"
-          initialMarkdown="# Exact pending source\n\n- hyphen item\n"
-          initialMode="markdown"
-          initialRevision={0}
-          noteId="qa/markdown-fidelity.md"
+          editor={editor}
           onEditorModeChange={controller.setMode}
           onPublishMarkdown={controller.acknowledge}
+          readEditorSession={controller.readEditorSession}
           sessionGate={qaSessionGate}
-          sessionKey={sessionKey}
-          title="Markdown fidelity lifecycle QA"
         />
       </section>
     </main>

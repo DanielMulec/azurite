@@ -137,6 +137,12 @@ function renderSurface(
       onRetryDraftCleanup={() => Promise.resolve()}
       onRetryDraftPersistence={() => Promise.resolve()}
       onSaveNote={() => Promise.resolve()}
+      readEditorSession={(sessionKey) =>
+        noteState.status === "ready" &&
+        noteState.editor.sessionKey === sessionKey
+          ? noteState.editor
+          : undefined
+      }
       routeHistoryStatus={{ status: "available" }}
       sessionGate={createTestEditorSessionGate()}
     />,
