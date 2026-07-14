@@ -51,6 +51,9 @@ describe("browser recovery retry", () => {
       draftDisposition: "none",
       persistenceIssue: undefined,
     });
+    expect(store.getState().draftRecoveryStatus).toEqual({
+      status: "available",
+    });
     expect(getEditor(store).sessionKey).not.toBe(previousOwner);
     expect(store.getState().committedRouteView).toMatchObject({
       renderedOwnerKey: getEditor(store).sessionKey,

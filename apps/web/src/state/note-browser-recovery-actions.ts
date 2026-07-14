@@ -175,6 +175,7 @@ function applyPreservedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
     return editor === undefined
       ? current
       : {
+          draftRecoveryStatus: { status: "available" },
           noteState: {
             editor: {
               ...editor,
@@ -204,7 +205,7 @@ function applyResolvedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
   );
   const committed = input.context.get().committedRouteView;
   input.context.set({
-    ...input.application.statePatch,
+    ...getResolvedRecoveryStatePatch(input.application),
     committedRouteView: rebaseCommittedOwner(committed, editor.sessionKey),
     noteState: { editor, status: "ready" },
   });
@@ -212,6 +213,23 @@ function applyResolvedRecovery(input: OwnedRecoveryInput): RecoveryReadResult {
   return input.application.draft === undefined
     ? resolvedAbsentRecovery(input, editor, clusterId)
     : resolvedCurrentRecovery(input, editor, clusterId);
+}
+
+function getResolvedRecoveryStatePatch(
+  application: RouteDraftApplication,
+): RouteDraftApplication["statePatch"] {
+  return hasValidationFailure(application)
+    ? application.statePatch
+    : { draftRecoveryStatus: { status: "available" } };
+}
+
+function hasValidationFailure(application: RouteDraftApplication): boolean {
+  const failure = application.failure;
+  return (
+    failure !== undefined &&
+    failure.source === "persistence" &&
+    failure.reason === "validation_failed"
+  );
 }
 
 function resolvedAbsentRecovery(
