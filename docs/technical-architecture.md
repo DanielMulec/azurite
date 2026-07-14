@@ -132,10 +132,15 @@ view, and the rendered editor-session owner. Route reads require an exact
 `route_intent` authorization; Discard retains a fresh `explicit_reload`
 authorization without route or history mutation. Only matching authorization,
 request, and intent identity may apply ready, missing, missing-draft, error, or
-empty route truth. The temporary production gate joins the existing best-effort
-draft flush and fails open after its existing degraded-state recording. Slice 7D
-replaces that adapter with exact editor durability while consuming the same
-target-free gate; it does not become another route owner.
+empty route truth. The production gate resolves the rendered outgoing editor
+session, synchronously commits any ready WYSIWYG projection, freezes the
+outgoing interaction region, and drains the exact admitted draft snapshot
+before permitting destructive handoff. It consumes the same target-free Slice
+7C lease and terminal settlement contract; it never receives a route target,
+changes history, or becomes another route owner. Clean unread or future-version
+browser recovery may be preserved through handoff, while dirty authority
+without matching browser durability cancels the transition and retains the same
+editor session for retry or Save.
 
 The deterministic route fault controller is available only through dedicated
 development and optimized QA entries. It is absent from the ordinary Vite
@@ -147,7 +152,7 @@ boundaries around that route owner and adjacent state:
 - completed Slice 7C activates the candidate in Zustand only after gate
   continuation and exact-location confirmation, so cancelling the candidate
   cannot invalidate a still-loading predecessor;
-- active Slice 7D keeps successful Save inside the existing editor session so
+- implemented Slice 7D keeps successful Save inside the existing editor session so
   the committed rendered-owner identity remains coherent, and it retains an
   exact failed draft-write retry obligation through ordered persistence;
 - the deferred Route Failure Resilience slice owns exact repair when
@@ -210,10 +215,13 @@ Editing during an active save preserves newer dirty markdown while the original
 snapshot settles. Every editor lifetime has an exact session key; success,
 conflict, or failure may mutate only the session that originated the save, and
 failure/conflict paths revalidate that owner after asynchronous draft
-persistence before applying terminal state. Successful save cleanup removes
-only an exact matching recovery draft. Core's keyed write coordinator provides
-the corresponding same-path in-process conflict guarantee without introducing
-Sentry or telemetry into `packages/core`.
+persistence before applying terminal state. Successful Save updates the same
+session's baseline, hash, metadata, and compatible browser-record disposition;
+it does not recreate Crepe or stale the committed route view. Conditional
+cleanup removes only the exact saved recovery snapshot, preserves mismatching or
+future-version data, and exposes a separate cleanup retry when deletion fails.
+Core's keyed write coordinator provides the corresponding same-path in-process
+conflict guarantee without introducing Sentry or telemetry into `packages/core`.
 
 ### Cluster Resolution And Filesystem Error Evolution
 
@@ -256,9 +264,79 @@ capability, not as telemetry-only state inside an observability slice.
 
 ## Markdown Rendering And Editing
 
-Milkdown with Crepe owns the active WYSIWYG editor surface. Markdown remains the
-serialized source of truth, and source mode remains available as a complementary
-editing path.
+Exact Markdown loaded from disk, recovered from a compatible browser draft, or
+accepted through an editor-session publication is Azurite's authoritative
+current content. Milkdown with Crepe owns the active WYSIWYG projection, not an
+alternate canonical document. Source mode remains an exact complementary
+editing path. Dirty state compares authoritative current Markdown with the exact
+saved baseline using CRLF-to-LF equivalence only; it does not trim whitespace,
+parse an AST, or treat serializer-equivalent syntax as clean.
+
+One React-owned Markdown-authority controller owns each editor `sessionKey` and
+at most one Crepe instance. Its lifecycle is explicit: creating, ready, failed,
+or destroyed. Source input remains editable and publishes exact content while
+Crepe is creating or unavailable. Creation, readiness, source-to-WYSIWYG
+replacement, WYSIWYG-to-source display, and same-mode selection are
+synchronization events and do not publish content, increment a revision, create
+a draft, or enable Save. Same-session rerenders and successful Save retain the
+Crepe DOM, selection, synchronization checkpoint, and Undo history.
+
+The controller keeps authoritative Markdown, the acknowledged serialized
+projection, and a synchronization checkpoint distinct. Exact source input
+publishes synchronously. Ready active WYSIWYG updates publish through Milkdown's
+bounded listener, while Save, mode changes, route transitions,
+`visibilitychange`, and `pagehide` first read the live public `getMarkdown()`
+projection synchronously. Returning to the checkpoint projection restores its
+exact source spelling. A rejected publication remains visible and explicitly
+retryable; it cannot authorize destruction. Rich-editor creation or
+synchronization failure remains visible beneath temporary publication failures
+while exact source editing continues.
+
+Publication acknowledgement combines product authority with immutable in-memory
+draft admission. The session prepares an inactive snapshot before the exact
+Zustand updater, records whether that updater applied before subscribers run,
+and then commits or cancels the prepared slot exactly once. A subscriber throw
+after mutation therefore cannot acknowledge authority without its matching
+recovery obligation or schedule the revision twice. Missing cluster identity
+admits the original snapshot to a session-scoped unbound slot and reports a
+typed persistence issue; it does not reject the accepted edit or disable manual
+Save.
+
+Browser draft persistence composes the generic browser-safe
+`KeyedTaskCoordinator` exported by `@azurite/shared` with a web-specific
+coordinator. The web coordinator owns unbound slots, scheduled/coalesced
+snapshots, consistent reads, content and mode writes, clean reconciliation,
+successful-Save cleanup, cleanup retry, durability drains, and terminal Discard
+barriers per cluster/note key. Reads cannot overtake scheduled mutations, failed
+tasks release their keyed tail, and a failed write retains its exact immutable
+snapshot for explicit retry without another edit. Different notes remain
+independent; coordinator state is ephemeral and does not change the version-one
+Dexie record.
+
+The editor store keeps browser-record disposition separate from persistence
+failure. Disposition distinguishes absent, generated pending/durable, recovered,
+conflicted, cleanup-required, recovery-read-unavailable, and preserved-unknown
+truth. A persistence issue separately names its owner, epoch, operation,
+revision or snapshot, underlying cluster/Dexie/coordinator reason, and permitted
+retry. Dexie reads and mutations return exact transactional outcomes rather than
+generic success. An unread record is retried only while live authority is clean;
+an unknown future-version record is never treated as absent, overwritten, or
+deleted by the older build. Dirty content in either protected state remains
+manually saveable but cannot hand off destructively until disk Save makes it
+safe.
+
+Discard is terminal for one exact-owner draft-admission epoch. It cancels
+not-yet-started work, waits behind started mutations, conditionally deletes only
+a compatible record, and reloads or dismisses recovery only after deletion
+succeeds. Failure preserves the same editor/view and opens the next epoch before
+interaction resumes, so closed-epoch callbacks can never recreate the discarded
+record. Preserved future-version records expose no destructive older-build
+action.
+
+After Daniel accepts a real WYSIWYG edit, Milkdown serialization may normalize
+Markdown syntax beyond the localized change. Azurite records that serialized
+projection as the accepted authority; token-preserving source reconciliation is
+a separate future architecture, not a guarantee of the current editor.
 
 Editor capabilities must round-trip through Azurite's selected markdown dialect.
 Do not introduce proprietary blocks or a canonical JSON document model without
@@ -277,10 +355,11 @@ new explicit product decision.
 The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
-loading the rich editor. Slices 7B and 7C are complete. Default the loading
-boundary's delivery until after Slice 7D fidelity, Slice 7E diagnostics, and the
-mandatory Slice 7F editor-correctness follow-up so those repairs and their QA
-observe the current editor lifecycle before its loading order changes.
+loading the rich editor. Slices 7B and 7C are complete, and the Slice 7D editor
+lifecycle is implemented pending its final promotion gate. Default the loading
+boundary's delivery until after Slice 7E diagnostics and the mandatory Slice 7F
+editor-correctness follow-up so those repairs and their QA observe the current
+editor lifecycle before its loading order changes.
 
 A focused future performance slice must measure development and built-preview
 cold start, time to application shell, time to editor readiness, emitted chunk
