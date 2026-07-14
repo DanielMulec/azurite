@@ -28,12 +28,7 @@ export async function retryDraftCleanupAction(
     ...target.snapshot,
     clusterId: target.clusterId,
   });
-  applyCleanupDecision(
-    editor.sessionKey,
-    target.clusterId,
-    decision,
-    workflow,
-  );
+  applyCleanupDecision(editor.sessionKey, target.clusterId, decision, workflow);
 }
 
 function getCleanupRetryEditor(

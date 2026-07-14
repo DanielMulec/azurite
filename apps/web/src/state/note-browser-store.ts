@@ -29,7 +29,24 @@ import type {
   NoteBrowserStateAccess,
   NoteBrowserStore,
 } from "./note-browser-contracts.js";
-import { createNoteBrowserRouteWorkflow } from "./note-browser-route-workflow.js";
+import { retryBrowserRecoveryAction } from "./note-browser-recovery-actions.js";
+import {
+  applyRouteAction,
+  ensureNotesAction,
+  reloadSelectedNoteAction,
+} from "./note-browser-route-actions.js";
+import {
+  getCoherentRouteView,
+  getRenderedOwnerKey,
+} from "./note-browser-route-predicates.js";
+import {
+  activateRouteIntent,
+  allocateEditorSessionKey,
+  createRouteWorkflowRuntime,
+  dismissMissingDraft,
+  reportHistoryUnavailable,
+  type RouteWorkflowAccess,
+} from "./note-browser-route-runtime.js";
 
 type NoteBrowserStoreOptions = {
   readonly api?: NoteBrowserApi;
@@ -68,18 +85,34 @@ export function createNoteBrowserStore(
       coordinator,
       state,
     };
-    const route = createNoteBrowserRouteWorkflow({
+    const route: RouteWorkflowAccess = {
       api,
       draftCoordinator: coordinator,
       state,
-    });
+    };
+    const routeRuntime = createRouteWorkflowRuntime();
     const allocateSnapshotKey = createSnapshotKeyAllocator();
     const saveSelectedNote = createSaveSelectedNoteAction({
       allocateSnapshotKey,
       api,
       draft,
     });
-    routeExecutor = route.executor;
+    routeExecutor = {
+      activateRouteIntent: (intentKey) => {
+        activateRouteIntent(intentKey, routeRuntime);
+      },
+      applyRoute: (input) => applyRouteAction(input, route, routeRuntime),
+      ensureNotes: () => ensureNotesAction(route, routeRuntime),
+      getCoherentView: (occurrence, noteId) =>
+        getCoherentRouteView(
+          { activeLoad: routeRuntime.activeNoteLoad, noteId, occurrence },
+          state.getState(),
+        ),
+      getRenderedOwnerKey: () => getRenderedOwnerKey(state.getState()),
+      reportHistoryUnavailable: () => {
+        reportHistoryUnavailable(state);
+      },
+    };
 
     return {
       clusterIdentity: undefined,
@@ -87,8 +120,15 @@ export function createNoteBrowserStore(
       discardCurrentDraft: async () => {
         await discardCurrentDraftAction({
           coordinator,
-          dismissMissingDraft: route.dismissMissingDraft,
-          reloadSelectedNote: route.reloadSelectedNote,
+          dismissMissingDraft: (noteId) => {
+            dismissMissingDraft(
+              noteId,
+              state,
+              routeRuntime.routeRollback.commit,
+            );
+          },
+          reloadSelectedNote: async () =>
+            await reloadSelectedNoteAction(route, routeRuntime),
           state,
         });
       },
@@ -103,10 +143,11 @@ export function createNoteBrowserStore(
           allocateSnapshotKey,
         }),
       retryDraftPersistenceIssue: async () => {
-        await retryDraftPersistenceIssueAction(
-          draft,
-          route.retryBrowserRecovery,
-        );
+        await retryDraftPersistenceIssueAction(draft, async () => {
+          await retryBrowserRecoveryAction(route, (noteId, contentHash) =>
+            allocateEditorSessionKey(noteId, contentHash, routeRuntime),
+          );
+        });
       },
       routeHistoryStatus: { status: "available" },
       saveSelectedNote,
@@ -120,6 +161,13 @@ export function createNoteBrowserStore(
     };
   });
 
+  return attachRouteExecutor(store, routeExecutor);
+}
+
+function attachRouteExecutor(
+  store: StoreApi<NoteBrowserStore>,
+  routeExecutor: RouteStoreExecutor | undefined,
+): NoteBrowserStoreApi {
   if (routeExecutor === undefined) {
     throw new Error("The note-browser route workflow was not constructed.");
   }

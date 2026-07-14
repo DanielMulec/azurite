@@ -7,6 +7,7 @@ import {
   staleCompletionStatuses,
   type ApiRequestMetadata,
   type ClusterIdentity,
+  type ReadNoteResponse,
   type RuntimeObservabilityAttributes,
   type RuntimeObservabilityEvent,
   type RuntimeSpanName,
@@ -16,6 +17,7 @@ import {
   recordWebRuntimeEvent,
   runWebRuntimeSpan,
 } from "../observability/web-runtime-observability.js";
+import type { RouteStoreApplyResult } from "../routing/route-store-executor.js";
 
 /** Immutable closure-owned identity and start context for one browser operation. */
 export type BrowserOperationEvidence = {
@@ -189,6 +191,54 @@ export function recordRouteEvidence(
   });
 }
 
+/** Records the route fact corresponding to one authorized note read. */
+export function recordSelectionRoute(
+  noteId: string,
+  routeSource: string,
+): void {
+  recordRouteEvidence(
+    routeSource === "url_sync"
+      ? eventNames.noteRouteSynchronized
+      : eventNames.noteRouteNavigationRequested,
+    noteId,
+    routeSource,
+  );
+}
+
+/** Records the terminal evidence for one successful API read attempt. */
+export function recordReadSuccess(
+  response: ReadNoteResponse,
+  result: RouteStoreApplyResult,
+  evidence: BrowserOperationEvidence,
+): void {
+  if (result.status === "stale") {
+    recordLoadResult(evidence, { staleCompletion: staleSucceeded });
+    return;
+  }
+  if (result.status !== "applied") {
+    recordLoadResult(evidence, { error: storeApplyError });
+    return;
+  }
+  recordLoadResult(evidence, {
+    clusterIdentity: response.clusterIdentity,
+    contentHash: response.note.contentHash,
+    markdownLength: response.note.markdown.length,
+  });
+}
+
+/** Records the terminal evidence for one failed API or state-apply attempt. */
+export function recordReadFailure(
+  error: unknown,
+  result: RouteStoreApplyResult,
+  evidence: BrowserOperationEvidence,
+): void {
+  if (result.status === "stale") {
+    recordLoadResult(evidence, { staleCompletion: staleFailed });
+    return;
+  }
+  recordLoadResult(evidence, { error });
+}
+
 /** Records an operation start and runs work inside its neutral semantic span. */
 export function runBrowserOperation<Result>(input: {
   readonly callback: () => Result;
@@ -220,6 +270,8 @@ export function runBrowserOperation<Result>(input: {
 export const staleSucceeded = staleCompletionStatuses.succeeded;
 /** Canonical failure marker for stale completion call sites. */
 export const staleFailed = staleCompletionStatuses.failed;
+
+const storeApplyError = new Error("The note route could not be applied.");
 
 function record(input: {
   readonly attributes: RuntimeObservabilityAttributes;

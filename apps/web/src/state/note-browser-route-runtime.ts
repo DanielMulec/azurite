@@ -14,6 +14,7 @@ import {
   createRouteApplicationRollback,
   type RouteApplicationRollback,
 } from "./note-browser-route-rollback.js";
+import { applyMissingRoute } from "./note-browser-route-state.js";
 
 /** Dependencies shared only by the store-side route, list, and read workflow. */
 export type RouteWorkflowAccess = {
@@ -106,9 +107,7 @@ export function isCurrentNoteRequest(
 }
 
 /** Advances the note-read sequence owned by the route workflow. */
-export function nextNoteRequestSequence(
-  runtime: RouteWorkflowRuntime,
-): number {
+export function nextNoteRequestSequence(runtime: RouteWorkflowRuntime): number {
   runtime.noteRequestSequence += 1;
   return runtime.noteRequestSequence;
 }
@@ -119,6 +118,32 @@ export function nextNotesRequestSequence(
 ): number {
   runtime.notesRequestSequence += 1;
   return runtime.notesRequestSequence;
+}
+
+/** Dismisses a missing draft without changing route or history ownership. */
+export function dismissMissingDraft(
+  noteId: string,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
+): void {
+  const location = state.getState().committedRouteView?.location;
+  if (location === undefined) {
+    state.setState({ noteState: { noteId, status: "missing" } });
+    return;
+  }
+  applyMissingRoute({ location, noteId }, state, commitRouteApplication);
+}
+
+/** Publishes the route owner's visible history-confirmation degradation. */
+export function reportHistoryUnavailable(state: NoteBrowserStateAccess): void {
+  state.setState({
+    routeHistoryStatus: {
+      message:
+        "Browser history could not confirm the previous note. Retry navigation from the current page.",
+      reason: "route_history_unavailable",
+      status: "degraded",
+    },
+  });
 }
 
 function isCurrentAuthorization(

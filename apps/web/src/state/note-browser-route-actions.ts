@@ -287,7 +287,9 @@ function restoreFailedApplication(
 function getExplicitReloadTarget(access: RouteWorkflowAccess):
   | {
       readonly location: NonNullable<
-        ReturnType<RouteWorkflowAccess["state"]["getState"]>["committedRouteView"]
+        ReturnType<
+          RouteWorkflowAccess["state"]["getState"]
+        >["committedRouteView"]
       >["location"];
       readonly noteId: string;
     }

@@ -1,16 +1,12 @@
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import { createEditorSession } from "./note-browser-action-utils.js";
-import type {
-  NoteBrowserStore,
-} from "./note-browser-contracts.js";
+import type { NoteBrowserStore } from "./note-browser-contracts.js";
 import {
   readRouteDraft,
   type RouteDraftApplication,
 } from "./note-browser-route-drafts.js";
-import {
-  type RouteWorkflowAccess,
-} from "./note-browser-route-runtime.js";
+import { type RouteWorkflowAccess } from "./note-browser-route-runtime.js";
 import type { EditorSession } from "./note-browser-types.js";
 
 /** Retries an unread browser record without replacing dirty live authority. */

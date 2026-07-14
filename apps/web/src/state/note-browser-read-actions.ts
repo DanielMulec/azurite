@@ -1,6 +1,5 @@
 import type { ReadNoteResponse } from "@azurite/shared";
 import {
-  noteRouteSources,
   runtimeObservabilityAttributeNames,
   runtimeObservabilityEventNames,
   runtimeSpanNames,
@@ -20,7 +19,10 @@ import {
 import {
   createBrowserOperationEvidence,
   recordLoadResult,
+  recordReadFailure,
+  recordReadSuccess,
   recordRouteEvidence,
+  recordSelectionRoute,
   runBrowserOperation,
   staleFailed,
   staleSucceeded,
@@ -368,50 +370,7 @@ function hasSameAuthorization(
   );
 }
 
-function recordSelectionRoute(noteId: string, routeSource: string): void {
-  recordRouteEvidence(
-    routeSource === noteRouteSources.urlSync
-      ? runtimeObservabilityEventNames.noteRouteSynchronized
-      : runtimeObservabilityEventNames.noteRouteNavigationRequested,
-    noteId,
-    routeSource,
-  );
-}
-
-function recordReadSuccess(
-  response: ReadNoteResponse,
-  result: RouteStoreApplyResult,
-  evidence: BrowserOperationEvidence,
-): void {
-  if (result.status === "stale") {
-    recordLoadResult(evidence, { staleCompletion: staleSucceeded });
-    return;
-  }
-  if (result.status !== "applied") {
-    recordLoadResult(evidence, { error: storeApplyError });
-    return;
-  }
-  recordLoadResult(evidence, {
-    clusterIdentity: response.clusterIdentity,
-    contentHash: response.note.contentHash,
-    markdownLength: response.note.markdown.length,
-  });
-}
-
-function recordReadFailure(
-  error: unknown,
-  result: RouteStoreApplyResult,
-  evidence: BrowserOperationEvidence,
-): void {
-  if (result.status === "stale") {
-    recordLoadResult(evidence, { staleCompletion: staleFailed });
-    return;
-  }
-  recordLoadResult(evidence, { error });
-}
-
 const storeApplyFailed: RouteStoreApplyResult = Object.freeze({
   reason: "store_apply_failed",
   status: "failed",
 });
-const storeApplyError = new Error("The note route could not be applied.");

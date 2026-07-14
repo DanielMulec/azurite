@@ -198,7 +198,7 @@ describe("editor session durability cancellation", () => {
       reason: "prerequisite_unavailable",
       status: "cancel",
     });
-    gate.routeGate.settle({
+    void gate.routeGate.settle({
       leaseKey: "rejected",
       surfaceEffect: "retained",
       terminalStatus: "cancelled",

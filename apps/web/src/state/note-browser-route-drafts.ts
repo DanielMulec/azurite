@@ -10,9 +10,7 @@ import {
   getDegradedDraftRecoveryStatus,
   getReadyClusterId,
 } from "./note-browser-action-utils.js";
-import type {
-  NoteBrowserStore,
-} from "./note-browser-contracts.js";
+import type { NoteBrowserStore } from "./note-browser-contracts.js";
 
 /** Draft lookup result prepared for one atomic terminal route mutation. */
 export type RouteDraftApplication = {

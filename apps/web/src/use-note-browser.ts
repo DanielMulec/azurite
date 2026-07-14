@@ -104,10 +104,7 @@ function useRouteRuntimeRegistration(input: {
 
 function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
   return {
-    discardCurrentDraft: useStore(
-      store,
-      (state) => state.discardCurrentDraft,
-    ),
+    discardCurrentDraft: useStore(store, (state) => state.discardCurrentDraft),
     draftRecoveryStatus: useStore(store, (state) => state.draftRecoveryStatus),
     noteState: useStore(store, (state) => state.noteState),
     notesState: useStore(store, (state) => state.notesState),
