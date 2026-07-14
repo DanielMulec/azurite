@@ -219,6 +219,52 @@ protects access authority without censoring Azurite product data.
 - Do not include unrelated work in a commit.
 - Push only after checking the final diff and confirming the working tree scope.
 
+### Controlled Editing Subagents
+
+The primary agent owns the root worktree, stays on `main`, and is solely
+accountable for integration, final verification, repository cleanup, and the
+complete state pushed to `origin/main`. Temporary worker branches are local
+implementation transport, never delivery branches.
+
+- Use read-only subagents without worktrees. Give an editing subagent a linked
+  worktree only when its task and file ownership are concrete, bounded, and
+  disjoint from every other active edit.
+- Before creating a worker, make the primary worktree clean and synchronize
+  `main` with `origin/main`. Create exactly one local branch and linked worktree
+  from that commit, using matching slugs:
+
+  ```sh
+  mkdir -p /Users/danielmulec/Projekte/azurite-worktrees
+  git worktree add -b codex/worktree/<slug> \
+    /Users/danielmulec/Projekte/azurite-worktrees/<slug> main
+  ```
+
+- Assign one editing agent to each worker. State its owned files or directory,
+  forbidden overlap, required tests, and stopping condition. Do not allow two
+  agents to edit the same file concurrently.
+- Keep shared contracts, architecture decisions, cross-cutting integration,
+  final QA, and conflict resolution with the primary agent unless one of those
+  files is assigned exclusively to a worker and the primary does not edit it in
+  parallel.
+- A worker may inspect the repository, edit and test only its assigned scope,
+  and commit that scope locally. It must not push, merge into `main`, change its
+  branch, create another worktree, or broaden file ownership silently.
+- If a worker discovers that it needs an unassigned or actively owned file, it
+  stops and reports the dependency. The primary then re-sequences ownership or
+  performs the integration itself.
+- The worker handoff must include its commit SHA, changed paths, verification,
+  and unresolved risks. The primary inspects the diff and integrates it on
+  `main`; a handoff is not acceptance.
+- Before ending the delivery unit, the primary runs the combined verification,
+  confirms the integrated diff, removes every worker worktree, deletes its
+  temporary branch, and synchronizes the clean complete `main` state with
+  `origin/main`:
+
+  ```sh
+  git worktree remove /Users/danielmulec/Projekte/azurite-worktrees/<slug>
+  git branch -D codex/worktree/<slug>
+  ```
+
 ## Communication
 
 ### Voice And Presence

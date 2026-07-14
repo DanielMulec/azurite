@@ -66,5 +66,6 @@ proposal.
 - Browser or device QA is performed when behavior depends on real rendering,
   editor integration, browser lifecycle, history, storage, Tailscale, or mobile
   behavior.
-- The repository is clean, remains on `main`, and is synchronized with
-  `origin/main` after successful writes.
+- After successful delivery, the primary repository is clean on `main`, all
+  temporary worker worktrees and branches are removed, and the complete state
+  is synchronized with `origin/main`.

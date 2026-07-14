@@ -181,5 +181,6 @@ Do not install a platform opportunistically before its product role exists.
 - Keep generated output, caches, and local environment files out of version
   control unless the product explicitly requires them.
 - Stage and commit only files belonging to the current task.
-- Keep successful repository writes on `main` and synchronize the full state
-  with `origin/main`.
+- Land every integrated delivery on `main` and synchronize the full state with
+  `origin/main`. Controlled local editing worktrees are execution-only and must
+  follow the ownership, integration, and cleanup contract in `agents.md`.
