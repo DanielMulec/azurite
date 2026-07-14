@@ -40,7 +40,7 @@ export type RouteStoreApplyResult =
   | { readonly reason: "note_read_failed"; readonly status: "failed" }
   | { readonly reason: "store_apply_failed"; readonly status: "failed" };
 
-/** Zustand adapter captured by admitted route transitions. */
+/** Store-side route workflow captured by admitted route transitions. */
 export type RouteStoreExecutor = {
   readonly activateRouteIntent: (intentKey: string) => void;
   readonly applyRoute: (
