@@ -38,13 +38,17 @@ type HarnessRuntime = {
 
 /** Deterministic browser/router boundary used by route-owner contract tests. */
 export type RouteOwnerHarness = {
+  readonly blockerCount: () => number;
   readonly current: () => HistoryLocation;
   readonly entries: () => readonly HistoryLocation[];
+  readonly historySubscriptionCount: () => number;
   readonly navigateCount: () => number;
   readonly navigations: () => readonly HarnessRuntime["navigations"][number][];
   readonly owner: RouteTransitionOwner;
+  readonly popStateSubscriptionCount: () => number;
   readonly resolveCurrent: () => void;
   readonly resolveHeldNavigation: () => void;
+  readonly resolvedSubscriptionCount: () => number;
   readonly setNavigationMode: (mode: NavigationMode) => void;
   readonly traverse: (delta: number) => Promise<void>;
 };
@@ -268,17 +272,21 @@ function createHarnessApi(
   runtime: HarnessRuntime,
 ): RouteOwnerHarness {
   return {
+    blockerCount: () => (runtime.blocker === undefined ? 0 : 1),
     current: () => readRouterLocation(runtime),
     entries: () => structuredClone(runtime.entries),
+    historySubscriptionCount: () => runtime.historyListeners.size,
     navigateCount: () => runtime.navigations.length,
     navigations: () => structuredClone(runtime.navigations),
     owner,
+    popStateSubscriptionCount: () => runtime.popListeners.size,
     resolveCurrent: () => {
       emit(runtime.resolvedListeners, readRouterLocation(runtime));
     },
     resolveHeldNavigation: () => {
       resolveHeldNavigation(runtime);
     },
+    resolvedSubscriptionCount: () => runtime.resolvedListeners.size,
     setNavigationMode: (mode) => {
       runtime.mode = mode;
     },

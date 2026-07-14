@@ -240,6 +240,21 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: The test-environment wrapper does not replace full-root product and
   QA wiring or real-browser lifecycle proof.
 
+### Milkdown Editor Lifecycle Source
+
+- URL: https://github.com/Milkdown/milkdown/blob/main/packages/core/src/editor/editor.ts
+- Accessed: 2026-07-14
+- Area: Editor creation-failure and teardown lifecycle
+- Use when: Qualifying whether Crepe/Milkdown generations can be cleaned up
+  dependably after pending or rejected creation.
+- Notes: The current public editor implementation enters `OnCreate` before
+  loading plugins. Public `destroy()` reschedules itself while that status is
+  active, while a rejected `create()` does not transition the editor out of
+  `OnCreate`. Azurite pins the installed 7.21.2 behavior with a contract test.
+- Caveats: Repository `main` may change independently of Azurite's lockfile.
+  Re-run the installed-version contract test before considering an upgrade or
+  removing a local compatibility decision.
+
 ### TanStack Router
 
 - URL: https://tanstack.com/router/latest/docs/overview

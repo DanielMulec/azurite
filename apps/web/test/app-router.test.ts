@@ -1,6 +1,28 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
 
-import { parseAppLocationSearch, parseAppSearch } from "../src/app-router.js";
+import { cleanup, render } from "@testing-library/react";
+import { createElement, StrictMode } from "react";
+import { renderToString } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  AzuriteRouterProvider,
+  parseAppLocationSearch,
+  parseAppSearch,
+} from "../src/app-router.js";
+
+vi.mock("../src/App.js", () => ({ App: () => null }));
+
+let activeWindowLedger:
+  ReturnType<typeof trackWindowLifecycleResources> | undefined;
+
+afterEach(() => {
+  cleanup();
+  activeWindowLedger?.forceCleanup();
+  activeWindowLedger = undefined;
+  window.history.replaceState({}, "", "/");
+  vi.restoreAllMocks();
+});
 
 describe("app router search parsing", () => {
   it("parses selected note search state from the URL", () => {
@@ -63,3 +85,131 @@ describe("app router search parsing", () => {
     },
   );
 });
+
+describe("app router lifecycle ownership", () => {
+  it.fails(
+    "does not allocate browser resources during a render-only pass",
+    () => {
+      const ledger = startWindowLedger();
+
+      renderToString(createElement(AzuriteRouterProvider));
+
+      expect(ledger.snapshot()).toEqual(emptyWindowResourceCounts());
+      expect(ledger.historyMethodsRestored()).toBe(true);
+    },
+  );
+
+  it.fails(
+    "keeps one StrictMode generation and releases it on final unmount",
+    () => {
+      const ledger = startWindowLedger();
+      const view = render(
+        createElement(
+          StrictMode,
+          undefined,
+          createElement(AzuriteRouterProvider),
+        ),
+      );
+
+      expect.soft(ledger.snapshot()).toEqual({
+        beforeunload: { created: 2, destroyed: 1, live: 1 },
+        popstate: { created: 4, destroyed: 2, live: 2 },
+      });
+      expect.soft(ledger.historyMethodsRestored()).toBe(false);
+
+      view.unmount();
+
+      expect.soft(ledger.snapshot()).toEqual({
+        beforeunload: { created: 2, destroyed: 2, live: 0 },
+        popstate: { created: 4, destroyed: 4, live: 0 },
+      });
+      expect(ledger.historyMethodsRestored()).toBe(true);
+    },
+  );
+});
+
+type TrackedWindowEvent = "beforeunload" | "popstate";
+
+function startWindowLedger() {
+  const ledger = trackWindowLifecycleResources();
+  activeWindowLedger = ledger;
+  return ledger;
+}
+
+function emptyWindowResourceCounts() {
+  return {
+    beforeunload: { created: 0, destroyed: 0, live: 0 },
+    popstate: { created: 0, destroyed: 0, live: 0 },
+  };
+}
+
+function trackWindowLifecycleResources() {
+  const listenerSets = {
+    beforeunload: new Set<EventListenerOrEventListenerObject>(),
+    popstate: new Set<EventListenerOrEventListenerObject>(),
+  };
+  const created = { beforeunload: 0, popstate: 0 };
+  const destroyed = { beforeunload: 0, popstate: 0 };
+  const originalAddEventListener = window.addEventListener;
+  const originalRemoveEventListener = window.removeEventListener;
+  const originalPushState = Reflect.get(window.history, "pushState");
+  const originalReplaceState = Reflect.get(window.history, "replaceState");
+  const addSpy = vi
+    .spyOn(window, "addEventListener")
+    .mockImplementation((type, listener, options) => {
+      if (isTrackedWindowEvent(type) && !listenerSets[type].has(listener)) {
+        listenerSets[type].add(listener);
+        created[type] += 1;
+      }
+      originalAddEventListener.call(window, type, listener, options);
+    });
+  const removeSpy = vi
+    .spyOn(window, "removeEventListener")
+    .mockImplementation((type, listener, options) => {
+      if (isTrackedWindowEvent(type) && listenerSets[type].delete(listener)) {
+        destroyed[type] += 1;
+      }
+      originalRemoveEventListener.call(window, type, listener, options);
+    });
+
+  return {
+    forceCleanup: () => {
+      addSpy.mockRestore();
+      removeSpy.mockRestore();
+      for (const [type, listeners] of Object.entries(listenerSets)) {
+        for (const listener of listeners) {
+          originalRemoveEventListener.call(window, type, listener);
+        }
+      }
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+    },
+    historyMethodsRestored: () =>
+      window.history.pushState === originalPushState &&
+      window.history.replaceState === originalReplaceState,
+    snapshot: () => ({
+      beforeunload: resourceCount(
+        created.beforeunload,
+        destroyed.beforeunload,
+        listenerSets.beforeunload,
+      ),
+      popstate: resourceCount(
+        created.popstate,
+        destroyed.popstate,
+        listenerSets.popstate,
+      ),
+    }),
+  };
+}
+
+function isTrackedWindowEvent(type: string): type is TrackedWindowEvent {
+  return type === "beforeunload" || type === "popstate";
+}
+
+function resourceCount(
+  created: number,
+  destroyed: number,
+  listeners: ReadonlySet<EventListenerOrEventListenerObject>,
+) {
+  return { created, destroyed, live: listeners.size };
+}

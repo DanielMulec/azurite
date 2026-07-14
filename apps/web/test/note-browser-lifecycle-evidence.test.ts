@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { renderHook } from "@testing-library/react";
+import { useSyncExternalStore } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,6 +12,7 @@ import {
 } from "@azurite/shared";
 import { WebApiError } from "../src/api-client.js";
 import { parseWebSentryConfig } from "../src/config/sentry-config.js";
+import type { RouteTransitionOwner } from "../src/routing/route-transition-owner.js";
 import {
   installWebSentryRuntime,
   resetWebSentryRuntimeForTests,
@@ -15,6 +20,7 @@ import {
 } from "../src/observability/web-runtime-observability.js";
 import { createNoteBrowserStore } from "../src/state/note-browser-store.js";
 import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
+import { useNoteBrowser } from "../src/use-note-browser.js";
 import {
   createApi,
   createDeferred,
@@ -34,7 +40,77 @@ import {
 
 afterEach(() => {
   resetWebSentryRuntimeForTests();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("StrictMode note-browser registrations", () => {
+  it("balances replayed ownership and delivers each page event once", () => {
+    const unregisterGate = vi.fn();
+    const unregisterExecutor = vi.fn();
+    const owner: RouteTransitionOwner = {
+      dispose: vi.fn(),
+      registerGate: vi.fn(() => unregisterGate),
+      registerStoreExecutor: vi.fn(() => unregisterExecutor),
+      selectNote: vi.fn(),
+    };
+    const addDocument = vi.spyOn(document, "addEventListener");
+    const removeDocument = vi.spyOn(document, "removeEventListener");
+    const addWindow = vi.spyOn(window, "addEventListener");
+    const removeWindow = vi.spyOn(window, "removeEventListener");
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+    const browser = renderHook(() => useNoteBrowser(owner), {
+      reactStrictMode: true,
+    });
+    expect(owner.registerGate).toHaveBeenCalledTimes(2);
+    expect(owner.registerStoreExecutor).toHaveBeenCalledTimes(2);
+    expect(unregisterGate).toHaveBeenCalledOnce();
+    expect(unregisterExecutor).toHaveBeenCalledOnce();
+    expect(listenerCalls(addDocument, "visibilitychange")).toBe(2);
+    expect(listenerCalls(removeDocument, "visibilitychange")).toBe(1);
+    expect(listenerCalls(addWindow, "pagehide")).toBe(2);
+    expect(listenerCalls(removeWindow, "pagehide")).toBe(1);
+    expect(owner.selectNote).not.toHaveBeenCalled();
+
+    const commitLifecycle = vi.spyOn(
+      browser.result.current.editorSessionGate,
+      "commitLifecycle",
+    );
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(commitLifecycle.mock.calls).toEqual([
+      ["visibilitychange"],
+      ["pagehide"],
+    ]);
+
+    const unsubscribe = vi.fn();
+    const gate = browser.result.current.editorSessionGate;
+    const subscribe = vi.fn((listener: () => void) => {
+      const remove = gate.subscribe(listener);
+      return () => {
+        unsubscribe();
+        remove();
+      };
+    });
+    const subscriber = renderHook(
+      () => useSyncExternalStore(subscribe, gate.getSnapshot, gate.getSnapshot),
+      { reactStrictMode: true },
+    );
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    subscriber.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(2);
+
+    browser.unmount();
+    expect(unregisterGate).toHaveBeenCalledTimes(2);
+    expect(unregisterExecutor).toHaveBeenCalledTimes(2);
+    expect(listenerCalls(removeDocument, "visibilitychange")).toBe(2);
+    expect(listenerCalls(removeWindow, "pagehide")).toBe(2);
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(commitLifecycle).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("degraded browser correlation", () => {
@@ -304,4 +380,13 @@ function eventAttributes(
 
 function eventCount(info: ReturnType<typeof vi.fn>, eventName: string): number {
   return info.mock.calls.filter(([name]) => name === eventName).length;
+}
+
+function listenerCalls(
+  listener: {
+    readonly mock: { readonly calls: readonly (readonly unknown[])[] };
+  },
+  eventName: string,
+): number {
+  return listener.mock.calls.filter(([name]) => name === eventName).length;
 }

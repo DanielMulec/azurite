@@ -5,6 +5,10 @@
 Active. Daniel approved production-code implementation on 2026-07-14 from
 proposal commit `de2b400edc6fac8937e36e767072f19f1956128a`.
 
+Implementation is paused before production-code edits at the approved Milkdown
+dependency-patch Scope Re-selection trigger. Characterization evidence is in
+`docs/qa/strictmode-lifecycle-conformance-foundation.md`.
+
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout proposal, review, and promotion.
 

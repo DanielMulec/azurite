@@ -87,6 +87,66 @@ describe("route owner application fault containment", () => {
   });
 });
 
+describe("route owner lifecycle resources", () => {
+  it("releases its blocker and every subscription exactly once", () => {
+    const harness = createRouteOwnerHarness();
+
+    expect(resourceCounts(harness)).toEqual({
+      blocker: 1,
+      historySubscriptions: 1,
+      popStateSubscriptions: 1,
+      resolvedSubscriptions: 1,
+    });
+
+    harness.owner.dispose();
+    harness.owner.dispose();
+
+    expect(resourceCounts(harness)).toEqual({
+      blocker: 0,
+      historySubscriptions: 0,
+      popStateSubscriptions: 0,
+      resolvedSubscriptions: 0,
+    });
+  });
+
+  it("treats cleanup as terminal instead of reconnecting the same owner", async () => {
+    const harness = createRouteOwnerHarness();
+    const executor = createTestRouteExecutor();
+
+    harness.owner.dispose();
+    harness.owner.registerStoreExecutor(executor.executor);
+    harness.resolveCurrent();
+
+    await expect(harness.owner.selectNote("b.md")).resolves.toMatchObject({
+      noteId: "b.md",
+      reason: "owner_disposed",
+      status: "failed",
+    });
+    expect(executor.applyRoute).not.toHaveBeenCalled();
+    expect(harness.navigateCount()).toBe(0);
+  });
+
+  it("lets only the retained owner issue the initial product action", async () => {
+    const discarded = createRouteOwnerHarness();
+    const retained = createRouteOwnerHarness();
+    const discardedExecutor = createTestRouteExecutor();
+    const retainedExecutor = createTestRouteExecutor();
+
+    discarded.owner.dispose();
+    discarded.owner.registerStoreExecutor(discardedExecutor.executor);
+    discarded.resolveCurrent();
+    retained.owner.registerStoreExecutor(retainedExecutor.executor);
+    retained.resolveCurrent();
+
+    await vi.waitFor(() => {
+      expect(retainedExecutor.applyRoute).toHaveBeenCalledOnce();
+    });
+    expect(discardedExecutor.applyRoute).not.toHaveBeenCalled();
+    expect(discarded.navigateCount()).toBe(0);
+    expect(retained.navigateCount()).toBe(0);
+  });
+});
+
 describe("route owner disposal", () => {
   it("settles a held intent and its captured lease exactly once", async () => {
     const harness = createRouteOwnerHarness();
@@ -227,4 +287,13 @@ async function settleInitialRoute(
     expect(executor.applyRoute).toHaveBeenCalledOnce();
   });
   return unregister;
+}
+
+function resourceCounts(harness: RouteOwnerHarness) {
+  return {
+    blocker: harness.blockerCount(),
+    historySubscriptions: harness.historySubscriptionCount(),
+    popStateSubscriptions: harness.popStateSubscriptionCount(),
+    resolvedSubscriptions: harness.resolvedSubscriptionCount(),
+  };
 }

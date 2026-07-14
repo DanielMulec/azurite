@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DraftPersistenceCoordinator } from "../src/persistence/draft-persistence-coordinator.js";
 import type { DraftPersistence } from "../src/persistence/draft-database.js";
@@ -7,6 +7,10 @@ import type { DraftMutationSnapshot } from "../src/persistence/draft-workflow-ty
 import { createDeferred } from "./note-browser-store-test-helpers.js";
 
 const clusterId = "1bdbab0a-79c5-4c6d-a6b5-30bf65a49793";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("ordered draft persistence", () => {
   it("makes a consistent read wait behind a scheduled same-note write", async () => {
@@ -150,6 +154,7 @@ describe("unbound draft binding", () => {
 
 describe("terminal and independent draft work", () => {
   it("cancels a scheduled write before terminal Discard deletes", async () => {
+    vi.useFakeTimers();
     const memory = createMemoryPersistence();
     const writeDraft = vi.fn(memory.persistence.writeDraft);
     const deleteDraft = vi.fn(memory.persistence.deleteDraft);
@@ -173,6 +178,32 @@ describe("terminal and independent draft work", () => {
     expect(writeDraft).not.toHaveBeenCalled();
     expect(deleteDraft).toHaveBeenCalledOnce();
     expect(coordinator.pendingSnapshotCount).toBe(0);
+    expect(coordinator.activeKeyCount).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("repeated lifecycle flush admission", () => {
+  it("shares one receipt and performs one immutable draft write", async () => {
+    vi.useFakeTimers();
+    const memory = createMemoryPersistence();
+    const writeDraft = vi.fn(memory.persistence.writeDraft);
+    const coordinator = createCoordinator({
+      ...memory.persistence,
+      writeDraft,
+    });
+    const snapshot = createSnapshot();
+    admit(coordinator, snapshot);
+
+    const visibilityFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
+    const pageHideFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
+
+    await expect(visibilityFlush).resolves.toEqual({ status: "written" });
+    await expect(pageHideFlush).resolves.toEqual({ status: "written" });
+    expect(writeDraft).toHaveBeenCalledOnce();
+    expect(coordinator.pendingSnapshotCount).toBe(0);
+    expect(coordinator.activeKeyCount).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

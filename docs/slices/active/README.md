@@ -5,6 +5,12 @@ The
 is the single active slice. Daniel approved its architecture and verification
 boundary for production-code implementation on 2026-07-14.
 
+Implementation is paused before production-code edits because installed
+Milkdown creation failure cannot release its generation through the public API.
+The active slice's explicit dependency-patch Scope Re-selection trigger now
+requires Daniel's decision; exact evidence is in
+`docs/qa/strictmode-lifecycle-conformance-foundation.md`.
+
 Slice 7E remains planned, unrenumbered, and valuable, but blocked until the
 lifecycle foundation is implemented and trustworthy and its required post-7D
 diagnostic refresh is complete.
