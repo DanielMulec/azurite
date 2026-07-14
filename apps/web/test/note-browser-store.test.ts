@@ -97,10 +97,7 @@ describe("note browser store draft persistence", () => {
 
     const flush = store.getState().flushPendingDraft("unmount");
     expect(vi.getTimerCount()).toBe(0);
-    await expect(flush).resolves.toMatchObject({
-      cause: "unmount",
-      status: "durable",
-    });
+    await expect(flush).resolves.toEqual({ status: "continue" });
 
     expect(writeDraft).toHaveBeenCalledOnce();
     expect(

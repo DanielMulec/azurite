@@ -1,8 +1,8 @@
-import type {
-  DraftPersistence,
-  DraftRecordMutationResult,
-  DraftWriteResult,
-} from "./draft-database.js";
+import type { DraftPersistence, DraftWriteResult } from "./draft-database.js";
+import {
+  decideDraftMutation,
+  type DraftDeleteDecision,
+} from "./draft-persistence-decisions.js";
 import { createDraftRecord } from "./draft-records.js";
 import type { DraftMutationSnapshot } from "./draft-workflow-types.js";
 import type { DraftSnapshotResult } from "./draft-persistence-coordinator.js";
@@ -14,7 +14,7 @@ export async function executeDraftSnapshot(
   admittedAt = new Date().toISOString(),
 ): Promise<DraftSnapshotResult> {
   if (isProtectedDisposition(snapshot.disposition)) {
-    return { status: "record_protected" };
+    return { status: "protected" };
   }
   return await executeUnprotectedSnapshot(snapshot, persistence, admittedAt);
 }
@@ -25,7 +25,7 @@ async function executeUnprotectedSnapshot(
   admittedAt: string,
 ): Promise<DraftSnapshotResult> {
   if (isCleanWithoutRecord(snapshot)) {
-    return { outcome: "no_record", status: "clean" };
+    return { status: "cleared" };
   }
   return await executeStorageSnapshot(snapshot, persistence, admittedAt);
 }
@@ -67,7 +67,7 @@ async function deleteSnapshot(
     requireClusterId(snapshot),
     snapshot.noteId,
   );
-  return toCleanSnapshotResult(result);
+  return toMutationSnapshotResult(decideDraftMutation(result));
 }
 
 /** Returns the stable ordered-work key for one ready cluster note. */
@@ -98,19 +98,34 @@ function isProtectedDisposition(
 }
 
 function toWriteSnapshotResult(result: DraftWriteResult): DraftSnapshotResult {
-  return result;
+  if (result.status === "written") {
+    return { status: "written" };
+  }
+  if (result.status === "preserved_unknown") {
+    return {
+      schemaVersion: result.schemaVersion,
+      status: "protected",
+    };
+  }
+  return {
+    failure: { reason: result.reason, source: "persistence" },
+    status: "failed",
+  };
 }
 
-function toCleanSnapshotResult(
-  result: DraftRecordMutationResult,
+function toMutationSnapshotResult(
+  decision: DraftDeleteDecision,
 ): DraftSnapshotResult {
-  if (
-    result.status === "preserved_unknown" ||
-    result.status === "unavailable"
-  ) {
-    return result;
+  if (decision.status === "protected") {
+    return {
+      schemaVersion: decision.schemaVersion,
+      status: "protected",
+    };
   }
-  return { outcome: result, status: "clean" };
+  if (decision.status === "failed") {
+    return { failure: decision.failure, status: "failed" };
+  }
+  return { status: "cleared" };
 }
 
 function requireClusterId(snapshot: DraftMutationSnapshot): string {

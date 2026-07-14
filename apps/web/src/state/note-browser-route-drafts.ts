@@ -35,9 +35,23 @@ export async function readRouteDraft(
     return unavailableIdentityApplication(clusterIdentity);
   }
   const result = await context.draftCoordinator.readDraft(clusterId, noteId);
-  return isFailedDraftRead(result)
-    ? getFailedDraftApplication(clusterId, result)
-    : getReadableDraftApplication(clusterId, result);
+  if (result.status === "failed") {
+    return getFailedDraftApplication(clusterId, result.failure);
+  }
+  if (result.status === "protected") {
+    return getProtectedDraftApplication(clusterId, result.schemaVersion);
+  }
+  if (result.status === "current") {
+    return {
+      clusterId,
+      disposition: "recovered",
+      draft: result.draft,
+      failure: undefined,
+      preservedSchemaVersion: undefined,
+      statePatch: {},
+    };
+  }
+  return getAbsentDraftApplication(clusterId, result.failure);
 }
 
 function unavailableIdentityApplication(
@@ -67,93 +81,53 @@ function unavailableIdentityApplication(
 
 function getFailedDraftApplication(
   clusterId: string,
-  result: Extract<
-    Awaited<ReturnType<StoreContext["draftCoordinator"]["readDraft"]>>,
-    { status: "queue_failed" | "unavailable" }
-  >,
+  failure: DraftFailureDetail,
 ): RouteDraftApplication {
-  if (result.status === "unavailable") {
-    return {
-      clusterId,
-      disposition: "recovery_read_unavailable",
-      draft: undefined,
-      failure: { reason: result.reason, source: "persistence" },
-      preservedSchemaVersion: undefined,
-      statePatch: {
-        draftRecoveryStatus: getDegradedDraftRecoveryStatus(result.reason),
-      },
-    };
-  }
   return {
     clusterId,
     disposition: "recovery_read_unavailable",
     draft: undefined,
-    failure: { reason: result.reason, source: "coordinator" },
+    failure,
     preservedSchemaVersion: undefined,
+    statePatch:
+      failure.source === "persistence"
+        ? {
+            draftRecoveryStatus: getDegradedDraftRecoveryStatus(failure.reason),
+          }
+        : {},
+  };
+}
+
+function getProtectedDraftApplication(
+  clusterId: string,
+  schemaVersion: number,
+): RouteDraftApplication {
+  return {
+    clusterId,
+    disposition: "preserved_unknown",
+    draft: undefined,
+    failure: { reason: "preserved_unknown", source: "record" },
+    preservedSchemaVersion: schemaVersion,
     statePatch: {},
   };
 }
 
-function isFailedDraftRead(
-  result: Awaited<ReturnType<StoreContext["draftCoordinator"]["readDraft"]>>,
-): result is Extract<
-  Awaited<ReturnType<StoreContext["draftCoordinator"]["readDraft"]>>,
-  { status: "queue_failed" | "unavailable" }
-> {
-  return result.status === "queue_failed" || result.status === "unavailable";
-}
-
-function getReadableDraftApplication(
-  clusterId: string,
-  result: Exclude<
-    Awaited<ReturnType<StoreContext["draftCoordinator"]["readDraft"]>>,
-    { status: "queue_failed" | "unavailable" }
-  >,
-): RouteDraftApplication {
-  if (result.status === "preserved_unknown") {
-    return {
-      clusterId,
-      disposition: "preserved_unknown",
-      draft: undefined,
-      failure: { reason: "preserved_unknown", source: "record" },
-      preservedSchemaVersion: result.schemaVersion,
-      statePatch: {},
-    };
-  }
-  if (result.status === "found_current") {
-    return {
-      clusterId,
-      disposition: "recovered",
-      draft: result.draft,
-      failure: undefined,
-      preservedSchemaVersion: undefined,
-      statePatch: {},
-    };
-  }
-  return getAbsentDraftApplication(clusterId, result);
-}
-
 function getAbsentDraftApplication(
   clusterId: string,
-  result: Extract<
-    Awaited<ReturnType<StoreContext["draftCoordinator"]["readDraft"]>>,
-    { status: "absent" | "invalid_deleted" }
-  >,
+  failure: DraftFailureDetail | undefined,
 ): RouteDraftApplication {
-  const invalid = result.status === "invalid_deleted";
   return {
     clusterId,
     disposition: "none",
     draft: undefined,
-    failure: invalid
-      ? { reason: "validation_failed", source: "persistence" }
-      : undefined,
+    failure,
     preservedSchemaVersion: undefined,
-    statePatch: invalid
-      ? {
-          draftRecoveryStatus:
-            getDegradedDraftRecoveryStatus("validation_failed"),
-        }
-      : {},
+    statePatch:
+      failure?.source === "persistence"
+        ? {
+            draftRecoveryStatus:
+              getDegradedDraftRecoveryStatus("validation_failed"),
+          }
+        : {},
   };
 }

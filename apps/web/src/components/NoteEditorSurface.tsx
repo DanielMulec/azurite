@@ -19,15 +19,13 @@ type NoteEditorSurfaceProps = {
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly noteState: NoteViewState;
   readonly routeHistoryStatus: RouteHistoryStatus;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
-  readonly onDiscardMissingDraft: () => Promise<unknown>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onDiscardMissingDraft: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
-  readonly onRetryBrowserRecovery: () => Promise<unknown>;
-  readonly onRetryDraftCleanup: () => Promise<void>;
-  readonly onRetryDraftPersistence: () => Promise<void>;
+  readonly onRetryDraftPersistenceIssue: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
   readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
@@ -45,9 +43,7 @@ export function NoteEditorSurface({
   onDiscardMissingDraft,
   onEditorModeChange,
   onPublishMarkdown,
-  onRetryBrowserRecovery,
-  onRetryDraftCleanup,
-  onRetryDraftPersistence,
+  onRetryDraftPersistenceIssue,
   onSaveNote,
   readEditorSession,
   routeHistoryStatus,
@@ -64,9 +60,7 @@ export function NoteEditorSurface({
         onDiscardMissingDraft,
         onEditorModeChange,
         onPublishMarkdown,
-        onRetryBrowserRecovery,
-        onRetryDraftCleanup,
-        onRetryDraftPersistence,
+        onRetryDraftPersistenceIssue,
         onSaveNote,
         readEditorSession,
         routeHistoryStatus,
@@ -98,9 +92,7 @@ function SelectedNote({
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
   onPublishMarkdown,
-  onRetryBrowserRecovery,
-  onRetryDraftCleanup,
-  onRetryDraftPersistence,
+  onRetryDraftPersistenceIssue,
   onSaveNote,
   readEditorSession,
   sessionGate,
@@ -128,9 +120,7 @@ function SelectedNote({
         onDiscardDraftAndReloadDiskVersion={onDiscardDraftAndReloadDiskVersion}
         onEditorModeChange={onEditorModeChange}
         onPublishMarkdown={onPublishMarkdown}
-        onRetryBrowserRecovery={onRetryBrowserRecovery}
-        onRetryDraftCleanup={onRetryDraftCleanup}
-        onRetryDraftPersistence={onRetryDraftPersistence}
+        onRetryDraftPersistenceIssue={onRetryDraftPersistenceIssue}
         onSaveNote={onSaveNote}
         readEditorSession={readEditorSession}
         sessionGate={sessionGate}
@@ -146,9 +136,7 @@ function EditorInteractionRegion(
     | "onDiscardDraftAndReloadDiskVersion"
     | "onEditorModeChange"
     | "onPublishMarkdown"
-    | "onRetryBrowserRecovery"
-    | "onRetryDraftCleanup"
-    | "onRetryDraftPersistence"
+    | "onRetryDraftPersistenceIssue"
     | "onSaveNote"
     | "readEditorSession"
     | "sessionGate"
@@ -177,9 +165,7 @@ function EditorInteractionRegion(
         }
         onEditorModeChange={props.onEditorModeChange}
         onPublishMarkdown={props.onPublishMarkdown}
-        onRetryBrowserRecovery={props.onRetryBrowserRecovery}
-        onRetryDraftCleanup={props.onRetryDraftCleanup}
-        onRetryDraftPersistence={props.onRetryDraftPersistence}
+        onRetryDraftPersistenceIssue={props.onRetryDraftPersistenceIssue}
         onSaveNote={props.onSaveNote}
         readEditorSession={props.readEditorSession}
         sessionGate={props.sessionGate}

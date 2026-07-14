@@ -16,10 +16,8 @@ import type { DraftCleanupRetryRegistry } from "../persistence/draft-cleanup-ret
 import type { DraftPersistence } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type {
-  DiscardResult,
   DurabilityCause,
-  DurabilityResult,
-  RecoveryReadResult,
+  HandoffDecision,
 } from "../persistence/draft-workflow-types.js";
 import type { NoteLoadAuthorization } from "../routing/route-transition-types.js";
 import type {
@@ -75,22 +73,18 @@ export type NoteBrowserStore = NoteBrowserSnapshot & {
   readonly applyRoute: (
     input: RouteStoreApplyInput,
   ) => Promise<RouteStoreApplyResult>;
-  readonly discardDraftAndReloadDiskVersion: () => Promise<
-    DiscardResult | undefined
-  >;
-  readonly discardMissingDraft: () => Promise<DiscardResult | undefined>;
+  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly discardMissingDraft: () => Promise<void>;
   readonly flushPendingDraft: (
     cause?: DurabilityCause,
-  ) => Promise<DurabilityResult>;
+  ) => Promise<HandoffDecision>;
   readonly ensureNotes: () => Promise<RouteNotesResult>;
   readonly getCoherentView: RouteStoreExecutor["getCoherentView"];
   readonly getRenderedOwnerKey: RouteStoreExecutor["getRenderedOwnerKey"];
   readonly publishMarkdownChange: (
     command: PublicationCommand,
   ) => PublicationResult;
-  readonly retryBrowserRecovery: () => Promise<RecoveryReadResult>;
-  readonly retryDraftCleanup: () => Promise<void>;
-  readonly retryDraftPersistence: () => Promise<void>;
+  readonly retryDraftPersistenceIssue: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly reportHistoryUnavailable: RouteStoreExecutor["reportHistoryUnavailable"];
   readonly updateEditorMode: (editorMode: EditorMode) => void;

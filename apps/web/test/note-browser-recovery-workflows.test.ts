@@ -42,12 +42,8 @@ describe("browser recovery retry", () => {
       },
     });
     await expect(
-      store.getState().retryBrowserRecovery(),
-    ).resolves.toMatchObject({
-      disposition: "none",
-      recordStatus: "absent",
-      status: "resolved",
-    });
+      store.getState().retryDraftPersistenceIssue(),
+    ).resolves.toBeUndefined();
     expect(getEditor(store)).toMatchObject({
       draftDisposition: "none",
       persistenceIssue: undefined,
@@ -81,11 +77,8 @@ describe("dirty browser recovery retry", () => {
 
     expect(getEditor(store).persistenceIssue?.retryAction).toBeUndefined();
     await expect(
-      store.getState().retryBrowserRecovery(),
-    ).resolves.toMatchObject({
-      reason: "dirty_live_authority",
-      status: "superseded",
-    });
+      store.getState().retryDraftPersistenceIssue(),
+    ).resolves.toBeUndefined();
     expect(getEditor(store).currentMarkdown).toBe("# Exact live edit");
     expect(readDraft).toHaveBeenCalledOnce();
   });
@@ -160,8 +153,14 @@ describe("successful Save cleanup retry", () => {
       draftDisposition: "cleanup_required",
       persistenceIssue: { retryAction: "retry_draft_cleanup" },
     });
+    await expect(
+      store.getState().flushPendingDraft("route_transition"),
+    ).resolves.toMatchObject({
+      failure: { reason: "write_failed", source: "persistence" },
+      status: "block",
+    });
 
-    await store.getState().retryDraftCleanup();
+    await store.getState().retryDraftPersistenceIssue();
 
     expect(getEditor(store)).toMatchObject({
       draftDisposition: "none",
@@ -205,11 +204,43 @@ describe("successful Save queue cleanup retry", () => {
       },
     });
 
-    await store.getState().retryDraftCleanup();
+    await store.getState().retryDraftPersistenceIssue();
 
     expect(getEditor(store).draftDisposition).toBe("none");
     expect(saveNote).toHaveBeenCalledOnce();
     expect(deleteSaved).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("cleanup retry conditional mismatch", () => {
+  it("treats a newer durable record as safe without deleting or rewriting it", async () => {
+    const deleteSaved = vi
+      .fn<DraftPersistence["deleteDraftIfSavedSnapshotMatches"]>()
+      .mockResolvedValueOnce({ reason: "write_failed", status: "unavailable" })
+      .mockResolvedValueOnce({ status: "not_matching" });
+    const writeDraft = vi.fn<DraftPersistence["writeDraft"]>(() =>
+      Promise.resolve({ status: "written" }),
+    );
+    const store = createLoadedStore({
+      draftPersistence: createPersistence({
+        deleteDraftIfSavedSnapshotMatches: deleteSaved,
+        writeDraft,
+      }),
+      recovery: "draft",
+    });
+    await store.getState().saveSelectedNote();
+
+    await store.getState().retryDraftPersistenceIssue();
+
+    expect(getEditor(store)).toMatchObject({
+      draftDisposition: "generated_durable",
+      persistenceIssue: undefined,
+    });
+    await expect(
+      store.getState().flushPendingDraft("route_transition"),
+    ).resolves.toEqual({ status: "continue" });
+    expect(deleteSaved).toHaveBeenCalledTimes(2);
+    expect(writeDraft).not.toHaveBeenCalled();
   });
 });
 
@@ -245,7 +276,7 @@ describe("failed snapshot retry", () => {
         },
       };
     });
-    await store.getState().retryDraftPersistence();
+    await store.getState().retryDraftPersistenceIssue();
 
     expect(writeDraft).toHaveBeenCalledTimes(2);
     expect(writeDraft.mock.calls[1]?.[0]).toEqual(
@@ -278,7 +309,7 @@ describe("cleanup retry supersession", () => {
     expect(getEditor(store).draftDisposition).toBe("cleanup_required");
 
     publishSourceMarkdown(store, "# Newer accepted edit");
-    await store.getState().retryDraftCleanup();
+    await store.getState().retryDraftPersistenceIssue();
     await store.getState().flushPendingDraft();
 
     expect(deleteSaved).toHaveBeenCalledOnce();

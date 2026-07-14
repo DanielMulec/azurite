@@ -37,7 +37,7 @@ describe("ordered draft persistence", () => {
 
     await expect(read).resolves.toMatchObject({
       draft: { markdown: "# Ordered write" },
-      status: "found_current",
+      status: "current",
     });
     expect(coordinator.activeKeyCount).toBe(0);
     expect(coordinator.pendingSnapshotCount).toBe(0);
@@ -99,8 +99,8 @@ describe("failed draft retry", () => {
     await expect(
       coordinator.flushSnapshot(snapshot.snapshotKey),
     ).resolves.toEqual({
-      reason: "quota_exceeded",
-      status: "unavailable",
+      failure: { reason: "quota_exceeded", source: "persistence" },
+      status: "failed",
     });
     expect(coordinator.pendingSnapshotCount).toBe(1);
     await expect(
@@ -173,7 +173,7 @@ describe("terminal and independent draft work", () => {
         noteId: snapshot.noteId,
         ownerKey: snapshot.sessionKey,
       }),
-    ).resolves.toEqual({ status: "absent" });
+    ).resolves.toEqual({ evidence: { status: "absent" }, status: "cleared" });
 
     expect(writeDraft).not.toHaveBeenCalled();
     expect(deleteDraft).toHaveBeenCalledOnce();
@@ -299,15 +299,12 @@ describe("draft queue recovery", () => {
     const coordinator = createCoordinator({ ...memory.persistence, readDraft });
 
     await expect(coordinator.readDraft(clusterId, "note.md")).resolves.toEqual({
-      clusterId,
-      noteId: "note.md",
-      reason: "queue_task_failed",
-      status: "queue_failed",
+      failure: { reason: "queue_task_failed", source: "coordinator" },
+      status: "failed",
     });
     await expect(coordinator.readDraft(clusterId, "note.md")).resolves.toEqual({
-      clusterId,
-      noteId: "note.md",
       status: "absent",
+      failure: undefined,
     });
     expect(coordinator.activeKeyCount).toBe(0);
   });

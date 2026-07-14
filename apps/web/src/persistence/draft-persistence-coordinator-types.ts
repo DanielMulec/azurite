@@ -1,29 +1,14 @@
-import type {
-  DraftPersistence,
-  DraftRecordMutationResult,
-  DraftWriteResult,
-} from "./draft-database.js";
+import type { DraftPersistence } from "./draft-database.js";
+import type { DraftBoundaryFailure } from "./draft-persistence-decisions.js";
 import type { DraftMutationSnapshot } from "./draft-workflow-types.js";
 
 /** Result of executing, coalescing, or blocking one immutable snapshot. */
 export type DraftSnapshotResult =
   | { readonly status: "written" }
-  | {
-      readonly outcome: "no_record" | DraftRecordMutationResult;
-      readonly status: "clean";
-    }
-  | { readonly schemaVersion: number; readonly status: "preserved_unknown" }
-  | {
-      readonly reason:
-        | Extract<
-            DraftWriteResult | DraftRecordMutationResult,
-            { readonly status: "unavailable" }
-          >["reason"]
-        | "queue_task_failed";
-      readonly status: "unavailable";
-    }
-  | { readonly status: "superseded" }
-  | { readonly status: "record_protected" };
+  | { readonly status: "cleared" }
+  | { readonly schemaVersion?: number; readonly status: "protected" }
+  | { readonly failure: DraftBoundaryFailure; readonly status: "failed" }
+  | { readonly status: "superseded" };
 
 /** Immutable snapshot paired with its terminal coordinator result. */
 export type SnapshotSettlement = {

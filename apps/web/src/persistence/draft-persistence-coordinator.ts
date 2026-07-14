@@ -2,15 +2,12 @@ import { KeyedTaskCoordinator } from "@azurite/shared";
 
 import type { DraftPersistence, SavedDraftSnapshot } from "./draft-database.js";
 import {
-  runCoordinatedDraftMutation,
-  runCoordinatedDraftRead,
-  type CoordinatedDraftMutationResult,
-  type CoordinatedDraftReadResult,
-} from "./draft-coordinated-operations.js";
-export type {
-  CoordinatedDraftMutationResult,
-  CoordinatedDraftReadResult,
-} from "./draft-coordinated-operations.js";
+  decideDraftMutation,
+  decideOrderedDraftRead,
+  type DraftDeleteDecision,
+  type DraftMutationDecision,
+  type OrderedDraftReadDecision,
+} from "./draft-persistence-decisions.js";
 import {
   executeDraftSnapshot,
   getDraftQueueKey,
@@ -183,30 +180,36 @@ export class DraftPersistenceCoordinator {
   async readDraft(
     clusterId: string,
     noteId: string,
-  ): Promise<CoordinatedDraftReadResult> {
+  ): Promise<OrderedDraftReadDecision> {
     const key = getDraftQueueKey(clusterId, noteId);
     this.#startScheduled(key);
-    return await runCoordinatedDraftRead({
-      clusterId,
-      key,
-      noteId,
-      persistence: this.#persistence,
-      tasks: this.#keyedTasks,
-    });
+    try {
+      const result = await this.#keyedTasks.run(
+        key,
+        async () => await this.#persistence.readDraft(clusterId, noteId),
+      );
+      return decideOrderedDraftRead(result);
+    } catch {
+      return { failure: queueFailure, status: "failed" };
+    }
   }
 
   /** Conditionally reconciles a successful Save behind earlier note work. */
   async cleanupSavedSnapshot(
     snapshot: SavedDraftSnapshot,
-  ): Promise<CoordinatedDraftMutationResult> {
+  ): Promise<DraftMutationDecision> {
     const key = getDraftQueueKey(snapshot.clusterId, snapshot.noteId);
     this.#startScheduled(key);
-    return await runCoordinatedDraftMutation(
-      this.#keyedTasks,
-      key,
-      async () =>
-        await this.#persistence.deleteDraftIfSavedSnapshotMatches(snapshot),
-    );
+    try {
+      const result = await this.#keyedTasks.run(
+        key,
+        async () =>
+          await this.#persistence.deleteDraftIfSavedSnapshotMatches(snapshot),
+      );
+      return decideDraftMutation(result);
+    } catch {
+      return { evidence: undefined, failure: queueFailure, status: "failed" };
+    }
   }
 
   /** Closes an epoch and deletes only after earlier started note work settles. */
@@ -215,7 +218,7 @@ export class DraftPersistenceCoordinator {
     readonly draftEpoch: number;
     readonly noteId: string;
     readonly ownerKey: string;
-  }): Promise<CoordinatedDraftMutationResult> {
+  }): Promise<DraftDeleteDecision> {
     this.closeEpoch(input.ownerKey, input.draftEpoch);
     this.#cancelMatching(
       (slot) =>
@@ -224,12 +227,16 @@ export class DraftPersistenceCoordinator {
         slot.snapshot.draftEpoch === input.draftEpoch,
     );
     const key = getDraftQueueKey(input.clusterId, input.noteId);
-    return await runCoordinatedDraftMutation(
-      this.#keyedTasks,
-      key,
-      async () =>
-        await this.#persistence.deleteDraft(input.clusterId, input.noteId),
-    );
+    try {
+      const result = await this.#keyedTasks.run(
+        key,
+        async () =>
+          await this.#persistence.deleteDraft(input.clusterId, input.noteId),
+      );
+      return decideDraftMutation(result);
+    } catch {
+      return { evidence: undefined, failure: queueFailure, status: "failed" };
+    }
   }
 
   /** Permanently rejects callbacks from one owner epoch. */
@@ -310,8 +317,8 @@ export class DraftPersistenceCoordinator {
         },
         () => {
           this.#settle(slot, {
-            reason: "queue_task_failed",
-            status: "unavailable",
+            failure: queueFailure,
+            status: "failed",
           });
         },
       );
@@ -379,10 +386,15 @@ export class DraftPersistenceCoordinator {
 
   #updateFailedSnapshot(slot: PreparedSlot, result: DraftSnapshotResult): void {
     const snapshotKey = slot.snapshot.snapshotKey;
-    if (result.status === "unavailable") {
+    if (result.status === "failed" && !this.#isClosed(slot.snapshot)) {
       this.#failed.set(snapshotKey, slot);
       return;
     }
     this.#failed.delete(snapshotKey);
   }
 }
+
+const queueFailure = Object.freeze({
+  reason: "queue_task_failed",
+  source: "coordinator",
+} as const);

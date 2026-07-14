@@ -156,7 +156,9 @@ without matching browser durability cancels the transition and retains the same
 editor session for retry or Save. The gate runtime is the sole freeze and lease
 authority: controller publication and commit synchronously consult that exact
 gate state, and the gate returns the existing `RouteGateResult` directly after
-its proceed/block commit decision and unchanged durability check.
+its proceed/block commit decision and the persistence boundary's
+`continue/block` handoff decision. A cleanup-required or failed dirty owner
+blocks destructive handoff with its existing `DraftPersistenceIssue` evidence.
 
 The deterministic route fault controller is available only through dedicated
 development and optimized QA entries. It is absent from the ordinary Vite
@@ -352,6 +354,15 @@ snapshot for explicit retry without another edit. Different notes remain
 independent; coordinator state is ephemeral and does not change the version-one
 Dexie record.
 
+Dexie validation and transaction outcomes remain private to that persistence
+boundary. Ordered callers receive only `absent/current/protected/failed`; Save,
+cleanup retry, and Discard share one mutation translation to
+`cleared/unchanged/protected/failed`, with exact storage evidence retained only
+for diagnostics. Snapshot supersession remains coordinator-private lifecycle
+state. Recovery and Discard publish no ignored result payload: their observable
+truth is Zustand state, the exact issue, the retained or restored surface, and
+durable storage.
+
 The editor store keeps browser-record disposition separate from persistence
 failure. Disposition distinguishes absent, generated pending/durable, recovered,
 conflicted, cleanup-required, recovery-read-unavailable, and preserved-unknown
@@ -362,7 +373,9 @@ generic success. An unread record is retried only while live authority is clean;
 an unknown future-version record is never treated as absent, overwritten, or
 deleted by the older build. Dirty content in either protected state remains
 manually saveable but cannot hand off destructively until disk Save makes it
-safe.
+safe. React receives one ordinary retry command; Zustand selects recovery,
+exact-snapshot, or successful-Save cleanup retry from the current issue.
+Terminal Discard retry remains inside the Discard workflow.
 
 Discard is terminal for one exact-owner draft-admission epoch. It cancels
 not-yet-started work, waits behind started mutations, conditionally deletes only

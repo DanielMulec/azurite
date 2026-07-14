@@ -14,14 +14,12 @@ import { MilkdownEditor } from "./MilkdownEditor.js";
 
 type SaveableNoteEditorProps = {
   readonly editor: EditorSession;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
   readonly onEditorModeChange: (editorMode: "markdown" | "wysiwyg") => void;
   readonly onPublishMarkdown: (
     command: PublicationCommand,
   ) => PublicationResult;
-  readonly onRetryBrowserRecovery: () => Promise<unknown>;
-  readonly onRetryDraftCleanup: () => Promise<void>;
-  readonly onRetryDraftPersistence: () => Promise<void>;
+  readonly onRetryDraftPersistenceIssue: () => Promise<void>;
   readonly onSaveNote: () => Promise<void>;
   readonly readEditorSession: EditorSessionReader;
   readonly sessionGate: EditorSessionGate;
@@ -33,9 +31,7 @@ export function SaveableNoteEditor({
   onDiscardDraftAndReloadDiskVersion,
   onEditorModeChange,
   onPublishMarkdown,
-  onRetryBrowserRecovery,
-  onRetryDraftCleanup,
-  onRetryDraftPersistence,
+  onRetryDraftPersistenceIssue,
   onSaveNote,
   readEditorSession,
   sessionGate,
@@ -57,9 +53,7 @@ export function SaveableNoteEditor({
             await onSaveNote();
           }
         }}
-        onRetryBrowserRecovery={onRetryBrowserRecovery}
-        onRetryDraftCleanup={onRetryDraftCleanup}
-        onRetryDraftPersistence={onRetryDraftPersistence}
+        onRetryDraftPersistenceIssue={onRetryDraftPersistenceIssue}
         sessionGate={sessionGate}
       />
       <MilkdownEditor
@@ -77,18 +71,14 @@ function SaveToolbar({
   editor,
   isDirty,
   onDiscardDraftAndReloadDiskVersion,
-  onRetryBrowserRecovery,
-  onRetryDraftCleanup,
-  onRetryDraftPersistence,
+  onRetryDraftPersistenceIssue,
   onSave,
   sessionGate,
 }: {
   readonly editor: EditorSession;
   readonly isDirty: boolean;
-  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<unknown>;
-  readonly onRetryBrowserRecovery: () => Promise<unknown>;
-  readonly onRetryDraftCleanup: () => Promise<void>;
-  readonly onRetryDraftPersistence: () => Promise<void>;
+  readonly onDiscardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly onRetryDraftPersistenceIssue: () => Promise<void>;
   readonly onSave: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 }): ReactElement {
@@ -106,9 +96,7 @@ function SaveToolbar({
           />
           <DraftRetryButton
             editor={editor}
-            onRetryBrowserRecovery={onRetryBrowserRecovery}
-            onRetryDraftCleanup={onRetryDraftCleanup}
-            onRetryDraftPersistence={onRetryDraftPersistence}
+            onRetryDraftPersistenceIssue={onRetryDraftPersistenceIssue}
           />
           <button
             className="w-fit border border-[var(--azurite-border)] bg-[var(--azurite-surface)] px-3 py-1.5 text-sm font-medium text-[var(--azurite-text)] hover:bg-[var(--azurite-hover)] disabled:cursor-not-allowed disabled:text-[var(--azurite-muted)]"
@@ -142,9 +130,7 @@ function FutureRecordGuidance({
 
 function DraftRetryButton(props: {
   readonly editor: EditorSession;
-  readonly onRetryBrowserRecovery: () => Promise<unknown>;
-  readonly onRetryDraftCleanup: () => Promise<void>;
-  readonly onRetryDraftPersistence: () => Promise<void>;
+  readonly onRetryDraftPersistenceIssue: () => Promise<void>;
 }): ReactElement | null {
   const control = getEditorRetryControl(props);
   if (control === undefined) {
@@ -165,7 +151,7 @@ function DraftRetryButton(props: {
 
 function DiscardButton(props: {
   readonly editor: EditorSession;
-  readonly onDiscard: () => Promise<unknown>;
+  readonly onDiscard: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 }): ReactElement | null {
   if (!isDiscardable(props.editor)) {
@@ -192,18 +178,15 @@ function getDiscardLabel(editor: EditorSession): string {
 
 function getEditorRetryControl(props: {
   readonly editor: EditorSession;
-  readonly onRetryBrowserRecovery: () => Promise<unknown>;
-  readonly onRetryDraftCleanup: () => Promise<void>;
-  readonly onRetryDraftPersistence: () => Promise<void>;
-}):
-  { readonly label: string; readonly run: () => Promise<unknown> } | undefined {
+  readonly onRetryDraftPersistenceIssue: () => Promise<void>;
+}): { readonly label: string; readonly run: () => Promise<void> } | undefined {
   const action = props.editor.persistenceIssue?.retryAction;
   return action === undefined ? undefined : getRetryControl(action, props);
 }
 
 function runConfirmedDiscard(props: {
   readonly editor: EditorSession;
-  readonly onDiscard: () => Promise<unknown>;
+  readonly onDiscard: () => Promise<void>;
   readonly sessionGate: EditorSessionGate;
 }): void {
   if (confirmDraftDiscard(props.editor.currentMarkdown)) {
@@ -224,25 +207,22 @@ function isDiscardable(editor: EditorSession): boolean {
 function getRetryControl(
   action: DraftRetryAction,
   props: {
-    readonly onRetryBrowserRecovery: () => Promise<unknown>;
-    readonly onRetryDraftCleanup: () => Promise<void>;
-    readonly onRetryDraftPersistence: () => Promise<void>;
+    readonly onRetryDraftPersistenceIssue: () => Promise<void>;
   },
-):
-  { readonly label: string; readonly run: () => Promise<unknown> } | undefined {
+): { readonly label: string; readonly run: () => Promise<void> } | undefined {
   const controls = {
     retry_browser_recovery: {
       label: retryActionLabels.retry_browser_recovery,
-      run: props.onRetryBrowserRecovery,
+      run: props.onRetryDraftPersistenceIssue,
     },
     retry_discard: undefined,
     retry_draft_cleanup: {
       label: retryActionLabels.retry_draft_cleanup,
-      run: props.onRetryDraftCleanup,
+      run: props.onRetryDraftPersistenceIssue,
     },
     retry_draft_persistence: {
       label: retryActionLabels.retry_draft_persistence,
-      run: props.onRetryDraftPersistence,
+      run: props.onRetryDraftPersistenceIssue,
     },
   } as const;
   return controls[action];

@@ -30,7 +30,7 @@ export type EditorSessionGate = {
   readonly routeGate: RouteTransitionGate;
   readonly runTerminalAction: (
     sessionKey: string,
-    action: () => Promise<unknown>,
+    action: () => Promise<void>,
   ) => Promise<void>;
   readonly subscribe: (listener: () => void) => () => void;
 };

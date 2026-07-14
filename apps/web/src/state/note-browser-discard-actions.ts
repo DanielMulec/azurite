@@ -1,19 +1,11 @@
-import type { CoordinatedDraftMutationResult } from "../persistence/draft-persistence-coordinator.js";
-import type { DiscardResult } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
 import type { StoreContext } from "./note-browser-contracts.js";
 import {
-  createTargetSupersededResult,
   type DiscardTarget,
   ownsDiscardTarget,
   restoreFailedDiscard,
-  restorePreservedDiscard,
+  restoreProtectedDiscard,
 } from "./note-browser-discard-restoration.js";
-import {
-  getClusterIdentityDiscardFailure,
-  getDiscardMutationFailure,
-  isDiscardDeletionComplete,
-} from "./note-browser-discard-results.js";
 import { reloadSelectedNoteAction } from "./note-browser-route-actions.js";
 import { applyMissingRoute } from "./note-browser-route-state.js";
 import type { EditorSession, NoteViewState } from "./note-browser-types.js";
@@ -23,47 +15,46 @@ type MissingDraftState = Extract<
   { readonly status: "missing-draft" }
 >;
 
-/** An inapplicable defensive call has no terminal Discard operation to report. */
-export type DiscardActionResult = DiscardResult | undefined;
-
 /** Closes a compatible recovery epoch before restoring exact disk authority. */
 export async function discardDraftAndReloadDiskVersionAction(
   context: StoreContext,
-): Promise<DiscardActionResult> {
+): Promise<void> {
   const target = getDiscardTarget(context.get().noteState);
-  return target === undefined
-    ? undefined
-    : await discardTarget(target, context);
+  if (target !== undefined) {
+    await discardTarget(target, context);
+  }
 }
 
 /** Closes a compatible missing-note epoch before dismissing its recovery view. */
 export async function discardMissingDraftAction(
   context: StoreContext,
-): Promise<DiscardActionResult> {
+): Promise<void> {
   const noteState = context.get().noteState;
   if (noteState.status !== "missing-draft") {
-    return undefined;
+    return;
   }
   const target = getMissingDiscardTarget(noteState);
-  return target === undefined
-    ? undefined
-    : await discardTarget(target, context);
+  if (target !== undefined) {
+    await discardTarget(target, context);
+  }
 }
 
 function getDiscardTarget(state: NoteViewState): DiscardTarget | undefined {
   if (state.status === "ready") {
     return getEditorDiscardTarget(state.editor);
   }
-  if (state.status === "missing-draft") {
-    return getMissingDiscardTarget(state);
-  }
-  return undefined;
+  return state.status === "missing-draft"
+    ? getMissingDiscardTarget(state)
+    : undefined;
 }
 
 function getEditorDiscardTarget(
   editor: EditorSession,
 ): DiscardTarget | undefined {
-  if (!isDiscardable(editor.draftDisposition)) {
+  if (
+    editor.draftDisposition !== "recovered" &&
+    editor.draftDisposition !== "conflict"
+  ) {
     return undefined;
   }
   return {
@@ -79,100 +70,71 @@ function getEditorDiscardTarget(
 function getMissingDiscardTarget(
   noteState: MissingDraftState,
 ): DiscardTarget | undefined {
-  if (noteState.draftDisposition !== "recovered") {
-    return undefined;
-  }
-  return {
-    closedEpoch: noteState.draftEpoch,
-    disposition: "recovered",
-    kind: "missing",
-    noteId: noteState.noteId,
-    noteState,
-    ownerKey: noteState.renderedOwnerKey,
-  };
+  return noteState.draftDisposition === "recovered"
+    ? {
+        closedEpoch: noteState.draftEpoch,
+        disposition: "recovered",
+        kind: "missing",
+        noteId: noteState.noteId,
+        noteState,
+        ownerKey: noteState.renderedOwnerKey,
+      }
+    : undefined;
 }
 
 async function discardTarget(
   target: DiscardTarget,
   context: StoreContext,
-): Promise<DiscardResult> {
+): Promise<void> {
   context.draftCoordinator.closeEpoch(target.ownerKey, target.closedEpoch);
   const clusterId = getReadyClusterId(context.get().clusterIdentity);
   if (clusterId === undefined) {
-    return restoreFailedDiscard({
+    restoreFailedDiscard({
       clusterId,
       context,
-      failure: getClusterIdentityDiscardFailure(context),
+      failure: getClusterIdentityFailure(context),
       target,
     });
+    return;
   }
-  const mutation = await context.draftCoordinator.discard({
+  const decision = await context.draftCoordinator.discard({
     clusterId,
     draftEpoch: target.closedEpoch,
     noteId: target.noteId,
     ownerKey: target.ownerKey,
   });
-  return await resolveDiscardMutation({ clusterId, context, mutation, target });
-}
-
-type DiscardMutationInput = {
-  readonly clusterId: string;
-  readonly context: StoreContext;
-  readonly mutation: CoordinatedDraftMutationResult;
-  readonly target: DiscardTarget;
-};
-
-async function resolveDiscardMutation(
-  input: DiscardMutationInput,
-): Promise<DiscardResult> {
-  if (isDiscardDeletionComplete(input.mutation)) {
-    return await completeDiscard(input.target, input.clusterId, input.context);
+  if (decision.status === "cleared") {
+    await completeDiscard(target, context);
+    return;
   }
-  if (input.mutation.status === "preserved_unknown") {
-    return restorePreservedDiscard({ ...input, mutation: input.mutation });
+  if (decision.status === "protected") {
+    restoreProtectedDiscard({
+      context,
+      schemaVersion: decision.schemaVersion,
+      target,
+    });
+    return;
   }
-  return restoreFailedDiscard({
-    clusterId: input.clusterId,
-    context: input.context,
-    failure: getDiscardMutationFailure(input.mutation),
-    target: input.target,
+  restoreFailedDiscard({
+    clusterId,
+    context,
+    failure: decision.failure,
+    target,
   });
 }
 
 async function completeDiscard(
   target: DiscardTarget,
-  clusterId: string,
-  context: StoreContext,
-): Promise<DiscardResult> {
-  if (!ownsDiscardTarget(target, context)) {
-    return createTargetSupersededResult(target, clusterId);
-  }
-  await applyCompletedDiscard(target, context);
-  return {
-    closedEpoch: target.closedEpoch,
-    clusterId,
-    next: target.kind === "editor" ? "reload_disk" : "missing_without_draft",
-    noteId: target.noteId,
-    ownerKey: target.ownerKey,
-    status: "completed",
-  };
-}
-
-async function applyCompletedDiscard(
-  target: DiscardTarget,
   context: StoreContext,
 ): Promise<void> {
+  if (!ownsDiscardTarget(target, context)) {
+    return;
+  }
   if (target.kind === "editor") {
     await reloadSelectedNoteAction(context);
     return;
   }
   applyMissingAfterDiscard(target.noteId, context);
-}
-
-function isDiscardable(
-  disposition: EditorSession["draftDisposition"],
-): disposition is "conflict" | "recovered" {
-  return disposition === "recovered" || disposition === "conflict";
 }
 
 function applyMissingAfterDiscard(noteId: string, context: StoreContext): void {
@@ -182,4 +144,15 @@ function applyMissingAfterDiscard(noteId: string, context: StoreContext): void {
     return;
   }
   applyMissingRoute({ location, noteId }, context);
+}
+
+function getClusterIdentityFailure(context: StoreContext) {
+  const identity = context.get().clusterIdentity;
+  return {
+    reason:
+      identity?.status === "unavailable"
+        ? identity.reason
+        : "metadata_unavailable",
+    source: "cluster_identity" as const,
+  };
 }

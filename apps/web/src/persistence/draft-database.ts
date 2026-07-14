@@ -66,6 +66,12 @@ export type DraftRecordMutationResult =
       readonly status: "unavailable";
     };
 
+/** Exact direct-delete outcome; unlike conditional cleanup it cannot mismatch. */
+export type DraftDeleteResult = Exclude<
+  DraftRecordMutationResult,
+  { readonly status: "not_matching" }
+>;
+
 /** Snapshot that a successful save may remove only when it still matches. */
 export type SavedDraftSnapshot = {
   readonly baseContentHash: string;
@@ -91,7 +97,7 @@ export type DraftPersistence = {
   readonly deleteDraft: (
     clusterId: string,
     noteId: string,
-  ) => Promise<DraftRecordMutationResult>;
+  ) => Promise<DraftDeleteResult>;
   readonly deleteDraftIfSavedSnapshotMatches: (
     snapshot: SavedDraftSnapshot,
   ) => Promise<DraftRecordMutationResult>;
@@ -285,7 +291,7 @@ async function deleteDraft(
   database: AzuriteBrowserDatabase,
   clusterId: string,
   noteId: string,
-): Promise<DraftRecordMutationResult> {
+): Promise<DraftDeleteResult> {
   const draftId = createDraftRecordId(clusterId, noteId);
   try {
     return await database.transaction(
@@ -301,7 +307,7 @@ async function deleteDraft(
 async function deleteStoredDraft(
   database: AzuriteBrowserDatabase,
   draftId: string,
-): Promise<DraftRecordMutationResult> {
+): Promise<DraftDeleteResult> {
   const storedDraft: unknown = await database.drafts.get(draftId);
   if (storedDraft === undefined) {
     return { status: "absent" };
@@ -313,7 +319,7 @@ async function deleteValidatedDraft(
   database: AzuriteBrowserDatabase,
   draftId: string,
   storedDraft: unknown,
-): Promise<DraftRecordMutationResult> {
+): Promise<DraftDeleteResult> {
   const validation = validateStoredDraftRecord(storedDraft);
   if (validation.status === "preserve") {
     return {
@@ -343,7 +349,7 @@ function unavailableDraftWriteResult(
 
 function unavailableDraftMutationResult(
   reason: DraftPersistenceUnavailableReason,
-): DraftRecordMutationResult {
+): Extract<DraftRecordMutationResult, { readonly status: "unavailable" }> {
   return { reason, status: "unavailable" };
 }
 

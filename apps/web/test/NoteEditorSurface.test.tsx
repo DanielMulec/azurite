@@ -133,9 +133,7 @@ function renderSurface(
       onDiscardMissingDraft={getDiscardMissingDraftAction(options)}
       onEditorModeChange={() => {}}
       onPublishMarkdown={createAcknowledgingPublisher()}
-      onRetryBrowserRecovery={() => Promise.resolve()}
-      onRetryDraftCleanup={() => Promise.resolve()}
-      onRetryDraftPersistence={() => Promise.resolve()}
+      onRetryDraftPersistenceIssue={() => Promise.resolve()}
       onSaveNote={() => Promise.resolve()}
       readEditorSession={(sessionKey) =>
         noteState.status === "ready" &&

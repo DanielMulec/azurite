@@ -22,7 +22,6 @@ import type {
   NoteViewState,
 } from "./state/note-browser-types.js";
 import type { RouteHistoryStatus } from "./routing/route-transition-types.js";
-import type { DiscardResult } from "./persistence/draft-workflow-types.js";
 
 type NoteBrowserStoreApi = ReturnType<typeof createNoteBrowserStore>;
 
@@ -34,10 +33,8 @@ export type NoteBrowserRouteGateFactory = (
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
-  readonly discardDraftAndReloadDiskVersion: () => Promise<
-    DiscardResult | undefined
-  >;
-  readonly discardMissingDraft: () => Promise<DiscardResult | undefined>;
+  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
+  readonly discardMissingDraft: () => Promise<void>;
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly editorSessionGate: EditorSessionGate;
   readonly noteState: NoteViewState;
@@ -47,9 +44,7 @@ export type NoteBrowserState = {
     command: PublicationCommand,
   ) => PublicationResult;
   readonly readEditorSession: EditorSessionReader;
-  readonly retryBrowserRecovery: () => Promise<unknown>;
-  readonly retryDraftCleanup: () => Promise<void>;
-  readonly retryDraftPersistence: () => Promise<void>;
+  readonly retryDraftPersistenceIssue: () => Promise<void>;
   readonly saveSelectedNote: () => Promise<void>;
   readonly selectedNoteId: string | undefined;
   readonly selectNote: (noteId: string) => void;
@@ -126,14 +121,9 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
       (state) => state.publishMarkdownChange,
     ),
     routeHistoryStatus: useStore(store, (state) => state.routeHistoryStatus),
-    retryBrowserRecovery: useStore(
+    retryDraftPersistenceIssue: useStore(
       store,
-      (state) => state.retryBrowserRecovery,
-    ),
-    retryDraftCleanup: useStore(store, (state) => state.retryDraftCleanup),
-    retryDraftPersistence: useStore(
-      store,
-      (state) => state.retryDraftPersistence,
+      (state) => state.retryDraftPersistenceIssue,
     ),
     saveSelectedNote: useStore(store, (state) => state.saveSelectedNote),
     selectedNoteId: useStore(store, (state) => state.selectedNoteId),

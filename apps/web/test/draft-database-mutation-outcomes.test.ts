@@ -9,6 +9,10 @@ import {
   createDraftPersistence,
 } from "../src/persistence/draft-database.js";
 import {
+  decideDraftMutation,
+  decideOrderedDraftRead,
+} from "../src/persistence/draft-persistence-decisions.js";
+import {
   createDraftRecord,
   createDraftRecordId,
 } from "../src/persistence/draft-records.js";
@@ -138,6 +142,55 @@ describe("mutation unavailability", () => {
         persistence,
       }),
     ).resolves.toEqual({ reason: "quota_exceeded", status: "unavailable" });
+  });
+});
+
+describe("caller persistence decisions", () => {
+  it("translates exact storage outcomes into the four mutation decisions", () => {
+    expect(decideDraftMutation({ status: "deleted" })).toEqual({
+      evidence: { status: "deleted" },
+      status: "cleared",
+    });
+    expect(decideDraftMutation({ status: "not_matching" })).toEqual({
+      evidence: { status: "not_matching" },
+      status: "unchanged",
+    });
+    expect(
+      decideDraftMutation({ schemaVersion: 7, status: "preserved_unknown" }),
+    ).toEqual({
+      evidence: { schemaVersion: 7, status: "preserved_unknown" },
+      schemaVersion: 7,
+      status: "protected",
+    });
+    expect(
+      decideDraftMutation({ reason: "quota_exceeded", status: "unavailable" }),
+    ).toEqual({
+      evidence: { reason: "quota_exceeded", status: "unavailable" },
+      failure: { reason: "quota_exceeded", source: "persistence" },
+      status: "failed",
+    });
+  });
+
+  it("keeps read validation evidence non-blocking while protecting future data", () => {
+    expect(
+      decideOrderedDraftRead({
+        clusterId,
+        noteId: "invalid.md",
+        reason: "validation_failed",
+        status: "invalid_deleted",
+      }),
+    ).toEqual({
+      failure: { reason: "validation_failed", source: "persistence" },
+      status: "absent",
+    });
+    expect(
+      decideOrderedDraftRead({
+        clusterId,
+        noteId: "future.md",
+        schemaVersion: 7,
+        status: "preserved_unknown",
+      }),
+    ).toEqual({ schemaVersion: 7, status: "protected" });
   });
 });
 

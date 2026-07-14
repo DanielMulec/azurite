@@ -4,7 +4,7 @@ import type {
   CommitCause,
   CommitResult,
 } from "../domain/markdown-authority-types.js";
-import type { DurabilityResult } from "../persistence/draft-workflow-types.js";
+import type { HandoffDecision } from "../persistence/draft-workflow-types.js";
 import type {
   RouteGatePrepareInput,
   RouteGateResult,
@@ -12,7 +12,6 @@ import type {
 } from "../routing/route-transition-types.js";
 import type { NoteBrowserStore } from "../state/note-browser-contracts.js";
 import {
-  createUnavailableQueueDurability,
   getFocusedElement,
   restoreFocus,
   retainedSurface,
@@ -34,7 +33,7 @@ type ActiveLease = {
   readonly sessionKey: string;
 };
 
-type SharedPreparation = Promise<DurabilityResult>;
+type SharedPreparation = Promise<HandoffDecision>;
 
 type ResolvedPreparationOwner =
   | {
@@ -194,7 +193,7 @@ class EditorSessionGateRuntime {
         status: "resolved",
       };
     }
-    const preparation = this.#startPreparation(controller);
+    const preparation = this.#startPreparation();
     this.#preparations.set(controller.sessionKey, preparation);
     return { preparation, status: "ready" };
   }
@@ -202,8 +201,8 @@ class EditorSessionGateRuntime {
   async #resolvePreparation(
     preparation: SharedPreparation,
   ): Promise<RouteGateResult> {
-    const durability = await preparation;
-    if (durability.status === "unavailable") {
+    const decision = await preparation;
+    if (decision.status === "block") {
       return {
         reason: "prerequisite_unavailable",
         status: "cancel",
@@ -246,7 +245,7 @@ class EditorSessionGateRuntime {
 
   async runTerminalAction(
     sessionKey: string,
-    action: () => Promise<unknown>,
+    action: () => Promise<void>,
   ): Promise<void> {
     const controller = this.#controllers.get(sessionKey);
     if (controller === undefined) {
@@ -262,13 +261,13 @@ class EditorSessionGateRuntime {
     }
   }
 
-  #startPreparation(controller: EditorControllerCapability): SharedPreparation {
+  #startPreparation(): SharedPreparation {
     return this.#store
       .getState()
       .flushPendingDraft("route_transition")
       .then(
-        (durability) => durability,
-        () => createUnavailableQueueDurability(controller, this.#store),
+        (decision) => decision,
+        () => blockedQueueHandoff,
       );
   }
 
@@ -319,3 +318,8 @@ class EditorSessionGateRuntime {
     }
   }
 }
+
+const blockedQueueHandoff: HandoffDecision = Object.freeze({
+  failure: { reason: "queue_task_failed", source: "coordinator" } as const,
+  status: "block",
+});

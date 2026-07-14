@@ -14,8 +14,8 @@ import {
 } from "./note-browser-store-test-helpers.js";
 import { loadTestRoute } from "./note-browser-route-test-helpers.js";
 
-describe("typed terminal Discard", () => {
-  it("reports completion only after deletion and exact-owner disk reload", async () => {
+describe("terminal Discard", () => {
+  it("deletes the record and reloads disk only for the exact owner", async () => {
     const memory = createMemoryDraftPersistence([createTestDraft()]);
     const readNote = vi.fn<NoteBrowserApi["readNote"]>(() =>
       Promise.resolve({
@@ -31,14 +31,7 @@ describe("typed terminal Discard", () => {
 
     await expect(
       store.getState().discardDraftAndReloadDiskVersion(),
-    ).resolves.toMatchObject({
-      closedEpoch: 0,
-      clusterId: readyClusterIdentity.clusterId,
-      next: "reload_disk",
-      noteId: "index.md",
-      ownerKey: "index.md:sha256-home:1",
-      status: "completed",
-    });
+    ).resolves.toBeUndefined();
 
     expect(readNote).toHaveBeenCalledOnce();
     expect(
@@ -66,14 +59,7 @@ describe("failed terminal Discard", () => {
 
     await expect(
       store.getState().discardDraftAndReloadDiskVersion(),
-    ).resolves.toMatchObject({
-      closedEpoch: 0,
-      disposition: "recovered",
-      failure: { reason: "write_failed", source: "persistence" },
-      restoredEpoch: 1,
-      status: "failed",
-      surfaceEffect: "restored",
-    });
+    ).resolves.toBeUndefined();
 
     expect(getEditor(store)).toMatchObject({
       currentMarkdown: original.currentMarkdown,
@@ -87,7 +73,11 @@ describe("failed terminal Discard", () => {
     });
     await expect(
       store.getState().discardDraftAndReloadDiskVersion(),
-    ).resolves.toMatchObject({ closedEpoch: 1, status: "completed" });
+    ).resolves.toBeUndefined();
+    expect(getEditor(store)).toMatchObject({
+      currentMarkdown: "# Home",
+      draftDisposition: "none",
+    });
     expect(deleteDraft).toHaveBeenCalledTimes(2);
   });
 });
@@ -107,14 +97,7 @@ describe("future-version terminal Discard", () => {
 
     await expect(
       store.getState().discardDraftAndReloadDiskVersion(),
-    ).resolves.toMatchObject({
-      closedEpoch: 0,
-      disposition: "preserved_unknown",
-      restoredEpoch: 1,
-      schemaVersion: 7,
-      status: "preserved",
-      surfaceEffect: "restored",
-    });
+    ).resolves.toBeUndefined();
 
     expect(getEditor(store)).toMatchObject({
       draftDisposition: "preserved_unknown",
@@ -162,12 +145,45 @@ describe("superseded terminal Discard", () => {
     });
     deletion.resolve({ status: "deleted" });
 
-    await expect(discard).resolves.toMatchObject({
-      reason: "owner_lost",
-      status: "superseded",
-    });
+    await expect(discard).resolves.toBeUndefined();
     expect(readNote).not.toHaveBeenCalled();
     expect(getEditor(store).note.id).toBe("Projects/azurite.md");
+  });
+
+  it("does not apply a stale result to a newer epoch under the same owner", async () => {
+    const deletion =
+      createDeferred<ReturnType<DraftPersistence["deleteDraft"]>>();
+    const memory = createMemoryDraftPersistence([createTestDraft()]);
+    const readNote = vi.fn(createApi().readNote);
+    const store = createLoadedStore({
+      api: createApi({ readNote }),
+      draftPersistence: {
+        ...memory.persistence,
+        deleteDraft: () => deletion.promise,
+      },
+      recovery: "draft",
+    });
+    const discard = store.getState().discardDraftAndReloadDiskVersion();
+    const original = getEditor(store);
+    store.setState({
+      noteState: {
+        editor: {
+          ...original,
+          currentMarkdown: "# New epoch authority",
+          draftEpoch: original.draftEpoch + 1,
+        },
+        status: "ready",
+      },
+    });
+    deletion.resolve({ status: "deleted" });
+
+    await expect(discard).resolves.toBeUndefined();
+    expect(readNote).not.toHaveBeenCalled();
+    expect(getEditor(store)).toMatchObject({
+      currentMarkdown: "# New epoch authority",
+      draftEpoch: 1,
+      sessionKey: original.sessionKey,
+    });
   });
 });
 
@@ -185,14 +201,9 @@ describe("missing-note terminal Discard", () => {
     });
     await loadTestRoute(store, "deleted.md");
 
-    await expect(store.getState().discardMissingDraft()).resolves.toMatchObject(
-      {
-        closedEpoch: 0,
-        disposition: "recovered",
-        restoredEpoch: 1,
-        status: "failed",
-      },
-    );
+    await expect(
+      store.getState().discardMissingDraft(),
+    ).resolves.toBeUndefined();
     expect(store.getState().noteState).toMatchObject({
       draftDisposition: "recovered",
       draftEpoch: 1,

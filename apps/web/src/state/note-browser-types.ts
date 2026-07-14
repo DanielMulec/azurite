@@ -4,10 +4,7 @@ import type {
   NoteSummary,
 } from "@azurite/shared";
 
-import type {
-  DraftPersistenceUnavailableReason,
-  DraftWriteResult,
-} from "../persistence/draft-database.js";
+import type { DraftPersistenceUnavailableReason } from "../persistence/draft-database.js";
 import type { EditorMode } from "../persistence/draft-records.js";
 import type {
   DraftDisposition,
@@ -100,6 +97,3 @@ export type NoteBrowserSnapshot = {
   readonly routeHistoryStatus: RouteHistoryStatus;
   readonly selectedNoteId: string | undefined;
 };
-
-/** Result returned by draft persistence mutations. */
-export type DraftMutationResult = DraftWriteResult | undefined;

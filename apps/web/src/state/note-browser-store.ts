@@ -22,12 +22,10 @@ import {
 } from "./note-browser-actions.js";
 import {
   publishMarkdownChange,
-  retryDraftPersistenceAction,
   updateEditorModeWithSnapshot,
 } from "./note-browser-authority-actions.js";
 import { flushEditorDurability } from "./note-browser-durability-actions.js";
-import { retryBrowserRecoveryAction } from "./note-browser-recovery-actions.js";
-import { retryDraftCleanupAction } from "./note-browser-cleanup-actions.js";
+import { retryDraftPersistenceIssueAction } from "./note-browser-retry-actions.js";
 import type {
   ActiveNoteLoad,
   ActiveNoteSave,
@@ -172,13 +170,8 @@ function createInitialState(
       reportHistoryUnavailable(set);
     },
     routeHistoryStatus: { status: "available" },
-    retryBrowserRecovery: async () =>
-      await retryBrowserRecoveryAction(runtime.context),
-    retryDraftCleanup: async () => {
-      await retryDraftCleanupAction(runtime.context);
-    },
-    retryDraftPersistence: async () => {
-      await retryDraftPersistenceAction(runtime.context);
+    retryDraftPersistenceIssue: async () => {
+      await retryDraftPersistenceIssueAction(runtime.context);
     },
     saveSelectedNote: () => saveSelectedNoteAction(runtime.context),
     selectedNoteId: undefined,

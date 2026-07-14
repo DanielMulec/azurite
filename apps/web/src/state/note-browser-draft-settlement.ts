@@ -1,5 +1,6 @@
 import type { DraftSnapshotResult } from "../persistence/draft-persistence-coordinator.js";
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
+import type { DraftBoundaryFailure } from "../persistence/draft-persistence-decisions.js";
 import type {
   DraftDisposition,
   DraftMutationSnapshot,
@@ -117,19 +118,13 @@ function getSettlementPatch(
   snapshot: DraftMutationSnapshot,
   result: DraftSnapshotResult,
 ): Partial<EditorSession> | undefined {
-  if (isIgnoredSettlement(result)) {
+  if (result.status === "superseded") {
     return undefined;
   }
+  if (result.status === "protected") {
+    return getProtectedSettlementPatch(result.schemaVersion);
+  }
   return getActionableSettlementPatch(editor, snapshot, result);
-}
-
-function isIgnoredSettlement(
-  result: DraftSnapshotResult,
-): result is Extract<
-  DraftSnapshotResult,
-  { status: "record_protected" | "superseded" }
-> {
-  return ignoredSettlementStatuses.has(result.status);
 }
 
 function getActionableSettlementPatch(
@@ -137,20 +132,28 @@ function getActionableSettlementPatch(
   snapshot: DraftMutationSnapshot,
   result: Exclude<
     DraftSnapshotResult,
-    { status: "record_protected" | "superseded" }
+    { readonly status: "protected" | "superseded" }
   >,
-): Partial<EditorSession> | undefined {
+): Partial<EditorSession> {
   if (result.status === "written") {
     return getWrittenSettlementPatch(editor, snapshot);
   }
-  if (result.status === "preserved_unknown") {
-    return {
-      draftDisposition: "preserved_unknown",
-      persistenceIssue: undefined,
-      preservedSchemaVersion: result.schemaVersion,
-    };
+  if (result.status === "failed") {
+    return { persistenceIssue: createWriteIssue(snapshot, result.failure) };
   }
-  return getFailureOrCleanPatch(snapshot, result);
+  return getCleanSettlementPatch();
+}
+
+function getProtectedSettlementPatch(
+  schemaVersion: number | undefined,
+): Partial<EditorSession> | undefined {
+  return schemaVersion === undefined
+    ? undefined
+    : {
+        draftDisposition: "preserved_unknown",
+        persistenceIssue: undefined,
+        preservedSchemaVersion: schemaVersion,
+      };
 }
 
 function getWrittenSettlementPatch(
@@ -167,43 +170,18 @@ function getWrittenSettlementPatch(
   };
 }
 
-function getFailureOrCleanPatch(
-  snapshot: DraftMutationSnapshot,
-  result: Extract<DraftSnapshotResult, { status: "clean" | "unavailable" }>,
-): Partial<EditorSession> | undefined {
-  if (result.status === "unavailable") {
-    return { persistenceIssue: createWriteIssue(snapshot, result.reason) };
-  }
-  return getCleanSettlementPatch(result);
-}
-
-function getCleanSettlementPatch(
-  result: Extract<DraftSnapshotResult, { status: "clean" }>,
-): Partial<EditorSession> | undefined {
-  if (result.outcome === "no_record") {
-    return {
-      draftDisposition: "none",
-      durableSnapshotKey: undefined,
-      persistenceIssue: undefined,
-    };
-  }
-  return result.outcome.status === "not_matching"
-    ? undefined
-    : {
-        draftDisposition: "none",
-        durableSnapshotKey: undefined,
-        persistenceIssue: undefined,
-      };
+function getCleanSettlementPatch(): Partial<EditorSession> {
+  return {
+    draftDisposition: "none",
+    durableSnapshotKey: undefined,
+    persistenceIssue: undefined,
+  };
 }
 
 function createWriteIssue(
   snapshot: DraftMutationSnapshot,
-  reason: Extract<DraftSnapshotResult, { status: "unavailable" }>["reason"],
+  failure: DraftBoundaryFailure,
 ) {
-  const failure =
-    reason === "queue_task_failed"
-      ? { reason, source: "coordinator" as const }
-      : { reason, source: "persistence" as const };
   return createDraftPersistenceIssue({
     clusterId: snapshot.clusterId,
     draftEpoch: snapshot.draftEpoch,
@@ -231,9 +209,4 @@ const modePersistentDispositions = new Set<DraftDisposition>([
   "generated_durable",
   "generated_pending",
   "recovered",
-]);
-
-const ignoredSettlementStatuses = new Set<DraftSnapshotResult["status"]>([
-  "record_protected",
-  "superseded",
 ]);

@@ -8,6 +8,7 @@ import { SaveableNoteEditor } from "../src/components/SaveableNoteEditor.js";
 import type { EditorSessionGate } from "../src/components/editor-session-gate.js";
 import type { PublicationCommand } from "../src/domain/markdown-authority-types.js";
 import type { EditorSession } from "../src/state/note-browser-types.js";
+import type { DraftRetryAction } from "../src/persistence/draft-workflow-types.js";
 import {
   createAcknowledgingPublisher,
   createTestEditorSessionGate,
@@ -64,6 +65,7 @@ type RenderEditorOptions = {
   readonly onDiscardDraftAndReloadDiskVersion?: () => Promise<void>;
   readonly onEditorModeChange?: (mode: "markdown" | "wysiwyg") => void;
   readonly onMarkdownChange?: (markdown: string) => void;
+  readonly onRetryDraftPersistenceIssue?: () => Promise<void>;
   readonly onSaveNote?: () => Promise<void>;
   readonly sessionGate?: EditorSessionGate;
 };
@@ -152,6 +154,25 @@ describe("SaveableNoteEditor save state", () => {
 });
 
 describe("SaveableNoteEditor recovery state", () => {
+  it.each([
+    ["retry_browser_recovery", "Retry browser recovery"],
+    ["retry_draft_cleanup", "Retry draft cleanup"],
+    ["retry_draft_persistence", "Retry draft persistence"],
+  ] as const)(
+    "routes %s through the single issue retry callback",
+    (action, label) => {
+      const onRetryDraftPersistenceIssue = vi.fn(() => Promise.resolve());
+      renderEditor({
+        editor: createEditor({ persistenceIssue: createIssue(action) }),
+        onRetryDraftPersistenceIssue,
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: label }));
+
+      expect(onRetryDraftPersistenceIssue).toHaveBeenCalledOnce();
+    },
+  );
+
   it("explains how to inspect or dispose of a future-version record", () => {
     renderEditor({
       editor: createEditor({ draftDisposition: "preserved_unknown" }),
@@ -204,9 +225,9 @@ function renderEditor(options: RenderEditorOptions = {}): void {
       onDiscardDraftAndReloadDiskVersion={getDiscardDraftAction(options)}
       onEditorModeChange={getEditorModeAction(options)}
       onPublishMarkdown={getPublisher(options)}
-      onRetryBrowserRecovery={() => Promise.resolve()}
-      onRetryDraftCleanup={() => Promise.resolve()}
-      onRetryDraftPersistence={() => Promise.resolve()}
+      onRetryDraftPersistenceIssue={
+        options.onRetryDraftPersistenceIssue ?? (() => Promise.resolve())
+      }
       onSaveNote={getSaveAction(options)}
       readEditorSession={(sessionKey) =>
         sessionKey === editor.sessionKey ? editor : undefined
@@ -281,5 +302,20 @@ function createEditor(patch: Partial<EditorSession> = {}): EditorSession {
     saveStatus: "idle",
     sessionKey: "index.md:sha256-home:1",
     ...patch,
+  };
+}
+
+function createIssue(retryAction: DraftRetryAction) {
+  return {
+    clusterId: "1bdbab0a-79c5-4c6d-a6b5-30bf65a49793",
+    draftEpoch: 0,
+    failure: { reason: "queue_task_failed", source: "coordinator" } as const,
+    noteId: "index.md",
+    operation: "queue" as const,
+    ownerKey: "index.md:sha256-home:1",
+    retryAction,
+    revision: 0,
+    sessionKey: "index.md:sha256-home:1",
+    snapshotKey: "index.md:sha256-home:1:0",
   };
 }

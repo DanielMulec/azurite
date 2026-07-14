@@ -1,6 +1,6 @@
 import type { ClusterIdentity, NoteContentWithHash } from "@azurite/shared";
 
-import type { CoordinatedDraftMutationResult } from "../persistence/draft-persistence-coordinator.js";
+import type { DraftMutationDecision } from "../persistence/draft-persistence-decisions.js";
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import {
   applyClusterIdentity,
@@ -10,6 +10,10 @@ import {
   isSameSaveSnapshot,
   patchSavedNoteSummary,
 } from "./note-browser-action-utils.js";
+import {
+  cleanupDecisionIsTerminal,
+  getCleanupDecisionPatch,
+} from "./note-browser-cleanup-decisions.js";
 import type { StoreContext } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 import { admitPostSaveDraftSnapshot } from "./note-browser-save-rebase.js";
@@ -69,7 +73,7 @@ export function applySaveFailure(input: {
 
 function applySuccessfulSave(
   input: SaveResponseInput,
-  reconciliation: CoordinatedDraftMutationResult | undefined,
+  reconciliation: DraftMutationDecision | undefined,
 ): void {
   input.context.set((state) => {
     if (
@@ -106,7 +110,7 @@ function applySuccessfulSave(
 type SaveDraftPatchInput = {
   readonly clusterIdentity: ClusterIdentity;
   readonly editor: EditorSession;
-  readonly result: CoordinatedDraftMutationResult | undefined;
+  readonly result: DraftMutationDecision | undefined;
   readonly sameSnapshot: boolean;
 };
 
@@ -146,50 +150,10 @@ function getCompatibleSaveDraftPatch(
 
 function getExactCleanupPatch(
   editor: EditorSession,
-  result: CoordinatedDraftMutationResult,
+  result: DraftMutationDecision,
   clusterId: string | undefined,
 ): Partial<EditorSession> {
-  if (isSaveCleanupComplete(result)) {
-    return resolvedDraftPatch;
-  }
-  if (result.status === "preserved_unknown") {
-    return {
-      draftDisposition: "preserved_unknown",
-      durableSnapshotKey: undefined,
-      lastSnapshotKey: undefined,
-      persistenceIssue: undefined,
-      preservedSchemaVersion: result.schemaVersion,
-    };
-  }
-  return getUnresolvedSaveCleanupPatch(editor, result, clusterId);
-}
-
-function getUnresolvedSaveCleanupPatch(
-  editor: EditorSession,
-  result: Exclude<
-    CoordinatedDraftMutationResult,
-    {
-      readonly status:
-        "absent" | "deleted" | "invalid_deleted" | "preserved_unknown";
-    }
-  >,
-  clusterId: string | undefined,
-): Partial<EditorSession> {
-  if (result.status === "not_matching") {
-    return { persistenceIssue: undefined };
-  }
-  if (result.status === "queue_failed") {
-    return createCleanupFailurePatch(
-      editor,
-      { reason: result.reason, source: "coordinator" },
-      clusterId,
-    );
-  }
-  return createCleanupFailurePatch(
-    editor,
-    { reason: result.reason, source: "persistence" },
-    clusterId,
-  );
+  return getCleanupDecisionPatch(editor, result, clusterId) ?? {};
 }
 
 function getUntargetedCleanupPatch(
@@ -211,9 +175,9 @@ function getUntargetedCleanupPatch(
 
 function getNewerEditPatch(
   editor: EditorSession,
-  result: CoordinatedDraftMutationResult | undefined,
+  result: DraftMutationDecision | undefined,
 ): Partial<EditorSession> {
-  if (result?.status === "preserved_unknown") {
+  if (result?.status === "protected") {
     return {
       draftDisposition: "preserved_unknown",
       preservedSchemaVersion: result.schemaVersion,
@@ -246,7 +210,7 @@ function createCleanupFailurePatch(
 
 async function reconcileSavedDraft(
   input: SaveResponseInput,
-): Promise<CoordinatedDraftMutationResult | undefined> {
+): Promise<DraftMutationDecision | undefined> {
   if (doesNotNeedSaveCleanup.has(input.editor.draftDisposition)) {
     input.context.draftCleanupRetries.delete(input.editor.sessionKey);
     return undefined;
@@ -256,7 +220,7 @@ async function reconcileSavedDraft(
 
 async function reconcileCompatibleSavedDraft(
   input: SaveResponseInput,
-): Promise<CoordinatedDraftMutationResult | undefined> {
+): Promise<DraftMutationDecision | undefined> {
   const snapshot = {
     baseContentHash: input.editor.baseContentHash,
     markdown: input.editor.currentMarkdown,
@@ -271,29 +235,10 @@ async function reconcileCompatibleSavedDraft(
     clusterId,
     ...snapshot,
   });
-  if (isTerminalSaveCleanup(result)) {
+  if (cleanupDecisionIsTerminal(result)) {
     input.context.draftCleanupRetries.delete(input.editor.sessionKey);
   }
   return result;
-}
-
-function isSaveCleanupComplete(
-  result: CoordinatedDraftMutationResult,
-): result is Extract<
-  CoordinatedDraftMutationResult,
-  { readonly status: "absent" | "deleted" | "invalid_deleted" }
-> {
-  return (
-    result.status === "deleted" ||
-    result.status === "absent" ||
-    result.status === "invalid_deleted"
-  );
-}
-
-function isTerminalSaveCleanup(
-  result: CoordinatedDraftMutationResult,
-): boolean {
-  return terminalSaveCleanupStatuses.has(result.status);
 }
 
 function getProtectedSaveIssue(
@@ -329,14 +274,4 @@ const doesNotNeedSaveCleanup = new Set<EditorSession["draftDisposition"]>([
   "none",
   "preserved_unknown",
   "recovery_read_unavailable",
-]);
-
-const terminalSaveCleanupStatuses = new Set<
-  CoordinatedDraftMutationResult["status"]
->([
-  "absent",
-  "deleted",
-  "invalid_deleted",
-  "not_matching",
-  "preserved_unknown",
 ]);
