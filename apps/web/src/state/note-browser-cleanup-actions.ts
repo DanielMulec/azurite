@@ -42,7 +42,9 @@ export async function retryDraftCleanupAction(
   });
 }
 
-function getCleanupRetryEditor(context: StoreContext): EditorSession | undefined {
+function getCleanupRetryEditor(
+  context: StoreContext,
+): EditorSession | undefined {
   const noteState = context.get().noteState;
   if (noteState.status !== "ready") {
     return undefined;
@@ -50,7 +52,9 @@ function getCleanupRetryEditor(context: StoreContext): EditorSession | undefined
   return getCleanCleanupEditor(noteState.editor);
 }
 
-function getCleanCleanupEditor(editor: EditorSession): EditorSession | undefined {
+function getCleanCleanupEditor(
+  editor: EditorSession,
+): EditorSession | undefined {
   if (editor.draftDisposition !== "cleanup_required") {
     return undefined;
   }
@@ -78,14 +82,12 @@ function getCleanupTarget(
   return clusterId === undefined ? undefined : { clusterId, snapshot };
 }
 
-function applyCleanupRetryResult(
-  input: {
-    readonly clusterId: string;
-    readonly context: StoreContext;
-    readonly result: CoordinatedDraftMutationResult;
-    readonly sessionKey: string;
-  },
-): void {
+function applyCleanupRetryResult(input: {
+  readonly clusterId: string;
+  readonly context: StoreContext;
+  readonly result: CoordinatedDraftMutationResult;
+  readonly sessionKey: string;
+}): void {
   const tracker = new StateApplicationTracker();
   input.context.set((state) => {
     const editor = getCleanupOwner(state, input.sessionKey);
@@ -141,10 +143,7 @@ function getUnresolvedCleanupPatch(
     CoordinatedDraftMutationResult,
     {
       readonly status:
-        | "absent"
-        | "deleted"
-        | "invalid_deleted"
-        | "preserved_unknown";
+        "absent" | "deleted" | "invalid_deleted" | "preserved_unknown";
     }
   >,
   clusterId: string,
@@ -243,9 +242,7 @@ function createCleanupIssue(
   });
 }
 
-function readyPatch(
-  editor: EditorSession,
-) {
+function readyPatch(editor: EditorSession) {
   return { noteState: { editor, status: "ready" as const } };
 }
 

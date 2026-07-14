@@ -31,7 +31,9 @@ export async function discardDraftAndReloadDiskVersionAction(
   context: StoreContext,
 ): Promise<DiscardActionResult> {
   const target = getDiscardTarget(context.get().noteState);
-  return target === undefined ? undefined : await discardTarget(target, context);
+  return target === undefined
+    ? undefined
+    : await discardTarget(target, context);
 }
 
 /** Closes a compatible missing-note epoch before dismissing its recovery view. */
@@ -43,7 +45,9 @@ export async function discardMissingDraftAction(
     return undefined;
   }
   const target = getMissingDiscardTarget(noteState);
-  return target === undefined ? undefined : await discardTarget(target, context);
+  return target === undefined
+    ? undefined
+    : await discardTarget(target, context);
 }
 
 function getDiscardTarget(state: NoteViewState): DiscardTarget | undefined {

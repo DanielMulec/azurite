@@ -170,10 +170,7 @@ function getUnresolvedSaveCleanupPatch(
     CoordinatedDraftMutationResult,
     {
       readonly status:
-        | "absent"
-        | "deleted"
-        | "invalid_deleted"
-        | "preserved_unknown";
+        "absent" | "deleted" | "invalid_deleted" | "preserved_unknown";
     }
   >,
   clusterId: string | undefined,

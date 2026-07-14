@@ -265,7 +265,9 @@ function ownsEditorTarget(
   state: NoteViewState,
   target: { readonly ownerKey: string },
 ): state is Extract<NoteViewState, { readonly status: "ready" }> {
-  return state.status === "ready" && state.editor.sessionKey === target.ownerKey;
+  return (
+    state.status === "ready" && state.editor.sessionKey === target.ownerKey
+  );
 }
 
 function ownsMissingTarget(
