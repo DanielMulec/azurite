@@ -180,6 +180,35 @@ describe("editor session durability cancellation", () => {
 
     expect(getEditor(store).currentMarkdown).toBe("# Not durable");
   });
+
+  it("blocks a rejected flush and lets a later exact attempt continue", async () => {
+    const store = createLoadedStore();
+    const flushPendingDraft = vi
+      .fn<ReturnType<typeof store.getState>["flushPendingDraft"]>()
+      .mockRejectedValueOnce(new Error("coordinator rejected"))
+      .mockResolvedValue({ status: "continue" });
+    store.setState({ flushPendingDraft });
+    const gate = createEditorSessionGate(store);
+    const controller = createController(getSessionKey(store));
+    gate.registerController(controller.capability);
+
+    await expect(
+      gate.routeGate.prepare(createInput("rejected", store)),
+    ).resolves.toEqual({
+      reason: "prerequisite_unavailable",
+      status: "cancel",
+    });
+    gate.routeGate.settle({
+      leaseKey: "rejected",
+      surfaceEffect: "retained",
+      terminalStatus: "cancelled",
+    });
+
+    await expect(
+      gate.routeGate.prepare(createInput("retry", store)),
+    ).resolves.toEqual({ status: "continue" });
+    expect(flushPendingDraft).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("editor session commit failure", () => {

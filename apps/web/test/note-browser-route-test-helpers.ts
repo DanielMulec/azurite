@@ -31,7 +31,7 @@ export async function loadTestRoute(
   routeNoteId: string | undefined,
   navigation?: { readonly replaceSelectedNote: (noteId: string) => void },
 ): Promise<void> {
-  const notes = await store.getState().ensureNotes();
+  const notes = await store.routeExecutor.ensureNotes();
   if (notes.status !== "ready") {
     return;
   }
@@ -86,8 +86,8 @@ async function applyTestOccurrence(input: {
 }): Promise<RouteStoreApplyResult> {
   testIntentIdentity += 1;
   const intentKey = `test-intent-${String(testIntentIdentity)}`;
-  input.store.getState().activateRouteIntent(intentKey);
-  return await input.store.getState().applyRoute({
+  input.store.routeExecutor.activateRouteIntent(intentKey);
+  return await input.store.routeExecutor.applyRoute({
     authorization: {
       authorizationKey: `${intentKey}:authorization`,
       intentKey,

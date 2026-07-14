@@ -14,15 +14,22 @@ import {
   cleanupDecisionIsTerminal,
   getCleanupDecisionPatch,
 } from "./note-browser-cleanup-decisions.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type {
+  DraftWorkflowAccess,
+  SnapshotKeyAllocator,
+} from "./note-browser-draft-runtime.js";
 import type { EditorSession } from "./note-browser-types.js";
 import { admitPostSaveDraftSnapshot } from "./note-browser-save-rebase.js";
 
+type SaveDraftWorkflow = DraftWorkflowAccess & {
+  readonly allocateSnapshotKey: SnapshotKeyAllocator;
+};
+
 type SaveResponseInput = {
   readonly clusterIdentity: ClusterIdentity;
-  readonly context: StoreContext;
   readonly editor: EditorSession;
   readonly note: NoteContentWithHash;
+  readonly workflow: SaveDraftWorkflow;
 };
 
 /** Applies a successful Save in place without overwriting newer editor truth. */
@@ -30,34 +37,40 @@ export async function applySaveResponse(
   input: SaveResponseInput,
 ): Promise<void> {
   const reconciliation = await reconcileSavedDraft(input);
-  const currentEditor = getCurrentEditorForSession(input.editor, input.context);
+  const currentEditor = getCurrentEditorForSession(
+    input.editor,
+    input.workflow.state,
+  );
   if (currentEditor === undefined) {
     return;
   }
-  applyClusterIdentity(input.clusterIdentity, input.context);
-  input.context.draftCoordinator.cancelSessionRevision(
+  applyClusterIdentity(input.clusterIdentity, input.workflow.state);
+  input.workflow.coordinator.cancelSessionRevision(
     input.editor.sessionKey,
     input.editor.revision,
   );
   const hadNewerEdit = !isSameSaveSnapshot(currentEditor, input.editor);
   applySuccessfulSave(input, reconciliation);
   if (hadNewerEdit) {
-    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
-    await admitPostSaveDraftSnapshot(input.context);
+    input.workflow.cleanupRetries.delete(input.editor.sessionKey);
+    await admitPostSaveDraftSnapshot(input.workflow);
   }
 }
 
 /** Applies a failed Save to the latest exact session without restoring text. */
 export function applySaveFailure(input: {
-  readonly context: StoreContext;
   readonly editor: EditorSession;
   readonly error: unknown;
+  readonly workflow: DraftWorkflowAccess;
 }): void {
-  const currentEditor = getCurrentEditorForSession(input.editor, input.context);
+  const currentEditor = getCurrentEditorForSession(
+    input.editor,
+    input.workflow.state,
+  );
   if (currentEditor === undefined) {
     return;
   }
-  input.context.set({
+  input.workflow.state.setState({
     noteState: {
       editor: isNoteWriteConflictError(input.error)
         ? {
@@ -75,7 +88,7 @@ function applySuccessfulSave(
   input: SaveResponseInput,
   reconciliation: DraftMutationDecision | undefined,
 ): void {
-  input.context.set((state) => {
+  input.workflow.state.setState((state) => {
     if (
       state.noteState.status !== "ready" ||
       state.noteState.editor.sessionKey !== input.editor.sessionKey
@@ -212,7 +225,7 @@ async function reconcileSavedDraft(
   input: SaveResponseInput,
 ): Promise<DraftMutationDecision | undefined> {
   if (doesNotNeedSaveCleanup.has(input.editor.draftDisposition)) {
-    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
+    input.workflow.cleanupRetries.delete(input.editor.sessionKey);
     return undefined;
   }
   return await reconcileCompatibleSavedDraft(input);
@@ -226,17 +239,17 @@ async function reconcileCompatibleSavedDraft(
     markdown: input.editor.currentMarkdown,
     noteId: input.editor.note.id,
   };
-  input.context.draftCleanupRetries.remember(input.editor.sessionKey, snapshot);
+  input.workflow.cleanupRetries.remember(input.editor.sessionKey, snapshot);
   const clusterId = getReadyClusterId(input.clusterIdentity);
   if (clusterId === undefined) {
     return undefined;
   }
-  const result = await input.context.draftCoordinator.cleanupSavedSnapshot({
+  const result = await input.workflow.coordinator.cleanupSavedSnapshot({
     clusterId,
     ...snapshot,
   });
   if (cleanupDecisionIsTerminal(result)) {
-    input.context.draftCleanupRetries.delete(input.editor.sessionKey);
+    input.workflow.cleanupRetries.delete(input.editor.sessionKey);
   }
   return result;
 }

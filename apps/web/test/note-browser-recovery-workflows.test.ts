@@ -114,7 +114,7 @@ describe("protected future-version recovery", () => {
     publishSourceMarkdown(store, "# Save without touching future data");
     await store.getState().flushPendingDraft();
     await store.getState().saveSelectedNote();
-    await store.getState().discardDraftAndReloadDiskVersion();
+    await store.getState().discardCurrentDraft();
 
     expect(getEditor(store)).toMatchObject({
       draftDisposition: "preserved_unknown",

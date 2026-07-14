@@ -196,7 +196,7 @@ describe("note browser store recovery actions", () => {
       recovery: "conflict",
     });
 
-    await store.getState().discardDraftAndReloadDiskVersion();
+    await store.getState().discardCurrentDraft();
 
     expect(
       drafts.read(readyClusterIdentity.clusterId, "index.md"),

@@ -2,10 +2,8 @@ import type { RouteStoreApplyResult } from "../routing/route-store-executor.js";
 import type { ValidatedLocationOccurrence } from "../routing/route-transition-types.js";
 import type { CommittedRouteView } from "../routing/route-transition-types.js";
 import { isSameHistoryOccurrence } from "../routing/validated-route-location.js";
-import type {
-  ActiveNoteLoad,
-  NoteBrowserStore,
-} from "./note-browser-contracts.js";
+import type { NoteBrowserStore } from "./note-browser-contracts.js";
+import type { ActiveNoteLoad } from "./note-browser-route-runtime.js";
 import type { NoteBrowserSnapshot } from "./note-browser-types.js";
 
 /** Returns the exact live editor or missing-draft surface owner. */

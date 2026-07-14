@@ -11,6 +11,7 @@ import type {
   RouteGateSettlement,
 } from "../routing/route-transition-types.js";
 import type { NoteBrowserStore } from "../state/note-browser-contracts.js";
+import { getRenderedOwnerKey } from "../state/note-browser-route-predicates.js";
 import {
   getFocusedElement,
   restoreFocus,
@@ -285,7 +286,7 @@ class EditorSessionGateRuntime {
   }
 
   #getCurrentController(): EditorControllerCapability | undefined {
-    const owner = this.#store.getState().getRenderedOwnerKey();
+    const owner = getRenderedOwnerKey(this.#store.getState());
     return owner === undefined ? undefined : this.#controllers.get(owner);
   }
 

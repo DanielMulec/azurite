@@ -1,7 +1,10 @@
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
 import type { DraftMutationSnapshot } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type {
+  DraftWorkflowAccess,
+  SnapshotKeyAllocator,
+} from "./note-browser-draft-runtime.js";
 import {
   applySnapshotSettlement,
   getSnapshotAdmissionIssue,
@@ -14,15 +17,19 @@ import {
 import { StateApplicationTracker } from "./note-browser-state-application.js";
 import type { EditorSession } from "./note-browser-types.js";
 
+type PostSaveWorkflow = DraftWorkflowAccess & {
+  readonly allocateSnapshotKey: SnapshotKeyAllocator;
+};
+
 /** Re-admits a newer edit against the baseline established by a completed Save. */
 export async function admitPostSaveDraftSnapshot(
-  context: StoreContext,
+  workflow: PostSaveWorkflow,
 ): Promise<void> {
-  const admission = preparePostSaveAdmission(context);
+  const admission = preparePostSaveAdmission(workflow);
   if (admission === undefined) {
     return;
   }
-  await applyPostSaveAdmission(admission, context);
+  await applyPostSaveAdmission(admission, workflow);
 }
 
 type PostSaveAdmission = {
@@ -31,17 +38,21 @@ type PostSaveAdmission = {
 };
 
 function preparePostSaveAdmission(
-  context: StoreContext,
+  workflow: PostSaveWorkflow,
 ): PostSaveAdmission | undefined {
-  const editor = getDirtyPostSaveEditor(context);
+  const editor = getDirtyPostSaveEditor(workflow);
   if (editor === undefined) {
     return undefined;
   }
-  const snapshot = createPostSaveSnapshot(editor, context);
-  const prepared = context.draftCoordinator.prepareSnapshot({
-    isCurrent: () => isCurrentPostSaveSnapshot(snapshot, context),
+  const snapshot = createPostSaveSnapshot(editor, workflow);
+  const prepared = workflow.coordinator.prepareSnapshot({
+    isCurrent: () => isCurrentPostSaveSnapshot(snapshot, workflow),
     onSettled: (settlement) => {
-      applySnapshotSettlement(settlement.snapshot, settlement.result, context);
+      applySnapshotSettlement(
+        settlement.snapshot,
+        settlement.result,
+        workflow.state,
+      );
     },
     snapshot,
   });
@@ -53,23 +64,23 @@ function preparePostSaveAdmission(
 
 async function applyPostSaveAdmission(
   admission: PostSaveAdmission,
-  context: StoreContext,
+  workflow: PostSaveWorkflow,
 ): Promise<void> {
   const tracker = applyPostSaveSnapshot(
     admission.editor,
     admission.snapshot,
-    context,
+    workflow,
   );
-  if (!settlePostSaveSnapshot(admission.snapshot, tracker, context)) {
+  if (!settlePostSaveSnapshot(admission.snapshot, tracker, workflow)) {
     return;
   }
-  await flushBoundSnapshot(admission.snapshot, context);
+  await flushBoundSnapshot(admission.snapshot, workflow);
 }
 
 function getDirtyPostSaveEditor(
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): EditorSession | undefined {
-  const editor = getCurrentEditor(context);
+  const editor = getCurrentEditor(workflow.state);
   if (editor === undefined) {
     return undefined;
   }
@@ -81,11 +92,11 @@ function getDirtyPostSaveEditor(
 function applyPostSaveSnapshot(
   editor: EditorSession,
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): StateApplicationTracker {
   const tracker = new StateApplicationTracker();
   try {
-    context.set((state) => {
+    workflow.state.setState((state) => {
       if (!stateOwnsEditor(state, editor)) {
         return state;
       }
@@ -94,7 +105,11 @@ function applyPostSaveSnapshot(
         ...editor,
         draftDisposition: snapshot.disposition,
         lastSnapshotKey: snapshot.snapshotKey,
-        persistenceIssue: getSnapshotAdmissionIssue(snapshot, editor, context),
+        persistenceIssue: getSnapshotAdmissionIssue(
+          snapshot,
+          editor,
+          workflow.state,
+        ),
         revision: snapshot.revision,
       });
     });
@@ -107,35 +122,35 @@ function applyPostSaveSnapshot(
 function settlePostSaveSnapshot(
   snapshot: DraftMutationSnapshot,
   tracker: StateApplicationTracker,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): boolean {
   if (!tracker.didApply()) {
-    context.draftCoordinator.cancelPrepared(snapshot.snapshotKey);
+    workflow.coordinator.cancelPrepared(snapshot.snapshotKey);
     return false;
   }
-  context.draftCoordinator.commitPrepared(snapshot.snapshotKey);
+  workflow.coordinator.commitPrepared(snapshot.snapshotKey);
   return true;
 }
 
 async function flushBoundSnapshot(
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): Promise<void> {
   if (snapshot.clusterId === undefined) {
     return;
   }
-  await context.draftCoordinator.flushSnapshot(snapshot.snapshotKey);
+  await workflow.coordinator.flushSnapshot(snapshot.snapshotKey);
 }
 
 function createPostSaveSnapshot(
   editor: EditorSession,
-  context: StoreContext,
+  workflow: PostSaveWorkflow,
 ): DraftMutationSnapshot {
   const revision = editor.revision + 1;
   return {
     baseContentHash: editor.baseContentHash,
     cause: "successful_save_cleanup",
-    clusterId: getReadyClusterId(context.get().clusterIdentity),
+    clusterId: getReadyClusterId(workflow.state.getState().clusterIdentity),
     contentDirty: true,
     disposition: isProtected(editor.draftDisposition)
       ? editor.draftDisposition
@@ -146,15 +161,15 @@ function createPostSaveSnapshot(
     noteId: editor.note.id,
     revision,
     sessionKey: editor.sessionKey,
-    snapshotKey: context.nextSnapshotKey(editor.sessionKey, revision),
+    snapshotKey: workflow.allocateSnapshotKey(editor.sessionKey, revision),
   };
 }
 
 function isCurrentPostSaveSnapshot(
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): boolean {
-  const editor = getCurrentEditor(context);
+  const editor = getCurrentEditor(workflow.state);
   if (editor === undefined) {
     return false;
   }

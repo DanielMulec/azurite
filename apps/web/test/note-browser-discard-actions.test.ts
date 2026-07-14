@@ -30,7 +30,7 @@ describe("terminal Discard", () => {
     });
 
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
 
     expect(readNote).toHaveBeenCalledOnce();
@@ -58,7 +58,7 @@ describe("failed terminal Discard", () => {
     const original = getEditor(store);
 
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
 
     expect(getEditor(store)).toMatchObject({
@@ -72,7 +72,7 @@ describe("failed terminal Discard", () => {
       sessionKey: original.sessionKey,
     });
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
     expect(getEditor(store)).toMatchObject({
       currentMarkdown: "# Home",
@@ -96,7 +96,7 @@ describe("future-version terminal Discard", () => {
     });
 
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
 
     expect(getEditor(store)).toMatchObject({
@@ -105,7 +105,7 @@ describe("future-version terminal Discard", () => {
       preservedSchemaVersion: 7,
     });
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
     expect(deleteDraft).toHaveBeenCalledOnce();
     expect(readNote).not.toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe("superseded terminal Discard", () => {
       },
       recovery: "draft",
     });
-    const discard = store.getState().discardDraftAndReloadDiskVersion();
+    const discard = store.getState().discardCurrentDraft();
     await vi.waitFor(() => {
       expect(getEditor(store).draftEpoch).toBe(0);
     });
@@ -163,7 +163,7 @@ describe("superseded terminal Discard", () => {
       },
       recovery: "draft",
     });
-    const discard = store.getState().discardDraftAndReloadDiskVersion();
+    const discard = store.getState().discardCurrentDraft();
     const original = getEditor(store);
     store.setState({
       noteState: {
@@ -202,7 +202,7 @@ describe("missing-note terminal Discard", () => {
     await loadTestRoute(store, "deleted.md");
 
     await expect(
-      store.getState().discardMissingDraft(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
     expect(store.getState().noteState).toMatchObject({
       draftDisposition: "recovered",
@@ -242,7 +242,7 @@ describe("protected missing-note recovery", () => {
     });
 
     await expect(
-      store.getState().discardDraftAndReloadDiskVersion(),
+      store.getState().discardCurrentDraft(),
     ).resolves.toBeUndefined();
 
     expect(deleteDraft).not.toHaveBeenCalled();

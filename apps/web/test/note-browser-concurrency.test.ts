@@ -62,8 +62,8 @@ describe("overlapping note-list ownership", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    const first = store.getState().ensureNotes();
-    const second = store.getState().ensureNotes();
+    const first = store.routeExecutor.ensureNotes();
+    const second = store.routeExecutor.ensureNotes();
     expect(second).toBe(first);
     expect(listNotes).toHaveBeenCalledOnce();
     response.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
@@ -89,7 +89,7 @@ describe("explicit note reload ownership", () => {
       recovery: "draft",
     });
 
-    await store.getState().discardDraftAndReloadDiskVersion();
+    await store.getState().discardCurrentDraft();
     await drafts.persistence.writeDraft(createTestDraft());
     const noteState = store.getState().noteState;
     if (noteState.status !== "ready") {
@@ -106,7 +106,7 @@ describe("explicit note reload ownership", () => {
         status: "ready",
       },
     });
-    await store.getState().discardDraftAndReloadDiskVersion();
+    await store.getState().discardCurrentDraft();
 
     expect(readNote).toHaveBeenCalledTimes(2);
     expect(requireMockCall(readNote.mock.calls, 0)[1]).not.toEqual(

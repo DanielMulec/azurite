@@ -1,6 +1,6 @@
 import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import type { DraftFailureDetail } from "../persistence/draft-workflow-types.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type { NoteBrowserStateAccess } from "./note-browser-contracts.js";
 import type { EditorSession, NoteViewState } from "./note-browser-types.js";
 
 type MissingDraftState = Extract<
@@ -29,12 +29,12 @@ export type DiscardTarget =
 
 /** Restores the exact surface under a fresh epoch when a future record appears. */
 export function restoreProtectedDiscard(input: {
-  readonly context: StoreContext;
   readonly schemaVersion: number;
+  readonly state: NoteBrowserStateAccess;
   readonly target: DiscardTarget;
 }): void {
   const restoredEpoch = input.target.closedEpoch + 1;
-  input.context.set((state) => {
+  input.state.setState((state) => {
     const noteState = getProtectedNoteState(
       state.noteState,
       input.target,
@@ -48,8 +48,8 @@ export function restoreProtectedDiscard(input: {
 /** Restores the exact surface under a fresh epoch after Discard failure. */
 export function restoreFailedDiscard(input: {
   readonly clusterId: string | undefined;
-  readonly context: StoreContext;
   readonly failure: DraftFailureDetail;
+  readonly state: NoteBrowserStateAccess;
   readonly target: DiscardTarget;
 }): void {
   const restoredEpoch = input.target.closedEpoch + 1;
@@ -62,7 +62,7 @@ export function restoreFailedDiscard(input: {
     ownerKey: input.target.ownerKey,
     retryAction: "retry_discard",
   });
-  input.context.set((state) => {
+  input.state.setState((state) => {
     const noteState = getFailedNoteState(
       state.noteState,
       input.target,
@@ -76,11 +76,11 @@ export function restoreFailedDiscard(input: {
 /** Reports whether the exact surface still owns the Discard result. */
 export function ownsDiscardTarget(
   target: DiscardTarget,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): boolean {
   return target.kind === "editor"
-    ? ownsEditorTarget(context.get().noteState, target)
-    : ownsMissingTarget(context.get().noteState, target);
+    ? ownsEditorTarget(state.getState().noteState, target)
+    : ownsMissingTarget(state.getState().noteState, target);
 }
 
 function getProtectedNoteState(

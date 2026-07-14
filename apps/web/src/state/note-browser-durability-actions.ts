@@ -1,12 +1,15 @@
 import { hasMarkdownDifference } from "../domain/markdown-equality.js";
-import type { DraftSnapshotResult } from "../persistence/draft-persistence-coordinator.js";
+import type {
+  DraftPersistenceCoordinator,
+  DraftSnapshotResult,
+} from "../persistence/draft-persistence-coordinator.js";
 import type {
   DurabilityCause,
   HandoffDecision,
   HandoffFailure,
 } from "../persistence/draft-workflow-types.js";
 import { getReadyClusterId } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type { NoteBrowserStateAccess } from "./note-browser-contracts.js";
 import {
   getCurrentEditor,
   getExactEditor,
@@ -16,29 +19,30 @@ import type { EditorSession } from "./note-browser-types.js";
 /** Returns whether the exact current authority may be destructively handed off. */
 export async function flushEditorDurability(
   _cause: DurabilityCause,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  coordinator: DraftPersistenceCoordinator,
 ): Promise<HandoffDecision> {
-  const editor = getCurrentEditor(context);
+  const editor = getCurrentEditor(state);
   if (editor === undefined) {
     return blocked({ reason: "owner_lost", source: "session" });
   }
-  const immediate = getImmediateDecision(editor, context);
+  const immediate = getImmediateDecision(editor, state);
   if (immediate !== undefined) {
     return immediate;
   }
-  return await flushAdmittedSnapshot(editor, context);
+  return await flushAdmittedSnapshot(editor, state, coordinator);
 }
 
 function getImmediateDecision(
   editor: EditorSession,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): HandoffDecision | undefined {
   const dirty = hasMarkdownDifference(
     editor.currentMarkdown,
     editor.savedMarkdown,
   );
   const dispositionDecision = getDispositionDecision(editor, dirty);
-  return dispositionDecision ?? getEvidenceDecision(editor, context);
+  return dispositionDecision ?? getEvidenceDecision(editor, state);
 }
 
 function getDispositionDecision(
@@ -55,9 +59,9 @@ function getDispositionDecision(
 
 function getEvidenceDecision(
   editor: EditorSession,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): HandoffDecision | undefined {
-  if (ownsMatchingDurableRecord(editor, context)) {
+  if (ownsMatchingDurableRecord(editor, state)) {
     return continued;
   }
   return editor.persistenceIssue === undefined
@@ -67,7 +71,8 @@ function getEvidenceDecision(
 
 async function flushAdmittedSnapshot(
   editor: EditorSession,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  coordinator: DraftPersistenceCoordinator,
 ): Promise<HandoffDecision> {
   if (editor.lastSnapshotKey === undefined) {
     return blocked({
@@ -75,10 +80,8 @@ async function flushAdmittedSnapshot(
       source: "coordinator",
     });
   }
-  const result = await context.draftCoordinator.flushSnapshot(
-    editor.lastSnapshotKey,
-  );
-  const current = getExactEditor(editor.sessionKey, context);
+  const result = await coordinator.flushSnapshot(editor.lastSnapshotKey);
+  const current = getExactEditor(editor.sessionKey, state);
   if (current === undefined || current.revision !== editor.revision) {
     return blocked({ reason: "owner_lost", source: "session" });
   }
@@ -90,10 +93,10 @@ async function flushAdmittedSnapshot(
 
 function ownsMatchingDurableRecord(
   editor: EditorSession,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): boolean {
   return (
-    getReadyClusterId(context.get().clusterIdentity) !== undefined &&
+    getReadyClusterId(state.getState().clusterIdentity) !== undefined &&
     editor.durableSnapshotKey !== undefined &&
     editor.durableSnapshotKey === editor.lastSnapshotKey
   );

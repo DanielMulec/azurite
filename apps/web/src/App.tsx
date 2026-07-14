@@ -49,10 +49,8 @@ export function App({
         />
         <NoteEditorSurface
           draftRecoveryStatus={browser.draftRecoveryStatus}
-          onDiscardDraftAndReloadDiskVersion={
-            browser.discardDraftAndReloadDiskVersion
-          }
-          onDiscardMissingDraft={browser.discardMissingDraft}
+          onDiscardDraftAndReloadDiskVersion={browser.discardCurrentDraft}
+          onDiscardMissingDraft={browser.discardCurrentDraft}
           onPublishMarkdown={browser.publishMarkdownChange}
           noteState={browser.noteState}
           routeHistoryStatus={browser.routeHistoryStatus}

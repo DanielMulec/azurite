@@ -19,9 +19,11 @@ import {
   getCoherentRouteView,
   getRenderedOwnerKey,
 } from "./note-browser-route-predicates.js";
+import { applyMissingRoute } from "./note-browser-route-state.js";
 
 /** Store-side route operations plus exact dependencies used by other workflows. */
 export type NoteBrowserRouteWorkflow = {
+  readonly dismissMissingDraft: (noteId: string) => void;
   readonly executor: RouteStoreExecutor;
   readonly reloadSelectedNote: () => Promise<RouteStoreApplyResult>;
   readonly retryBrowserRecovery: () => Promise<void>;
@@ -33,13 +35,15 @@ export function createNoteBrowserRouteWorkflow(
 ): NoteBrowserRouteWorkflow {
   const runtime = createRouteWorkflowRuntime();
   return {
+    dismissMissingDraft: (noteId) => {
+      dismissMissingDraft(noteId, access.state, runtime.routeRollback.commit);
+    },
     executor: {
       activateRouteIntent: (intentKey) => {
         activateRouteIntent(intentKey, runtime);
       },
-      applyRoute: async (input) =>
-        await applyRouteAction(input, access, runtime),
-      ensureNotes: async () => await ensureNotesAction(access, runtime),
+      applyRoute: (input) => applyRouteAction(input, access, runtime),
+      ensureNotes: () => ensureNotesAction(access, runtime),
       getCoherentView: (occurrence, noteId) =>
         getCoherentRouteView(
           { activeLoad: runtime.activeNoteLoad, noteId, occurrence },
@@ -58,6 +62,23 @@ export function createNoteBrowserRouteWorkflow(
         allocateEditorSessionKey(noteId, contentHash, runtime),
       ),
   };
+}
+
+function dismissMissingDraft(
+  noteId: string,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
+): void {
+  const location = state.getState().committedRouteView?.location;
+  if (location === undefined) {
+    state.setState({ noteState: { noteId, status: "missing" } });
+    return;
+  }
+  applyMissingRoute(
+    { location, noteId },
+    state,
+    commitRouteApplication,
+  );
 }
 
 function reportHistoryUnavailable(state: NoteBrowserStateAccess): void {

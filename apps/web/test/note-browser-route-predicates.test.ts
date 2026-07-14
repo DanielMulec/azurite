@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ActiveNoteLoad } from "../src/state/note-browser-contracts.js";
+import type { ActiveNoteLoad } from "../src/state/note-browser-route-runtime.js";
 import { createNoteRequestMetadata } from "../src/state/note-operation-metadata.js";
 import {
   getCoherentRouteView,

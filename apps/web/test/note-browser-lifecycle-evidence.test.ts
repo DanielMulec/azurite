@@ -171,8 +171,8 @@ describe("stale note-list lifecycle evidence", () => {
       draftPersistence: createMemoryDraftPersistence().persistence,
     });
 
-    const first = store.getState().ensureNotes();
-    const second = store.getState().ensureNotes();
+    const first = store.routeExecutor.ensureNotes();
+    const second = store.routeExecutor.ensureNotes();
     response.reject(new Error("current failure"));
     await Promise.all([first, second]);
 
@@ -190,8 +190,8 @@ describe("stale note-list lifecycle evidence", () => {
     );
     const store = createNoteBrowserStore({ api: createApi({ listNotes }) });
 
-    const first = store.getState().ensureNotes();
-    const second = store.getState().ensureNotes();
+    const first = store.routeExecutor.ensureNotes();
+    const second = store.routeExecutor.ensureNotes();
     response.resolve({ clusterIdentity: readyClusterIdentity, notes: [] });
     await Promise.all([first, second]);
 
@@ -263,7 +263,7 @@ describe("truthful note route-source evidence", () => {
       recovery: "draft",
     });
 
-    await store.getState().discardDraftAndReloadDiskVersion();
+    await store.getState().discardCurrentDraft();
 
     expect(eventAttributes(fake.info, events.noteLoadStarted)).toMatchObject({
       "azurite.route_source": noteRouteSources.draftDiscardReload,

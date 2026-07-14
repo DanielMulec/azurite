@@ -4,7 +4,6 @@ import type {
   RouteGateResult,
   RouteTransitionGate,
 } from "../src/routing/route-transition-types.js";
-import { createNoteBrowserRouteExecutor } from "../src/state/note-browser-store.js";
 import type { NoteBrowserApi } from "../src/state/note-browser-contracts.js";
 import {
   createApi,
@@ -28,7 +27,7 @@ describe("route owner pending-predecessor cancellation", () => {
       .mockImplementation(() => aRead.promise);
     const store = createSeededStore({ api: createApi({ readNote }) });
     const harness = createRouteOwnerHarness({ entries: ["/?note=index.md"] });
-    harness.owner.registerStoreExecutor(createNoteBrowserRouteExecutor(store));
+    harness.owner.registerStoreExecutor(store.routeExecutor);
     harness.resolveCurrent();
     await vi.waitFor(() => {
       expect(readNote).toHaveBeenCalledOnce();

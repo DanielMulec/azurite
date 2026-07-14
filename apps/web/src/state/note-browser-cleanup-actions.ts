@@ -6,37 +6,40 @@ import {
   cleanupDecisionIsTerminal,
   getCleanupDecisionPatch,
 } from "./note-browser-cleanup-decisions.js";
-import type {
-  NoteBrowserStore,
-  StoreContext,
-} from "./note-browser-contracts.js";
+import type { NoteBrowserStore } from "./note-browser-contracts.js";
+import type { DraftWorkflowAccess } from "./note-browser-draft-runtime.js";
 import type { EditorSession } from "./note-browser-types.js";
 import { StateApplicationTracker } from "./note-browser-state-application.js";
 
 /** Retries exact browser cleanup without issuing another filesystem Save. */
 export async function retryDraftCleanupAction(
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): Promise<void> {
-  const editor = getCleanupRetryEditor(context);
+  const editor = getCleanupRetryEditor(workflow);
   if (editor === undefined) {
     return;
   }
-  const target = getCleanupTarget(editor, context);
+  const target = getCleanupTarget(editor, workflow);
   if (target === undefined) {
-    refreshCleanupIssue(editor, context);
+    refreshCleanupIssue(editor, workflow);
     return;
   }
-  const decision = await context.draftCoordinator.cleanupSavedSnapshot({
+  const decision = await workflow.coordinator.cleanupSavedSnapshot({
     ...target.snapshot,
     clusterId: target.clusterId,
   });
-  applyCleanupDecision(editor.sessionKey, target.clusterId, decision, context);
+  applyCleanupDecision(
+    editor.sessionKey,
+    target.clusterId,
+    decision,
+    workflow,
+  );
 }
 
 function getCleanupRetryEditor(
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): EditorSession | undefined {
-  const noteState = context.get().noteState;
+  const noteState = workflow.state.getState().noteState;
   if (noteState.status !== "ready") {
     return undefined;
   }
@@ -49,9 +52,14 @@ function getCleanupRetryEditor(
     : editor;
 }
 
-function getCleanupTarget(editor: EditorSession, context: StoreContext) {
-  const snapshot = context.draftCleanupRetries.get(editor.sessionKey);
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
+function getCleanupTarget(
+  editor: EditorSession,
+  workflow: DraftWorkflowAccess,
+) {
+  const snapshot = workflow.cleanupRetries.get(editor.sessionKey);
+  const clusterId = getReadyClusterId(
+    workflow.state.getState().clusterIdentity,
+  );
   return snapshot === undefined || clusterId === undefined
     ? undefined
     : { clusterId, snapshot };
@@ -61,12 +69,12 @@ function applyCleanupDecision(
   sessionKey: string,
   clusterId: string,
   decision: Awaited<
-    ReturnType<StoreContext["draftCoordinator"]["cleanupSavedSnapshot"]>
+    ReturnType<DraftWorkflowAccess["coordinator"]["cleanupSavedSnapshot"]>
   >,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): void {
   const tracker = new StateApplicationTracker();
-  context.set((state) => {
+  workflow.state.setState((state) => {
     const editor = getCleanupOwner(state, sessionKey);
     if (editor === undefined) {
       return state;
@@ -78,7 +86,7 @@ function applyCleanupDecision(
       : { noteState: { editor: { ...editor, ...patch }, status: "ready" } };
   });
   if (tracker.didApply() && cleanupDecisionIsTerminal(decision)) {
-    context.draftCleanupRetries.delete(sessionKey);
+    workflow.cleanupRetries.delete(sessionKey);
   }
 }
 
@@ -98,11 +106,16 @@ function getCleanupOwner(
 
 function refreshCleanupIssue(
   editor: EditorSession,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): void {
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
-  const failure = getCleanupRefreshFailure(clusterId, context.get());
-  context.set({
+  const clusterId = getReadyClusterId(
+    workflow.state.getState().clusterIdentity,
+  );
+  const failure = getCleanupRefreshFailure(
+    clusterId,
+    workflow.state.getState(),
+  );
+  workflow.state.setState({
     noteState: {
       editor: {
         ...editor,

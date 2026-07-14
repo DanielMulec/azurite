@@ -12,7 +12,10 @@ import {
   getNextAcceptedSaveStatus,
   getReadyClusterId,
 } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type {
+  DraftWorkflowAccess,
+  SnapshotKeyAllocator,
+} from "./note-browser-draft-runtime.js";
 import type { EditorSession } from "./note-browser-types.js";
 import {
   getCurrentEditor,
@@ -28,55 +31,59 @@ import {
 } from "./note-browser-draft-settlement.js";
 import { StateApplicationTracker } from "./note-browser-state-application.js";
 
+type AuthorityWorkflow = DraftWorkflowAccess & {
+  readonly allocateSnapshotKey: SnapshotKeyAllocator;
+};
+
 /** Publishes exact accepted Markdown with synchronous snapshot admission. */
 export function publishMarkdownChange(
   command: PublicationCommand,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): PublicationResult {
-  const editor = getExactEditor(command.sessionKey, context);
+  const editor = getExactEditor(command.sessionKey, workflow.state);
   if (editor === undefined) {
     return { reason: "stale_session", status: "rejected" };
   }
-  return publishEditorMarkdown(command, editor, context);
+  return publishEditorMarkdown(command, editor, workflow);
 }
 
 function publishEditorMarkdown(
   command: PublicationCommand,
   editor: EditorSession,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): PublicationResult {
   if (editor.currentMarkdown === command.markdown) {
     return { status: "accepted" };
   }
-  const snapshot = createAuthoritySnapshot(command.markdown, editor, context);
-  const prepared = prepareSnapshot(snapshot, context);
+  const snapshot = createAuthoritySnapshot(command.markdown, editor, workflow);
+  const prepared = prepareSnapshot(snapshot, workflow);
   if (prepared.status === "rejected") {
     return { reason: prepared.reason, status: "rejected" };
   }
-  return applyPreparedPublication({ command, context, editor, snapshot });
+  return applyPreparedPublication({ command, editor, snapshot, workflow });
 }
 
 /** Updates live mode and persists it only for an already-owned record. */
 export function updateEditorModeWithSnapshot(
   editorMode: EditorMode,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): void {
-  const editor = getModeChangeEditor(editorMode, context);
+  const editor = getModeChangeEditor(editorMode, workflow);
   if (editor === undefined) {
     return;
   }
   if (!shouldPersistDraftMode(editor.draftDisposition)) {
-    patchModeOnly(editor, editorMode, context);
+    patchModeOnly(editor, editorMode, workflow);
     return;
   }
-  persistEditorMode(editor, editorMode, context);
+  persistEditorMode(editor, editorMode, workflow);
 }
 
 function getModeChangeEditor(
   editorMode: EditorMode,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): EditorSession | undefined {
-  const editor = getCurrentEditor(context);
+  const editor = getCurrentEditor(workflow.state);
   return editor === undefined || editor.editorMode === editorMode
     ? undefined
     : editor;
@@ -85,31 +92,31 @@ function getModeChangeEditor(
 function persistEditorMode(
   editor: EditorSession,
   editorMode: EditorMode,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): void {
-  const snapshot = createModeSnapshot(editorMode, editor, context);
-  const prepared = prepareSnapshot(snapshot, context);
+  const snapshot = createModeSnapshot(editorMode, editor, workflow);
+  const prepared = prepareSnapshot(snapshot, workflow);
   if (prepared.status === "rejected") {
     return;
   }
   const tracker = applyPreparedModeState({
-    context,
     editor,
     editorMode,
     snapshot,
+    workflow,
   });
-  settlePreparedSnapshot(snapshot.snapshotKey, tracker, context);
+  settlePreparedSnapshot(snapshot.snapshotKey, tracker, workflow);
 }
 
 function applyPreparedModeState(input: {
-  readonly context: StoreContext;
   readonly editor: EditorSession;
   readonly editorMode: EditorMode;
   readonly snapshot: DraftMutationSnapshot;
+  readonly workflow: AuthorityWorkflow;
 }): StateApplicationTracker {
   const tracker = new StateApplicationTracker();
   try {
-    input.context.set((state) => {
+    input.workflow.state.setState((state) => {
       if (!stateOwnsEditor(state, input.editor)) {
         return state;
       }
@@ -121,7 +128,7 @@ function applyPreparedModeState(input: {
         persistenceIssue: getSnapshotAdmissionIssue(
           input.snapshot,
           input.editor,
-          input.context,
+          input.workflow.state,
         ),
         revision: input.snapshot.revision,
       });
@@ -134,17 +141,17 @@ function applyPreparedModeState(input: {
 
 /** Retries the exact immutable snapshot named by the current issue. */
 export async function retryDraftPersistenceAction(
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): Promise<void> {
-  const target = getRetryTarget(context);
+  const target = getRetryTarget(workflow);
   if (target === undefined) {
     return;
   }
-  bindReadyCluster(target.editor, context);
+  bindReadyCluster(target.editor, workflow);
   if (target.editor.lastSnapshotKey !== target.snapshotKey) {
     return;
   }
-  await retryTargetSnapshot(target, context);
+  await retryTargetSnapshot(target, workflow);
 }
 
 type RetryTarget = {
@@ -153,8 +160,10 @@ type RetryTarget = {
   readonly snapshotKey: string;
 };
 
-function getRetryTarget(context: StoreContext): RetryTarget | undefined {
-  const editor = getCurrentEditor(context);
+function getRetryTarget(
+  workflow: DraftWorkflowAccess,
+): RetryTarget | undefined {
+  const editor = getCurrentEditor(workflow.state);
   return editor === undefined ? undefined : getEditorRetryTarget(editor);
 }
 
@@ -173,49 +182,54 @@ function getEditorRetryTarget(editor: EditorSession): RetryTarget | undefined {
   };
 }
 
-function bindReadyCluster(editor: EditorSession, context: StoreContext): void {
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
+function bindReadyCluster(
+  editor: EditorSession,
+  workflow: DraftWorkflowAccess,
+): void {
+  const clusterId = getReadyClusterId(
+    workflow.state.getState().clusterIdentity,
+  );
   if (clusterId !== undefined) {
-    context.draftCoordinator.bindSessionCluster(editor.sessionKey, clusterId);
+    workflow.coordinator.bindSessionCluster(editor.sessionKey, clusterId);
   }
 }
 
 async function retryTargetSnapshot(
   target: RetryTarget,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): Promise<void> {
   if (target.identityBlocked) {
-    await context.draftCoordinator.flushSnapshot(target.snapshotKey);
+    await workflow.coordinator.flushSnapshot(target.snapshotKey);
     return;
   }
-  await context.draftCoordinator.retrySnapshot(target.snapshotKey);
+  await workflow.coordinator.retrySnapshot(target.snapshotKey);
 }
 
 function applyPreparedPublication(input: {
   readonly command: PublicationCommand;
-  readonly context: StoreContext;
   readonly editor: EditorSession;
   readonly snapshot: DraftMutationSnapshot;
+  readonly workflow: AuthorityWorkflow;
 }): PublicationResult {
   const tracker = applyPublicationState(input);
   if (!tracker.didApply()) {
-    input.context.draftCoordinator.cancelPrepared(input.snapshot.snapshotKey);
+    input.workflow.coordinator.cancelPrepared(input.snapshot.snapshotKey);
     return { reason: "state_update_failed", status: "rejected" };
   }
-  input.context.draftCoordinator.commitPrepared(input.snapshot.snapshotKey);
-  input.context.draftCleanupRetries.delete(input.editor.sessionKey);
+  input.workflow.coordinator.commitPrepared(input.snapshot.snapshotKey);
+  input.workflow.cleanupRetries.delete(input.editor.sessionKey);
   return { status: "accepted" };
 }
 
 function applyPublicationState(input: {
   readonly command: PublicationCommand;
-  readonly context: StoreContext;
   readonly editor: EditorSession;
   readonly snapshot: DraftMutationSnapshot;
+  readonly workflow: AuthorityWorkflow;
 }): StateApplicationTracker {
   const tracker = new StateApplicationTracker();
   try {
-    input.context.set((state) => {
+    input.workflow.state.setState((state) => {
       if (!stateOwnsEditor(state, input.editor)) {
         return state;
       }
@@ -228,7 +242,7 @@ function applyPublicationState(input: {
         persistenceIssue: getSnapshotAdmissionIssue(
           input.snapshot,
           input.editor,
-          input.context,
+          input.workflow.state,
         ),
         revision: input.snapshot.revision,
         saveStatus: getNextAcceptedSaveStatus(input.editor),
@@ -242,12 +256,16 @@ function applyPublicationState(input: {
 
 function prepareSnapshot(
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): SnapshotPreparationResult {
-  return context.draftCoordinator.prepareSnapshot({
-    isCurrent: () => isCurrentSnapshot(snapshot, context),
+  return workflow.coordinator.prepareSnapshot({
+    isCurrent: () => isCurrentSnapshot(snapshot, workflow),
     onSettled: (settlement) => {
-      applySnapshotSettlement(settlement.snapshot, settlement.result, context);
+      applySnapshotSettlement(
+        settlement.snapshot,
+        settlement.result,
+        workflow.state,
+      );
     },
     snapshot,
   });
@@ -256,26 +274,26 @@ function prepareSnapshot(
 function settlePreparedSnapshot(
   snapshotKey: string,
   tracker: StateApplicationTracker,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): void {
   if (tracker.didApply()) {
-    context.draftCoordinator.commitPrepared(snapshotKey);
+    workflow.coordinator.commitPrepared(snapshotKey);
     return;
   }
-  context.draftCoordinator.cancelPrepared(snapshotKey);
+  workflow.coordinator.cancelPrepared(snapshotKey);
 }
 
 function createAuthoritySnapshot(
   markdown: string,
   editor: EditorSession,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): DraftMutationSnapshot {
   const revision = editor.revision + 1;
   const contentDirty = hasMarkdownDifference(markdown, editor.savedMarkdown);
   return {
     baseContentHash: editor.baseContentHash,
     cause: "accepted_change",
-    clusterId: getReadyClusterId(context.get().clusterIdentity),
+    clusterId: getReadyClusterId(workflow.state.getState().clusterIdentity),
     contentDirty,
     disposition: getNextDraftDisposition(editor.draftDisposition, contentDirty),
     draftEpoch: editor.draftEpoch,
@@ -284,20 +302,20 @@ function createAuthoritySnapshot(
     noteId: editor.note.id,
     revision,
     sessionKey: editor.sessionKey,
-    snapshotKey: context.nextSnapshotKey(editor.sessionKey, revision),
+    snapshotKey: workflow.allocateSnapshotKey(editor.sessionKey, revision),
   };
 }
 
 function createModeSnapshot(
   editorMode: EditorMode,
   editor: EditorSession,
-  context: StoreContext,
+  workflow: AuthorityWorkflow,
 ): DraftMutationSnapshot {
   const revision = editor.revision + 1;
   return {
     baseContentHash: editor.baseContentHash,
     cause: "mode_change",
-    clusterId: getReadyClusterId(context.get().clusterIdentity),
+    clusterId: getReadyClusterId(workflow.state.getState().clusterIdentity),
     contentDirty: hasMarkdownDifference(
       editor.currentMarkdown,
       editor.savedMarkdown,
@@ -309,16 +327,16 @@ function createModeSnapshot(
     noteId: editor.note.id,
     revision,
     sessionKey: editor.sessionKey,
-    snapshotKey: context.nextSnapshotKey(editor.sessionKey, revision),
+    snapshotKey: workflow.allocateSnapshotKey(editor.sessionKey, revision),
   };
 }
 
 function patchModeOnly(
   editor: EditorSession,
   editorMode: EditorMode,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): void {
-  context.set((state) =>
+  workflow.state.setState((state) =>
     stateOwnsEditor(state, editor)
       ? readyEditorPatch({
           ...editor,
@@ -331,9 +349,9 @@ function patchModeOnly(
 
 function isCurrentSnapshot(
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  workflow: DraftWorkflowAccess,
 ): boolean {
-  const editor = getExactEditor(snapshot.sessionKey, context);
+  const editor = getExactEditor(snapshot.sessionKey, workflow.state);
   return editor !== undefined && editorCanOwnSnapshot(editor, snapshot);
 }
 

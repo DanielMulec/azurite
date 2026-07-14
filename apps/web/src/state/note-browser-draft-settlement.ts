@@ -29,7 +29,7 @@ export function applySnapshotSettlement(
     }
     const patch = getSettlementPatch(editor, snapshot, result);
     return patch === undefined
-      ? state
+      ? current
       : readyEditorPatch({ ...editor, ...patch });
   });
 }

@@ -1,41 +1,33 @@
 import { getReadyClusterId } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
+import type { NoteBrowserStateAccess } from "./note-browser-contracts.js";
 import {
   type DiscardTarget,
   ownsDiscardTarget,
   restoreFailedDiscard,
   restoreProtectedDiscard,
 } from "./note-browser-discard-restoration.js";
-import { reloadSelectedNoteAction } from "./note-browser-route-actions.js";
-import { applyMissingRoute } from "./note-browser-route-state.js";
 import type { EditorSession, NoteViewState } from "./note-browser-types.js";
+
+type DiscardWorkflow = {
+  readonly coordinator: DraftPersistenceCoordinator;
+  readonly dismissMissingDraft: (noteId: string) => void;
+  readonly reloadSelectedNote: () => Promise<unknown>;
+  readonly state: NoteBrowserStateAccess;
+};
 
 type MissingDraftState = Extract<
   NoteViewState,
   { readonly status: "missing-draft" }
 >;
 
-/** Closes a compatible recovery epoch before restoring exact disk authority. */
-export async function discardDraftAndReloadDiskVersionAction(
-  context: StoreContext,
+/** Discards the compatible current draft from either recovery surface. */
+export async function discardCurrentDraftAction(
+  workflow: DiscardWorkflow,
 ): Promise<void> {
-  const target = getDiscardTarget(context.get().noteState);
+  const target = getDiscardTarget(workflow.state.getState().noteState);
   if (target !== undefined) {
-    await discardTarget(target, context);
-  }
-}
-
-/** Closes a compatible missing-note epoch before dismissing its recovery view. */
-export async function discardMissingDraftAction(
-  context: StoreContext,
-): Promise<void> {
-  const noteState = context.get().noteState;
-  if (noteState.status !== "missing-draft") {
-    return;
-  }
-  const target = getMissingDiscardTarget(noteState);
-  if (target !== undefined) {
-    await discardTarget(target, context);
+    await discardTarget(target, workflow);
   }
 }
 
@@ -84,70 +76,63 @@ function getMissingDiscardTarget(
 
 async function discardTarget(
   target: DiscardTarget,
-  context: StoreContext,
+  workflow: DiscardWorkflow,
 ): Promise<void> {
-  context.draftCoordinator.closeEpoch(target.ownerKey, target.closedEpoch);
-  const clusterId = getReadyClusterId(context.get().clusterIdentity);
+  workflow.coordinator.closeEpoch(target.ownerKey, target.closedEpoch);
+  const clusterId = getReadyClusterId(
+    workflow.state.getState().clusterIdentity,
+  );
   if (clusterId === undefined) {
     restoreFailedDiscard({
       clusterId,
-      context,
-      failure: getClusterIdentityFailure(context),
+      failure: getClusterIdentityFailure(workflow.state),
+      state: workflow.state,
       target,
     });
     return;
   }
-  const decision = await context.draftCoordinator.discard({
+  const decision = await workflow.coordinator.discard({
     clusterId,
     draftEpoch: target.closedEpoch,
     noteId: target.noteId,
     ownerKey: target.ownerKey,
   });
   if (decision.status === "cleared") {
-    await completeDiscard(target, context);
+    await completeDiscard(target, workflow);
     return;
   }
   if (decision.status === "protected") {
     restoreProtectedDiscard({
-      context,
       schemaVersion: decision.schemaVersion,
+      state: workflow.state,
       target,
     });
     return;
   }
   restoreFailedDiscard({
     clusterId,
-    context,
     failure: decision.failure,
+    state: workflow.state,
     target,
   });
 }
 
 async function completeDiscard(
   target: DiscardTarget,
-  context: StoreContext,
+  workflow: DiscardWorkflow,
 ): Promise<void> {
-  if (!ownsDiscardTarget(target, context)) {
+  if (!ownsDiscardTarget(target, workflow.state)) {
     return;
   }
   if (target.kind === "editor") {
-    await reloadSelectedNoteAction(context);
+    await workflow.reloadSelectedNote();
     return;
   }
-  applyMissingAfterDiscard(target.noteId, context);
+  workflow.dismissMissingDraft(target.noteId);
 }
 
-function applyMissingAfterDiscard(noteId: string, context: StoreContext): void {
-  const location = context.get().committedRouteView?.location;
-  if (location === undefined) {
-    context.set({ noteState: { noteId, status: "missing" } });
-    return;
-  }
-  applyMissingRoute({ location, noteId }, context);
-}
-
-function getClusterIdentityFailure(context: StoreContext) {
-  const identity = context.get().clusterIdentity;
+function getClusterIdentityFailure(state: NoteBrowserStateAccess) {
+  const identity = state.getState().clusterIdentity;
   return {
     reason:
       identity?.status === "unavailable"

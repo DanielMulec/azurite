@@ -11,10 +11,7 @@ import type {
 } from "./domain/markdown-authority-types.js";
 import type { RouteTransitionOwner } from "./routing/route-transition-owner.js";
 import type { RouteTransitionGate } from "./routing/route-transition-types.js";
-import {
-  createNoteBrowserRouteExecutor,
-  createNoteBrowserStore,
-} from "./state/note-browser-store.js";
+import { createNoteBrowserStore } from "./state/note-browser-store.js";
 import type {
   DraftRecoveryStatus,
   EditorSessionReader,
@@ -33,8 +30,7 @@ export type NoteBrowserRouteGateFactory = (
 
 /** State and actions for the editable note browsing screen. */
 export type NoteBrowserState = {
-  readonly discardDraftAndReloadDiskVersion: () => Promise<void>;
-  readonly discardMissingDraft: () => Promise<void>;
+  readonly discardCurrentDraft: () => Promise<void>;
   readonly draftRecoveryStatus: DraftRecoveryStatus;
   readonly editorSessionGate: EditorSessionGate;
   readonly noteState: NoteViewState;
@@ -97,7 +93,7 @@ function useRouteRuntimeRegistration(input: {
     const gate = createRouteGate?.(store, productionGate) ?? productionGate;
     const unregisterGate = transitionOwner.registerGate(gate);
     const unregisterExecutor = transitionOwner.registerStoreExecutor(
-      createNoteBrowserRouteExecutor(store),
+      store.routeExecutor,
     );
     return () => {
       unregisterExecutor();
@@ -108,11 +104,10 @@ function useRouteRuntimeRegistration(input: {
 
 function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
   return {
-    discardDraftAndReloadDiskVersion: useStore(
+    discardCurrentDraft: useStore(
       store,
-      (state) => state.discardDraftAndReloadDiskVersion,
+      (state) => state.discardCurrentDraft,
     ),
-    discardMissingDraft: useStore(store, (state) => state.discardMissingDraft),
     draftRecoveryStatus: useStore(store, (state) => state.draftRecoveryStatus),
     noteState: useStore(store, (state) => state.noteState),
     notesState: useStore(store, (state) => state.notesState),

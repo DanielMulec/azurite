@@ -178,7 +178,7 @@ describe("note browser store route hardening", () => {
     });
     const navigation = { replaceSelectedNote: vi.fn() };
 
-    const load = store.getState().ensureNotes();
+    const load = store.routeExecutor.ensureNotes();
     listResponse.resolve({
       clusterIdentity: readyClusterIdentity,
       notes: [toSummary(home), toSummary(project)],
