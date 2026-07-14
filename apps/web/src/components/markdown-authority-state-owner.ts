@@ -43,13 +43,23 @@ export class MarkdownAuthorityStateOwner {
     patch: Partial<MarkdownAuthorityState> = {},
   ): void {
     this.#availabilityError = message;
-    this.patch({ ...patch, editorError: message });
+    this.patch({
+      ...patch,
+      editorError: this.#snapshot.hasPublicationRetry
+        ? this.#snapshot.editorError
+        : message,
+    });
   }
 
   /** Clears an availability failure after creation or synchronization succeeds. */
   clearAvailability(patch: Partial<MarkdownAuthorityState>): void {
     this.#availabilityError = undefined;
-    this.patch({ ...patch, editorError: undefined });
+    this.patch({
+      ...patch,
+      editorError: this.#snapshot.hasPublicationRetry
+        ? this.#snapshot.editorError
+        : undefined,
+    });
   }
 
   /** Clears a publication failure while restoring any availability failure. */

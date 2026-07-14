@@ -3,10 +3,7 @@ import type {
   ChangeOrigin,
 } from "../domain/markdown-authority-types.js";
 import type { EditorMode } from "../persistence/draft-records.js";
-import type {
-  AcceptedChangeResult,
-  EditorLifecycle,
-} from "./markdown-authority-controller-types.js";
+import type { EditorLifecycle } from "./markdown-authority-controller-types.js";
 
 /** Exact source and matching rich-editor serialization at synchronization. */
 export type AuthorityCheckpoint = {
@@ -26,14 +23,6 @@ export function createSourceCandidate(
   markdown: string,
 ): AuthorityRetryCandidate {
   return { markdown, origin: "source_input", resolution: "exact_input" };
-}
-
-/** Publishes the retained candidate when an explicit retry exists. */
-export function publishRetryCandidate(
-  retry: AuthorityRetryCandidate | undefined,
-  publish: (candidate: AuthorityRetryCandidate) => AcceptedChangeResult,
-): AcceptedChangeResult | undefined {
-  return retry === undefined ? undefined : publish(retry);
 }
 
 /** Safe result of reading a live Crepe projection through its public API. */

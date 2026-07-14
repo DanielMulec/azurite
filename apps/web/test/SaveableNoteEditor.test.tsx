@@ -12,6 +12,7 @@ import {
   createAcknowledgingPublisher,
   createTestEditorSessionGate,
 } from "./editor-session-gate-test-helpers.js";
+import { createMarkdownAuthorityComposition } from "./markdown-authority-composition-test-helpers.js";
 import { markdownEqualityCases } from "./markdown-fidelity-cases.js";
 
 vi.mock("../src/components/MilkdownEditor.js", () => ({
@@ -94,15 +95,24 @@ describe("SaveableNoteEditor save state", () => {
   });
 
   it("blocks save when the visible editor publication is still rejected", () => {
-    const editor = createEditor({ currentMarkdown: "# Visible rejected edit" });
+    const composition = createMarkdownAuthorityComposition({
+      recovery: "draft",
+    });
     const onSaveNote = vi.fn(() => Promise.resolve());
-    const sessionGate = createTestEditorSessionGate();
-    sessionGate.registerController({
-      commit: () => ({ reason: "state_update_failed", status: "block" }),
-      sessionKey: editor.sessionKey,
+    composition.controller.showSource();
+    composition.rejectPublications("state_update_failed");
+    expect(
+      composition.controller.publishSource("# Visible rejected edit"),
+    ).toEqual({
+      reason: "state_update_failed",
+      status: "rejected",
     });
 
-    renderEditor({ editor, onSaveNote, sessionGate });
+    renderEditor({
+      editor: composition.getEditor(),
+      onSaveNote,
+      sessionGate: composition.gate,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSaveNote).not.toHaveBeenCalled();

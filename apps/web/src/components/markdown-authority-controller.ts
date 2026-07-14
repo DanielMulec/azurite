@@ -2,6 +2,7 @@ import type {
   CommitCause,
   CommitResult,
   PublicationCommand,
+  PublicationRejectionReason,
   PublicationTrigger,
   SynchronizationResult,
 } from "../domain/markdown-authority-types.js";
@@ -13,7 +14,6 @@ import {
   getCheckpointProjection,
   getWysiwygIgnoreReason,
   isCommitProjectionCurrent,
-  publishRetryCandidate,
   readAuthorityProjection,
   resolveProjectionCandidate,
   type AuthorityCheckpoint,
@@ -31,6 +31,11 @@ import {
 } from "./markdown-authority-results.js";
 import { MarkdownAuthorityStateOwner } from "./markdown-authority-state-owner.js";
 
+type RejectedPublication = {
+  readonly candidate: AuthorityRetryCandidate;
+  readonly reason: PublicationRejectionReason;
+};
+
 /**
  * Adapts exact Zustand editor authority to Crepe projection checkpoints.
  * Accepted live content is always read synchronously from the current session.
@@ -42,7 +47,7 @@ export class MarkdownAuthorityController {
   #checkpoint: AuthorityCheckpoint | undefined;
   #isPublishing = false;
   #isSynchronizing = false;
-  #retry: AuthorityRetryCandidate | undefined;
+  #rejectedPublication: RejectedPublication | undefined;
 
   constructor(input: AuthorityControllerInput) {
     this.#input = input;
@@ -147,9 +152,10 @@ export class MarkdownAuthorityController {
 
   /** Retries the exact unacknowledged visible value without another edit. */
   retryPublication(): AcceptedChangeResult | undefined {
-    return publishRetryCandidate(this.#retry, (candidate) =>
-      this.#publishCandidate(candidate, "explicit_retry"),
-    );
+    const rejected = this.#rejectedPublication;
+    return rejected === undefined
+      ? undefined
+      : this.#publishCandidate(rejected.candidate, "explicit_retry");
   }
 
   /** Retains the live rich projection before a same-session or route action. */
@@ -158,11 +164,9 @@ export class MarkdownAuthorityController {
     if (session === undefined) {
       return { reason: "stale_session", status: "block" };
     }
-    if (
-      session.editorMode === "markdown" ||
-      this.#state.current.lifecycle !== "ready"
-    ) {
-      return { status: "proceed" };
+    const immediate = this.#getImmediateCommitResult(session);
+    if (immediate !== undefined) {
+      return immediate;
     }
     const projectionRead = readAuthorityProjection(
       this.#input.readProjection,
@@ -180,7 +184,7 @@ export class MarkdownAuthorityController {
     if (
       isCommitProjectionCurrent({
         acknowledgedProjection: this.#acknowledgedProjection,
-        hasRetry: this.#retry !== undefined,
+        hasRetry: this.#rejectedPublication !== undefined,
         projection,
       })
     ) {
@@ -223,6 +227,10 @@ export class MarkdownAuthorityController {
     }
     if (session.editorMode === "wysiwyg") {
       return { cause: "same_mode", status: "no_change" };
+    }
+    // Accepted Markdown cannot replace a still-visible rejected source candidate.
+    if (this.commit("mode_switch").status === "block") {
+      return createSynchronizationFailure("source_to_wysiwyg", "stale_session");
     }
     if (this.#state.current.lifecycle !== "ready") {
       return createSynchronizationFailure(
@@ -276,7 +284,7 @@ export class MarkdownAuthorityController {
       return { reason: "lifecycle", status: "ignored" };
     }
     if (
-      this.#retry !== undefined &&
+      this.#rejectedPublication !== undefined &&
       candidate.markdown === session.currentMarkdown
     ) {
       this.#acceptCandidate(candidate);
@@ -293,7 +301,10 @@ export class MarkdownAuthorityController {
     const publication = callAuthorityPublication(command, this.#input.publish);
     this.#isPublishing = false;
     if (publication.status === "rejected") {
-      this.#retry = candidate;
+      this.#rejectedPublication = {
+        candidate,
+        reason: publication.reason,
+      };
       this.#state.patch({
         editorError: "The latest editor change has not been acknowledged.",
         hasPublicationRetry: true,
@@ -310,11 +321,35 @@ export class MarkdownAuthorityController {
     if (projection !== undefined) {
       this.#acknowledgedProjection = projection;
     }
-    this.#retry = undefined;
+    this.#rejectedPublication = undefined;
     this.#state.settlePublication({
       hasPublicationRetry: false,
       rejectedMarkdown: undefined,
     });
+  }
+
+  #getPendingRejectionReason(
+    session: EditorSession,
+  ): PublicationRejectionReason | undefined {
+    const rejected = this.#rejectedPublication;
+    if (rejected?.candidate.markdown === session.currentMarkdown) {
+      this.#acceptCandidate(rejected.candidate);
+      return undefined;
+    }
+    return rejected?.reason;
+  }
+
+  #getImmediateCommitResult(session: EditorSession): CommitResult | undefined {
+    if (
+      session.editorMode !== "markdown" &&
+      this.#state.current.lifecycle === "ready"
+    ) {
+      return undefined;
+    }
+    const rejectionReason = this.#getPendingRejectionReason(session);
+    return rejectionReason === undefined
+      ? { status: "proceed" }
+      : { reason: rejectionReason, status: "block" };
   }
 
   #readSession(): EditorSession | undefined {

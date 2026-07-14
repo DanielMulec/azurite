@@ -3,9 +3,12 @@
 ## Outcome
 
 Task 3B passed on 2026-07-14. Zustand is the sole accepted live editor truth;
-the Markdown controller retains only projection/checkpoint adapter state, and
-`EditorSessionGateRuntime` is the sole freeze/lease authority. Tasks 3C–3E and
-Slice 7E were not changed or started.
+the Markdown controller retains only projection/checkpoint and transient
+publication-retry adapter state, and `EditorSessionGateRuntime` is the sole
+freeze/lease authority. A rejected source candidate now blocks Save, handoff,
+lifecycle finalization, and WYSIWYG replacement until exact retry acceptance or
+reversion to current Zustand Markdown. Tasks 3C–3E and Slice 7E were not changed
+or started.
 
 The kickoff baseline was clean `main` at
 `9bb787889ad6cad4e4d55ae02ed7c0397dce494f`, synchronized with `origin/main`
@@ -35,9 +38,9 @@ four terminal outcomes. It owns no accepted Markdown.
 
 | Measure                            | Before | After |
 | ---------------------------------- | -----: | ----: |
-| Editor envelope physical lines     |  4,274 | 3,791 |
+| Editor envelope physical lines     |  4,274 | 3,825 |
 | Store/contracts bucket             |  1,204 | 1,133 |
-| Controller-family bucket           |    935 |   612 |
+| Controller-family bucket           |    935 |   646 |
 | Crepe/hook bucket                  |    532 |   539 |
 | Gate bucket                        |    569 |   458 |
 | React-chain bucket                 |  1,034 | 1,049 |
@@ -49,9 +52,10 @@ four terminal outcomes. It owns no accepted Markdown.
 | Gate-preparation variants          |      5 |     0 |
 | Gate translation layers            |      1 |     0 |
 
-The identical physical envelope decreased by 483 lines. The bucket increases
-are the exact session-reader transport and its tests; the net reduction is code
-deletion, not movement or renaming.
+The identical physical envelope decreased by 449 lines. The controller-family
+correction adds 34 lines to retain one exact rejected-publication record and
+preserve its view state through readiness; the accepted ownership and result
+structure remains unchanged.
 
 Publication changed from three statuses and six reasons to the caller decision
 `accepted/rejected` with four exact rejection reasons. Commit changed from four
@@ -72,6 +76,13 @@ recreate the removed mirrors. A small private synchronization-guard helper was
 added only to satisfy the existing complexity limit; it adds no result or
 product branch. No dependency, framework, product-state owner, storage
 boundary, schema, migration, QA surface, build entry, or policy changed.
+
+The rejected-publication correction remains controller-local: one transient
+record keeps the exact candidate with its `PublicationRejectionReason`, commit
+checks that record before Markdown/not-ready fast paths, successful retry or
+exact reversion clears it, and availability changes cannot hide its error or
+retry action. The record is not accepted product state and adds no cache,
+subscription, persistence, capability, or authority owner.
 
 ## Production Files
 
@@ -94,26 +105,39 @@ Changed production files:
   `qa/markdown-fidelity-controller.ts`.
 - Deleted: `state/note-browser-publication-results.ts`.
 
+The bounded correction changed only
+`components/markdown-authority-controller.ts`, its existing decisions helper,
+and `components/markdown-authority-state-owner.ts` in production.
+
 ## Automated Verification
 
-| Verification                                                                                                                          | Result                                   |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Focused controller, Milkdown, StrictMode, gate, route, store, Save, recovery, future-schema, lifecycle, concurrency, and Dexie suites | 28 files, 227 tests passed               |
-| `/opt/homebrew/bin/pnpm validate`                                                                                                     | Passed; 449 workspace tests passed       |
-| `/opt/homebrew/bin/pnpm build`                                                                                                        | Passed                                   |
-| Markdown QA optimized build                                                                                                           | Passed                                   |
-| Product exclusion assertion                                                                                                           | Passed; 197 ordinary product files clean |
-| `git diff --check` and 400-line governance                                                                                            | Passed                                   |
+| Verification                                                                           | Result                                   |
+| -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Original Task 3B focused preservation suites                                           | 28 files, 227 tests passed               |
+| Repair-focused real controller, gate, Save, Milkdown, StrictMode, and lifecycle suites | 8 files, 65 tests passed                 |
+| `/opt/homebrew/bin/pnpm validate`                                                      | Passed; 455 workspace tests passed       |
+| `/opt/homebrew/bin/pnpm build`                                                         | Passed                                   |
+| Markdown QA optimized build                                                            | Passed                                   |
+| Product exclusion assertion                                                            | Passed; 197 ordinary product files clean |
+| `git diff --check` and 400-line governance                                             | Passed                                   |
 
 Focused proof covers latest-session mode/revision and asynchronous disposition
 settlement, exact source and WYSIWYG publication, rejected visible retry and
-Save/handoff blocking, one freeze truth for route and terminal actions,
+Save/handoff blocking, exact commit reasons, lifecycle flush prevention,
+readiness retention, WYSIWYG replacement prevention, retry acceptance, exact
+reversion, one freeze truth for route and terminal actions,
 same-session generation retention, successful-Save ownership, retired
 generation callbacks, StrictMode resource/action ledgers, route continuation
 and cancellation, edit-during-save, recovery, cleanup, conflict, and protected
 future-schema records.
 
 ## Browser Acceptance
+
+The existing browser matrix remains applicable. The correction changes only a
+controller-local transient decision and adapter-view error precedence below the
+browser coordination boundary; real React, controller, gate, lifecycle, and
+Save composition tests prove the changed visible behavior, so no browser smoke
+was rerun.
 
 Codex Playwright CLI wrapper `0.1.17`, Node `26.0.0`, and pnpm `11.7.0` drove
 fresh Chrome sessions. Product origins were `127.0.0.1:5173` and `:4173`; the
