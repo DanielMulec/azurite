@@ -1,6 +1,8 @@
-import { readdirSync, readFileSync, type Dirent } from "node:fs";
+import { readdirSync, type Dirent } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+
+import { countPhysicalLines } from "./count-physical-lines.js";
 
 type CodeFileLineCount = {
   readonly lineCount: number;
@@ -23,32 +25,6 @@ const ignoredDirectoryNames = new Set<string>([
   "dist",
   "node_modules",
 ]);
-
-function countPhysicalLines(filePath: string): number {
-  const text = readFileSync(filePath, "utf8");
-
-  return countLinesInText(text);
-}
-
-function countLinesInText(text: string): number {
-  if (text.length === 0) {
-    return 0;
-  }
-
-  return countNewlineCharacters(text) + countMissingFinalLine(text);
-}
-
-function countMissingFinalLine(text: string): number {
-  if (text.endsWith("\n") || text.endsWith("\r")) {
-    return 0;
-  }
-
-  return 1;
-}
-
-function countNewlineCharacters(text: string): number {
-  return Array.from(text.matchAll(/\r\n|\r|\n/g)).length;
-}
 
 function isCodeFile(filePath: string): boolean {
   return codeFileExtensions.has(path.extname(filePath));

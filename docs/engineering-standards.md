@@ -23,6 +23,8 @@ owns maintainability and implementation-quality policy.
 
 - Keep every code file at 400 physical lines or fewer. Split by responsibility
   before the file reaches 401 lines.
+- Preserve both independent enforcement paths: ESLint's 400-physical-line rule
+  and the TypeScript `pnpm check:file-lines` repository check.
 - Keep functions small, control flow shallow, and names explicit.
 - Treat complexity, nesting depth, parameter count, and function length as
   review signals. Refactor when they make the domain behavior difficult to
@@ -38,6 +40,11 @@ owns maintainability and implementation-quality policy.
 
 Use typed TypeScript linting, React rules, accessibility rules, and architecture
 restrictions.
+
+The approved numerical maintainability baseline is complexity `5`, maximum
+depth `3`, maximum `100` lines per function while skipping blank lines and
+comments, and maximum `4` parameters. These signals complement the independent
+400-physical-line file limit; they do not replace it.
 
 Type and async safety includes:
 
@@ -97,6 +104,25 @@ silently annex it to the product slice that exposed the pressure.
 Prettier owns whitespace, indentation, wrapping, semicolons, quotes, trailing
 commas, JSON, YAML, Markdown, CSS, and TypeScript formatting. ESLint owns
 correctness, safety, architecture, accessibility, and maintainability.
+
+### Formatting Exclusion Governance
+
+`.prettierignore` is a project-wide formatting-policy allowlist. Its approved
+generated or vendor artifacts are exactly:
+
+- `node_modules/`
+- `dist/`
+- `coverage/`
+- `pnpm-lock.yaml`
+
+Adding or broadening an ignore entry requires Daniel's explicit approval for
+the current task. Source, tests, documentation, and fixture directories must
+not be excluded to avoid formatting. A verbatim fixture must instead use an
+appropriate non-Prettier fixture extension or the narrowest explained local
+mechanism that preserves the exact bytes without hiding a directory.
+
+`pnpm check:governance`, included in `pnpm validate`, enforces the approved
+allowlist.
 
 ## Security And Validation
 

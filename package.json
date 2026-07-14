@@ -11,6 +11,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "check:file-lines": "tsx scripts/check-code-file-lines.ts",
+    "check:governance": "tsx scripts/check-engineering-governance.ts",
     "dev": "pnpm -r --parallel dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -25,7 +26,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "typecheck:scripts": "tsc --noEmit -p tsconfig.json",
-    "validate": "pnpm format:check && pnpm check:file-lines && pnpm lint && pnpm typecheck:scripts && pnpm typecheck && pnpm test"
+    "validate": "pnpm format:check && pnpm check:governance && pnpm check:file-lines && pnpm lint && pnpm typecheck:scripts && pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

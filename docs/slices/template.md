@@ -4,6 +4,9 @@
 
 Proposed.
 
+Follow the bounded-review and concise-document rules in
+`docs/working-agreement.md` throughout proposal, review, and promotion.
+
 ## Product Decision
 
 State the product decision this slice settles.
@@ -59,6 +62,13 @@ the shared baseline:
 
 ## Verification Plan
 
+Map each changed risk or authoritative contract to its smallest sufficient
+proof:
+
+| Risk or contract | Evidence                           |
+| ---------------- | ---------------------------------- |
+| Changed behavior | Focused automated or manual proof. |
+
 Run the full repository validation:
 
 ```sh
@@ -70,8 +80,9 @@ Add slice-specific tests and manual QA steps here.
 ## Acceptance Criteria
 
 - The new user story works end to end.
-- The architecture or product decision named above is represented in code,
-  tests, docs, or a deliberate decision note.
-- The negative side-effect guardrails remain true.
+- The authoritative product and architecture contracts named above are
+  represented in code, tests, docs, or a deliberate decision note.
+- The linked baseline and slice-specific negative side-effect guardrails remain
+  true.
 - `/opt/homebrew/bin/pnpm validate` passes.
 - The repository is clean and pushed on `main`.

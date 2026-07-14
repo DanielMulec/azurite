@@ -86,6 +86,32 @@ Line count alone never decides whether to split. The deciding question is whethe
 each resulting slice delivers stable value without leaving either user story
 knowingly incomplete.
 
+### Bounded Adversarial Review
+
+A slice proposal receives one adversarial review pass by default, with at most
+five blocking findings. A second pass occurs only when the first pass materially
+changes the product decision or architecture, or when Daniel explicitly
+requests it.
+
+Reviewers return findings rather than rewriting the proposal. Each finding must
+contain:
+
+- evidence from the proposal, implementation, product behavior, or primary
+  source;
+- the concrete failure that would result;
+- a disposition of `include`, `separate`, or `reject`; and
+- the one authoritative proposal section the finding changes.
+
+A review cannot silently add a dependency, state owner, storage boundary, build
+variant, standalone application, QA harness, or other material proof mechanism.
+When a finding requires one, promotion stops for Scope Re-selection and Daniel's
+explicit approval before the proposal changes.
+
+If integrating review findings expands the proposal by more than 20% of the
+physical line count submitted for review, promotion stops for compression and
+Scope Re-selection. Review pressure does not authorize specification sprawl or
+automatic scope expansion.
+
 ## Product-Architecture Framing
 
 When a QA finding, user frustration, or implementation issue points to a broader
@@ -207,6 +233,20 @@ reuse. A plan is sufficiently detailed when an implementer can determine the
 product outcome, ownership, exact behavior, failure semantics, implementation
 boundary, and proof without choosing among unresolved alternatives. Stop adding
 restatements once that condition is met.
+
+### Concise Slice Documents
+
+Planned and active slice documents target 350 physical lines or fewer. An active
+slice has a hard maximum of 500 physical lines, and a planned document above 500
+lines cannot be promoted until it is rewritten. Archived documents are exempt
+because they are historical records.
+
+These bounds limit repetition and specification sprawl, not the product value or
+implementation size of a slice. Keep exact private unions, exhaustive test
+permutations, and speculative module catalogs in code or tests unless they are
+durable shared or cross-layer contracts. Verification uses a compact
+risk-to-evidence mapping, and acceptance criteria reference authoritative
+contracts instead of copying them.
 
 ## Sentry Debug Mode
 

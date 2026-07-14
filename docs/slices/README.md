@@ -16,6 +16,8 @@ truth.
 
 ## Current Sequence
 
+No product slice is currently active.
+
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
    save-integrity review findings were repaired, the Back/sidebar divergence was
@@ -38,27 +40,31 @@ truth.
    `docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md`;
    exact evidence is in
    `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
-5. Planned: Slice 7E, semantic editor and persistence diagnostics. It has a hard
-   post-7D refresh gate before promotion. Its plan is
+5. Next proposal: a StrictMode lifecycle-conformance foundation. It will settle
+   lifecycle and state simplification before further semantic observability
+   work; no slice document is created or activated by this checkpoint.
+6. Planned and blocked: Slice 7E, semantic editor and persistence diagnostics.
+   It remains valuable, but cannot be promoted until the lifecycle/state
+   simplification settles and its required post-7D refresh is complete. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
-6. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
+7. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
    using the 7A runtime, 7B correlation, 7C route owner, 7D Markdown-authority
    contract, and 7E semantic evidence to fix the mobile Markdown source-mode
    newline reversion. No unrelated feature slice may intervene.
    Its plan file is intentionally deferred until Slice 7E evidence identifies
    the durable cause; the Slice 7E immediate-handoff section and
    `docs/qa/mobile-markdown-newline-reversion.md` are authoritative meanwhile.
-7. Product priority after Slice 7F: select and deliver the first complete,
+8. Product priority after Slice 7F: select and deliver the first complete,
    visible Cluster workflow. Architecture direction is in
    `docs/technical-architecture.md` under Cluster Resolution And Filesystem
    Error Evolution.
-8. Deferred until after that visible Cluster progress: Route Failure
+9. Deferred until after that visible Cluster progress: Route Failure
    Resilience for post-echo router rejection and malformed-target
    canonicalization during notes-list failure. Its plan is
    `docs/slices/planned/route-failure-resilience.md`.
-9. Later candidate: a measured editor-loading and bundle-performance slice using
-   the deferred boundary in `docs/technical-architecture.md`. Milkdown with Crepe
-   remains the selected editor architecture.
+10. Later candidate: a measured editor-loading and bundle-performance slice using
+    the deferred boundary in `docs/technical-architecture.md`. Milkdown with Crepe
+    remains the selected editor architecture.
 
 When a slice is completed, add concise completion evidence to its document and
 move it to `archive/`. Promote the next planned slice to `active/` only after its
