@@ -212,6 +212,36 @@ protects access authority without censoring Azurite product data.
 - When a user gives a fallback order, follow that order exactly. Do not skip a
   listed Codex skill or plugin just because a repo-local command is missing.
 
+## Subagent Orchestration
+
+Use subagents whenever independent investigation, disjoint implementation,
+verification, or review provides material value.
+
+- Azurite imposes no fixed project-level limit on the total number of subagents
+  used during a task.
+- Respect the active Codex session's actual concurrency capacity. When more
+  useful assignments exist than can run simultaneously, coordinate them in
+  successive waves.
+- Choose each assignment for concrete independent value. Do not create
+  subagents merely to consume available capacity or duplicate another agent's
+  work.
+- Parallelize discovery, research, metric reproduction, disjoint
+  implementation, and independent verification when their ownership boundaries
+  are clear.
+- Keep architecture, shared contracts, cross-cutting integration, conflict
+  resolution, final verification, and the complete repository state with the
+  primary agent.
+- Reuse an existing subagent when continuing the same seam benefits from its
+  retained context. Use a fresh subagent when independence, a different
+  specialty, or protection against correlated reasoning matters.
+- Do not repeatedly poll running agents on a timer. Use event-driven or passive
+  coordination and resume when an agent reports progress or completion.
+- The primary agent owns the delegation graph and final synthesis. Subagent
+  output is evidence and implementation transport, not an independently
+  authoritative product or architecture decision.
+- Editing delegation additionally follows the controlled-worktree contract
+  below. Read-only subagents do not require worktrees.
+
 ## Git Conventions
 
 - Write clear, concise commit messages in English.
@@ -229,6 +259,9 @@ implementation transport, never delivery branches.
 - Use read-only subagents without worktrees. Give an editing subagent a linked
   worktree only when its task and file ownership are concrete, bounded, and
   disjoint from every other active edit.
+- A delivery unit may use multiple successive waves of editing workers. Create
+  each later wave from the clean, integrated `main` state left by the preceding
+  wave; do not start new workers from a stale pre-integration baseline.
 - Before creating a worker, make the primary worktree clean and synchronize
   `main` with `origin/main`. Create exactly one local branch and linked worktree
   from that commit, using matching slugs:

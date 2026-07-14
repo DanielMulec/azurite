@@ -291,3 +291,17 @@ Use this loop for meaningful product work:
    manual checks, or a local demo.
 7. Summarize what changed, what was preserved, and identify the next valuable
    delivery unit.
+
+### Delegated Execution
+
+Delegation follows the natural work boundaries of the selected delivery unit,
+not a fixed agent count. Use as many bounded subagent assignments as materially
+help discovery, implementation, or proof, scheduling successive waves when the
+runtime concurrency capacity is full.
+
+Parallel work requires independent ownership and a stable shared baseline.
+Dependent architecture changes remain chronological. The primary agent owns
+synthesis, integration, final verification, and the accepted delivery state.
+
+The authoritative coordination, agent-reuse, worktree, and cleanup rules live
+in `agents.md`.
