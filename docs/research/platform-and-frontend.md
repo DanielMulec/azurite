@@ -35,6 +35,20 @@ the entry template live in `docs/research-sources.md`.
 - Caveats: React also recommends frameworks for many production web apps; the
   local-first PWA context is why Azurite starts with Vite instead.
 
+### React StrictMode
+
+- URL: https://react.dev/reference/react/StrictMode
+- Accessed: 2026-07-14
+- Area: React lifecycle conformance
+- Use when: Designing or verifying render purity and repeatable resource setup
+  and cleanup across Azurite's React roots.
+- Notes: Full-root StrictMode development checks include extra component render,
+  Effect setup-cleanup-setup, and ref callback setup-cleanup-setup cycles. React
+  uses these checks to expose impure render and missing cleanup.
+- Caveats: StrictMode exposes lifecycle defects but does not prove Azurite's
+  external resource counts or absence of duplicate product actions; focused
+  ledgers and browser acceptance remain required.
+
 ### Vite Guide
 
 - URL: https://vite.dev/guide/
@@ -214,6 +228,17 @@ the entry template live in `docs/research-sources.md`.
   utilities and encourages tests that resemble how users interact with the UI.
 - Caveats: It does not replace browser smoke checks for responsive layout,
   rendered CSS, and real navigation behavior.
+
+### React Testing Library API
+
+- URL: https://testing-library.com/docs/react-testing-library/api/
+- Accessed: 2026-07-14
+- Area: StrictMode component-test configuration
+- Use when: Applying React StrictMode consistently to Azurite component tests.
+- Notes: React Testing Library supports a global
+  `configure({ reactStrictMode: true })` option and a per-render override.
+- Caveats: The test-environment wrapper does not replace full-root product and
+  QA wiring or real-browser lifecycle proof.
 
 ### TanStack Router
 

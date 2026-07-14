@@ -13,11 +13,13 @@ retain only risks unique to that slice.
 
 Current order after completed Slice 7D:
 
-1. Propose a StrictMode lifecycle-conformance foundation next. Its document is
-   intentionally not part of this governance checkpoint.
+1. Review and explicitly approve the proposed
+   [StrictMode Lifecycle Conformance Foundation](../active/strictmode-lifecycle-conformance-foundation.md),
+   then implement and verify it before promoting later work.
 2. Slice 7E, semantic editor and persistence diagnostics, remains valuable but
-   blocked until lifecycle/state simplification settles and a substantive
-   refresh against the completed Slice 7D implementation is complete.
+   blocked until the lifecycle/ownership foundation is trustworthy and a
+   substantive refresh against the completed Slice 7D implementation is
+   complete.
 3. Required Slice 7F editor correctness immediately after 7E; no unrelated
    capability may intervene.
 4. Select and deliver the first complete visible Cluster product workflow.
