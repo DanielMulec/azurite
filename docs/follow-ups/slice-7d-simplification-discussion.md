@@ -83,8 +83,7 @@ application is technically defensible as one possible proof mechanism.
 Daniel did not, however, explicitly request or approve that mechanism. Git
 history shows that Codex introduced the harness requirement into the planned
 slice in commit `5d51b92` on July 12, 2026. Codex later added the dedicated
-commands and ordinary-bundle exclusion assertion in commit `413363e` on July
-13. The commits use Daniel's configured Git identity, but the first is described
+commands and ordinary-bundle exclusion assertion in commit `413363e` on July 13. The commits use Daniel's configured Git identity, but the first is described
 as an automated Codex hook synchronization; the Git author therefore does not
 establish that Daniel authored or deliberately selected the requirement.
 
