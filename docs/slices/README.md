@@ -17,8 +17,8 @@ truth.
 ## Current Sequence
 
 The StrictMode lifecycle-conformance foundation is completed. No slice is
-currently active; Slice 7E remains planned pending its required refresh and
-explicit promotion.
+currently active. The post-StrictMode ownership-simplification proposal now
+precedes Slice 7E; both remain unimplemented and require explicit approval.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -48,27 +48,34 @@ explicit promotion.
    Azurite-owned router, editor-adapter, registration, persistence, and action
    lifecycles are generation-safe. Milkdown remains officially released and
    unmodified, with rejected-create private cleanup qualified explicitly.
-6. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle
+6. Proposed:
+   [Post-StrictMode Ownership Simplification](planned/post-strictmode-ownership-simplification.md).
+   Four serial implementation units consolidate editor authority, persistence
+   results, store workflow boundaries, and shared Sentry fail-open machinery.
+   The proposal is unpromoted and production work requires Daniel's explicit
+   approval.
+7. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle
    prerequisite is complete, but it remains unimplemented and cannot be
-   promoted until its required post-7D refresh is complete and Daniel approves
-   the refreshed scope. Its plan is
+   refreshed or promoted until all four selected ownership-simplification units
+   are complete, unless Daniel explicitly reselects that proposal, and Daniel
+   approves the later refreshed scope. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
-7. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
+8. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
    using the 7A runtime, 7B correlation, 7C route owner, 7D Markdown-authority
    contract, and 7E semantic evidence to fix the mobile Markdown source-mode
    newline reversion. No unrelated feature slice may intervene.
    Its plan file is intentionally deferred until Slice 7E evidence identifies
    the durable cause; the Slice 7E immediate-handoff section and
    `docs/qa/mobile-markdown-newline-reversion.md` are authoritative meanwhile.
-8. Product priority after Slice 7F: select and deliver the first complete,
+9. Product priority after Slice 7F: select and deliver the first complete,
    visible Cluster workflow. Architecture direction is in
    `docs/technical-architecture.md` under Cluster Resolution And Filesystem
    Error Evolution.
-9. Deferred until after that visible Cluster progress: Route Failure
-   Resilience for post-echo router rejection and malformed-target
-   canonicalization during notes-list failure. Its plan is
-   `docs/slices/planned/route-failure-resilience.md`.
-10. Later candidate: a measured editor-loading and bundle-performance slice using
+10. Deferred until after that visible Cluster progress: Route Failure
+    Resilience for post-echo router rejection and malformed-target
+    canonicalization during notes-list failure. Its plan is
+    `docs/slices/planned/route-failure-resilience.md`.
+11. Later candidate: a measured editor-loading and bundle-performance slice using
     the deferred boundary in `docs/technical-architecture.md`. Milkdown with Crepe
     remains the selected editor architecture.
 

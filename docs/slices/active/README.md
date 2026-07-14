@@ -5,9 +5,13 @@ No product slice is currently active. The completed
 is archived with exact evidence in
 `docs/qa/strictmode-lifecycle-conformance-foundation.md`.
 
-Slice 7E remains planned, unrenumbered, unimplemented, and valuable. The
-lifecycle prerequisite is now trustworthy, but Slice 7E still requires its
-substantive post-7D refresh and Daniel's explicit approval before promotion.
+The proposed
+[Post-StrictMode Ownership Simplification](../planned/post-strictmode-ownership-simplification.md)
+now precedes Slice 7E and remains unpromoted and unimplemented. Slice 7E remains
+planned, unrenumbered, unrefreshed, unimplemented, and valuable; both checkpoints
+require Daniel's explicit approval before production work or promotion. All four
+selected simplification units precede Slice 7E unless Daniel explicitly reselects
+the proposal's scope.
 
 The Route Failure Resilience outcomes from the Slice 7C adversarial review
 remain deliberately deferred until after Slice 7F and visible Cluster product

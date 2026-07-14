@@ -13,14 +13,20 @@ retain only risks unique to that slice.
 
 Current order after the completed StrictMode lifecycle foundation:
 
-1. Refresh Slice 7E, semantic editor and persistence diagnostics, against the
+1. Obtain Daniel's explicit approval for the
+   [Post-StrictMode Ownership Simplification](post-strictmode-ownership-simplification.md),
+   then implement its four units serially: editor authority, persistence
+   results, store workflow boundaries, and shared Sentry fail-open extraction.
+   The proposal is unpromoted and no production work is active.
+2. Refresh Slice 7E, semantic editor and persistence diagnostics, against the
    completed Slice 7D and
    [StrictMode lifecycle](../archive/strictmode-lifecycle-conformance-foundation.md)
-   baselines before requesting promotion. It remains planned and unimplemented.
-2. Required Slice 7F editor correctness immediately after 7E; no unrelated
+   baselines plus the completed simplification units before requesting
+   promotion. It remains planned, unrefreshed, and unimplemented.
+3. Required Slice 7F editor correctness immediately after 7E; no unrelated
    capability may intervene.
-3. Select and deliver the first complete visible Cluster product workflow.
-4. Route Failure Resilience, deliberately deferred until after that visible
+4. Select and deliver the first complete visible Cluster product workflow.
+5. Route Failure Resilience, deliberately deferred until after that visible
    product progress.
 
 Slice 7F intentionally has no speculative plan file yet. Slice 7E must write it
