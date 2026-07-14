@@ -2,12 +2,9 @@
 
 ## Status
 
-Active. Daniel approved production-code implementation on 2026-07-14 from
-proposal commit `de2b400edc6fac8937e36e767072f19f1956128a`.
-
-Implementation is paused before production-code edits at the approved Milkdown
-dependency-patch Scope Re-selection trigger. Characterization evidence is in
-`docs/qa/strictmode-lifecycle-conformance-foundation.md`.
+Active. Daniel approved proposal `de2b400` and the revised unmodified-Milkdown
+boundary on 2026-07-14. Production resumed from checkpoint `eaf6841`; evidence
+remains in `docs/qa/strictmode-lifecycle-conformance-foundation.md`.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout proposal, review, and promotion.
@@ -26,6 +23,12 @@ not a repository-wide state rewrite. Zustand remains the accepted live product
 state owner, Dexie remains durable browser-recovery storage, and the existing
 route, Markdown-authority, gate, and persistence boundaries retain their distinct
 roles unless lifecycle proof requires a narrowly defined consolidation.
+
+Azurite owns conformance for successful Milkdown lifecycle and every adapter
+consequence. If official `Editor.create()` rejects in `OnCreate`, Azurite must
+retire its generation, reject stale publication, preserve exact Markdown and
+source fallback, avoid duplicate actions, and release its resources. Only
+Milkdown's private partial-resource and internal-timer cleanup is excluded.
 
 ## User Story
 
@@ -65,8 +68,9 @@ unmount/remount.
   editor-runtime, timer, persistence, and product-I/O side effects.
 - Establish repeatable setup and idempotent, generation-exact cleanup for all
   current frontend external resources.
-- Retain exactly one intended live route owner and editor generation after
-  StrictMode settles, then release all relevant resources on final unmount.
+- Retain exactly one intended live route owner and, after successful creation,
+  one ready editor generation when StrictMode settles, then release every
+  Azurite-owned and successfully created external resource on final unmount.
 - Prevent diagnostic replay and stale asynchronous completions from issuing or
   publishing duplicate navigation, reads, edits, saves, filesystem writes,
   draft writes, cleanup, recovery, or editor state.
@@ -85,6 +89,8 @@ unmount/remount.
   app, or build entry.
 - Redesigning editor UX, route semantics, save behavior, draft schema, or API
   contracts.
+- Patching, forking, vendoring, monkey-patching, replacing, or using private
+  Milkdown APIs, or claiming control over its rejected-create private cleanup.
 - Treating development-only double execution as a product action to suppress
   with global flags or one-shot render guards.
 
@@ -157,6 +163,12 @@ or publish WYSIWYG state until its predecessor is retired and required teardown
 has settled. Source mode remains usable while WYSIWYG creation is pending or
 failed, and exact Markdown remains recoverable through the accepted authority.
 
+When official `Editor.create()` rejects in `OnCreate`, Azurite preserves the
+original failure, retires the generation, rejects all late callbacks, and
+releases its host, registrations, timers, and obligations. The installed-package
+characterization remains explicit evidence that Milkdown's private partial
+resources and retry timer cannot currently be declared terminally cleaned.
+
 ### Store, Gate, And Persistence Ownership
 
 Zustand remains authoritative for accepted live note, revision, mode, dirty,
@@ -178,10 +190,12 @@ survives diagnostic replay. Final unmount commits any accepted live projection
 required by the existing contract, then settles or cancels Azurite-owned timers
 and receipts without discarding valid recovery data.
 
-Resource-zero proof applies to mounted-root and product-session ownership.
-Process-scoped Dexie infrastructure must be reported separately and hold zero
-active transactions, subscriptions, timers, or pending obligations after final
-unmount.
+Resource-zero proof applies to Azurite-owned mounted-root and product-session
+ownership and to successful Milkdown generations through documented public
+APIs. Process-scoped Dexie infrastructure must be reported separately and hold
+zero active transactions, subscriptions, timers, or pending obligations after
+final unmount. The qualified rejected-create Milkdown limitation is reported
+separately and never counted as an Azurite-owned live generation.
 
 ## Implementation Plan
 
@@ -220,6 +234,8 @@ unmount.
   making each Crepe instance a disposable, identity-checked generation.
 - Order creation, retirement, and destruction so an older generation cannot
   affect or destroy the current one, including after delayed success or failure.
+- On rejected creation, preserve the original failure and exact Markdown while
+  releasing every Azurite-owned generation resource and keeping source usable.
 - Preserve synchronous source/WYSIWYG publication, edit-during-save rebasing,
   same-session mode switching, gate checkpoints, degraded source fallback, and
   exact Markdown.
@@ -264,22 +280,22 @@ Baseline: `docs/reference/product-guardrails.md`.
 - Retiring one generation must not destroy, detach, unregister, or clear its
   successor's runtime, DOM host, callback, route ownership, or persistence work.
 - Final unmount must restore native browser-history methods and release all
-  relevant live resources without deleting recoverable drafts or unknown
-  future-schema records.
+  Azurite-owned and successfully created external resources without deleting
+  recoverable drafts or unknown future-schema records.
 - Delayed or failed editor teardown must remain observable and leave source mode
   usable; it must not be hidden as a ready WYSIWYG editor.
 
 ## Verification Plan
 
-| Risk or contract                  | Evidence                                                                                                                                                                                |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Render purity and discarded setup | StrictMode characterization proves no external allocation or product I/O from render/initializer replay.                                                                                |
-| Route generation ownership        | Counters prove one live history/owner/blocker and one of each route subscription after settle, native history restoration, and zero after final unmount.                                |
-| Editor generation ownership       | Controlled delayed create/destroy/failure tests prove one current ready generation, exact teardown, isolated hosts, and rejected stale callbacks.                                       |
-| Balanced registrations            | Gate, executor, page lifecycle, store, controller, listener, subscription, timer, and queue ledgers prove intended settled counts and zero releasable resources after unmount.          |
-| No duplicate product action       | Spies and browser network evidence count initial list/read, navigation, publication, save/PUT/filesystem write, draft write/cleanup, recovery, and gate settlement.                     |
-| Routing and data integrity        | Existing Slice 7C/7D tests plus StrictMode variants preserve history, exact Markdown, manual save, edit-during-save, conflicts, ordered drafts, recovery, and future-schema protection. |
-| Real-root behavior                | Product and both existing QA roots pass desktop and Pixel 6 acceptance in development and optimized-production builds.                                                                  |
+| Risk or contract                  | Evidence                                                                                                                                                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Render purity and discarded setup | StrictMode characterization proves no external allocation or product I/O from render/initializer replay.                                                                                                    |
+| Route generation ownership        | Counters prove one live history/owner/blocker and one of each route subscription after settle, native history restoration, and zero after final unmount.                                                    |
+| Editor generation ownership       | Controlled tests prove exact successful teardown and one ready generation; rejected-create proof requires retired Azurite ownership, preserved failure/Markdown, source fallback, and no stale publication. |
+| Balanced registrations            | Gate, executor, page lifecycle, store, controller, listener, subscription, timer, and queue ledgers prove intended settled counts and zero releasable resources after unmount.                              |
+| No duplicate product action       | Spies and browser network evidence count initial list/read, navigation, publication, save/PUT/filesystem write, draft write/cleanup, recovery, and gate settlement.                                         |
+| Routing and data integrity        | Existing Slice 7C/7D tests plus StrictMode variants preserve history, exact Markdown, manual save, edit-during-save, conflicts, ordered drafts, recovery, and future-schema protection.                     |
+| Real-root behavior                | Product and both existing QA roots pass desktop and Pixel 6 acceptance in development and optimized-production builds.                                                                                      |
 
 Run focused router, editor, store, persistence, and StrictMode tests, then:
 
@@ -298,9 +314,12 @@ are insufficient for browser-history, DOM, editor, and responsive behavior.
 - Stop for Daniel's explicit approval if implementation requires a new state
   owner, storage boundary, dependency, state-machine library, QA app, build
   entry, or independently useful refactor.
-- First qualify installed Milkdown's public create/destroy failure behavior with
-  red tests. If dependable physical cleanup requires upgrading or patching the
-  dependency, stop rather than silently expanding this slice.
+- Keep Milkdown officially released and unmodified. Preserve the installed
+  failed-create characterization as a qualification check for future releases;
+  do not patch, fork, vendor, monkey-patch, replace, or use private APIs.
+- Stop only if ordinary successful use of unmodified Milkdown through its public
+  API cannot conform under full-root StrictMode or an existing Azurite product
+  guarantee becomes impossible to preserve.
 - A broad state simplification, new observability capability, or Slice 7E/7F
   work becomes a separately ordered slice; review findings cannot annex it here.
 
@@ -308,12 +327,15 @@ are insufficient for browser-history, DOM, editor, and responsive behavior.
 
 - Every current Azurite React root and component-test default runs under
   full-root StrictMode.
-- Render is pure; setup is repeatable; cleanup is generation-exact,
-  symmetrical, idempotent, and complete on final unmount.
-- StrictMode settle leaves exactly one intended live route owner and ready editor
-  generation with the required single registrations and subscriptions.
-- Discarded and retired generations leave no resources, and stale asynchronous
-  completions cannot affect the current generation.
+- Render is pure; setup is repeatable; Azurite-owned and successful external
+  cleanup is generation-exact, symmetrical, idempotent, and complete on final
+  unmount.
+- StrictMode settle leaves exactly one intended live route owner and, after
+  successful creation, one ready editor generation with the required single
+  registrations and subscriptions.
+- Discarded and retired generations leave no Azurite-owned resources, and stale
+  asynchronous completions cannot affect the current generation. The installed
+  rejected-create Milkdown limitation remains explicitly evidenced.
 - Replay produces no duplicate navigation, read, edit publication, save,
   filesystem write, draft write, cleanup, recovery, or gate settlement.
 - Startup, routing, editing, switching, save, conflicts, recovery,

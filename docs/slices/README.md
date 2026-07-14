@@ -44,8 +44,9 @@ implementation.
 5. Active: the unnumbered
    [StrictMode Lifecycle Conformance Foundation](active/strictmode-lifecycle-conformance-foundation.md).
    It defines the trustworthy lifecycle and ownership baseline required before
-   further semantic observability work. Implementation is paused before
-   production-code edits at its approved Milkdown dependency-patch scope gate.
+   further semantic observability work. Production implementation resumed with
+   Milkdown officially released and unmodified and its rejected-create private
+   cleanup recorded as an explicit upstream limitation.
 6. Planned and blocked: Slice 7E, semantic editor and persistence diagnostics.
    It remains valuable, but cannot be promoted until the lifecycle/ownership
    foundation is trustworthy and its required post-7D refresh is complete. Its

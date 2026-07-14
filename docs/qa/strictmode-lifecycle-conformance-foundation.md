@@ -5,6 +5,12 @@
 Active implementation evidence. The approved scope is
 `docs/slices/active/strictmode-lifecycle-conformance-foundation.md`.
 
+Daniel resumed production implementation on 2026-07-14 with Milkdown kept in
+its officially released, unmodified form. Azurite must release every resource it
+owns and qualify successful public Milkdown lifecycle; terminal cleanup of
+Milkdown's private partial resources after rejected creation is the sole
+explicit upstream exclusion.
+
 All destructive browser and persistence acceptance uses disposable clusters and
 isolated browser storage. Daniel's note data is out of scope.
 
@@ -150,26 +156,19 @@ reported one replacement timer each: `{"status":"OnCreate","scheduled":[1,1,1,1]
 `apps/web/test/milkdown-installed-lifecycle.test.ts` preserves this evidence
 under fake timers without leaking a real timer from the test. The installed
 implementation has no public transition out of failed `OnCreate`; its cleanup
-logic and status mutation are private. Dependable cleanup of partially created
-Milkdown resources therefore requires a dependency upgrade or patch unless
-Daniel approves another architectural mechanism.
+logic and status mutation are private.
 
-This matches the active slice's explicit Scope Re-selection trigger. Production
-implementation is paused before code changes pending Daniel's decision.
+Azurite currently installs 7.21.2. The latest official release is 7.21.3,
+published on 2026-07-12; its released core source retains the same
+`OnCreate`/rescheduled-destroy implementation. No released version therefore
+demonstrates terminal rejected-create cleanup as of 2026-07-14.
 
-As of 2026-07-14, 7.21.2 is the current published Milkdown line and upstream
-`main` retains the same `OnCreate`/rescheduled-destroy implementation. A version
-upgrade therefore does not currently provide a demonstrated repair. Azurite
-already uses pnpm's `patchedDependencies` mechanism for the locked TanStack
-history contract, but adding a Milkdown core patch remains an explicit scope
-decision.
-
-The narrow recommended continuation is a pnpm-managed Milkdown core lifecycle
-patch that waits for every creation attempt to settle, cleans every successfully
-started partial plugin, reaches a terminal public status, and preserves the
-original creation failure. The installed contract test must then invert to
-prove terminal cleanup with zero retry timers. Accepting the leak or hiding the
-failure in Azurite's adapter does not satisfy this slice.
+Milkdown will remain officially released and unmodified. The characterization
+test stays as truthful upstream qualification evidence. Azurite's rejected-
+creation proof instead requires the original failure, retired generation, stale
+callback rejection, exact Markdown, usable source fallback, no duplicate
+product action, and zero Azurite-owned resources. It does not claim terminal
+cleanup of Milkdown's private partial resources or internal retry timer.
 
 ## Browser Acceptance
 
