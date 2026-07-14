@@ -160,6 +160,17 @@ its proceed/block commit decision and the persistence boundary's
 `continue/block` handoff decision. A cleanup-required or failed dirty owner
 blocks destructive handoff with its existing `DraftPersistenceIssue` evidence.
 
+The note-browser store exposes only six product and gate commands. Route
+transition ownership crosses into store-side work through the separate
+six-operation `RouteStoreExecutor`; those operations are not Zustand actions.
+Its list/read requests, intent and request sequences, editor-session allocation,
+coalescing, and rollback are private to one route workflow. Draft snapshot
+allocation is private to the editor/draft workflow, and Save single-flight is a
+closure-owned per-note map inside the Save workflow. The store has no universal
+capability context or late-filled runtime. Both recovery surfaces invoke the
+same current-draft Discard command while retaining their existing visible
+behavior.
+
 The deterministic route fault controller is available only through dedicated
 development and optimized QA entries. It is absent from the ordinary Vite
 application graph and production build.

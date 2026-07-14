@@ -8,9 +8,11 @@ and Task 3C persistence-result simplification are complete with authoritative
 evidence in `docs/qa/post-strictmode-editor-session-authority.md` and
 `docs/qa/post-strictmode-persistence-results.md`. Daniel approved the
 post-Task-3C Task 3D store-workflow boundary on 2026-07-14; Task 3E remains
-unapproved. Slice 7E remains planned, unrefreshed, unpromoted, and unimplemented
-until the selected units below are complete unless Daniel explicitly reselects
-this proposal's scope.
+unapproved. Task 3D implementation is complete with authoritative evidence in
+`docs/qa/post-strictmode-store-workflow-boundaries.md`; independent conformance
+acceptance is deliberately not claimed here. Slice 7E remains planned,
+unrefreshed, unpromoted, and unimplemented until the selected units below are
+complete unless Daniel explicitly reselects this proposal's scope.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
@@ -249,6 +251,12 @@ Zustand actions **13 -> 6**, public Save-map accessors **3 -> 0**, Discard
 commands **2 -> 1**, the late-fill layer **1 -> 0**, and dead capabilities
 **2 -> 0**. The seven legitimate product authorities remain **7 -> 7**; moved
 or renamed ceremony does not qualify.
+
+Implementation completed on 2026-07-14 and met those structural targets. The
+same 20-file physical envelope fell **4,048 -> 3,935** lines; the full evidence,
+preserved guarantees, verification counts, and four-cell browser matrix live in
+`docs/qa/post-strictmode-store-workflow-boundaries.md`. Task 3E remains a
+separate unapproved checkpoint.
 
 ### 4. Extract The Shared Sentry Fail-Open Carrier
 
