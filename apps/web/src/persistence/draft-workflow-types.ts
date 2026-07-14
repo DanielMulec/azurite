@@ -155,7 +155,11 @@ export type DurabilityFailure =
 
 /** Product action requesting a snapshot-specific durability decision. */
 export type DurabilityCause =
-  "route_transition" | "visibilitychange" | "pagehide" | "explicit_flush";
+  | "route_transition"
+  | "visibilitychange"
+  | "pagehide"
+  | "unmount"
+  | "explicit_flush";
 
 /** Snapshot-specific durability decision returned by the coordinator. */
 export type DurabilityResult =

@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AzuriteRouterProvider } from "./app-router.js";
@@ -16,7 +17,9 @@ if (rootElement === null) {
 }
 
 createRoot(rootElement).render(
-  <AzuriteErrorBoundary>
-    <AzuriteRouterProvider />
-  </AzuriteErrorBoundary>,
+  <StrictMode>
+    <AzuriteErrorBoundary>
+      <AzuriteRouterProvider />
+    </AzuriteErrorBoundary>
+  </StrictMode>,
 );

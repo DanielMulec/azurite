@@ -123,7 +123,9 @@ class EditorSessionGateRuntime {
     return controller?.commit(cause);
   }
 
-  async commitLifecycle(cause: "pagehide" | "visibilitychange"): Promise<void> {
+  async commitLifecycle(
+    cause: "pagehide" | "unmount" | "visibilitychange",
+  ): Promise<void> {
     const commit = this.commitCurrent(cause);
     if (commit?.status === "failed") {
       return;

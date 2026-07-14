@@ -59,7 +59,7 @@ export type EditorGatePreparationResult =
 export type EditorSessionGate = {
   readonly commitCurrent: (cause: CommitCause) => CommitResult | undefined;
   readonly commitLifecycle: (
-    cause: "pagehide" | "visibilitychange",
+    cause: "pagehide" | "unmount" | "visibilitychange",
   ) => Promise<void>;
   readonly getSnapshot: () => EditorSessionGateSnapshot;
   readonly isSessionFrozen: (sessionKey: string) => boolean;

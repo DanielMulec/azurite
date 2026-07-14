@@ -2,8 +2,8 @@
 
 ## Status
 
-Active implementation evidence. The approved scope is
-`docs/slices/active/strictmode-lifecycle-conformance-foundation.md`.
+Completed implementation evidence. The archived scope is
+`docs/slices/archive/strictmode-lifecycle-conformance-foundation.md`.
 
 Daniel resumed production implementation on 2026-07-14 with Milkdown kept in
 its officially released, unmodified form. Azurite must release every resource it
@@ -111,39 +111,69 @@ These Phase A probes characterize the approved failure before repairs:
 
 ## Implementation Evidence
 
-### Seam 1 Characterization
+### Architecture Delivered
 
-The red lifecycle contracts are executable expected-failure tests rather than
-skipped tests. They keep `main` green while requiring the expectation to be
-removed as each repair makes the contract pass.
+- The product, route-QA, and Markdown-QA entries wrap their full trees in
+  StrictMode. `apps/web/vitest.config.ts` merges the product Vite configuration
+  with a shared Testing Library setup that enables `reactStrictMode` by default.
+- `AzuriteRouterProvider` creates only an inert publication during render. A
+  committed effect owns each browser-history/router/route-owner generation,
+  identity-retires it before cleanup, destroys the matching TanStack history,
+  and publishes only the retained generation.
+- The Markdown authority controller remains replay-stable session authority.
+  `CrepeGenerationLifecycle` owns serial disposable generations, unique hosts,
+  current-generation callbacks, creation outcomes, and public destruction.
+  Retired async completions cannot publish or affect a successor.
+- Gate, store-executor, page lifecycle, store, and gate subscriptions are
+  identity-balanced. Final root cleanup uses the existing draft coordinator
+  with a typed `unmount` cause, clears the debounce timer synchronously, and
+  settles the accepted recovery obligation without inventing another owner.
+- No dependency, state owner, storage boundary, QA app, build entry, private
+  Milkdown access, or Milkdown patch was added. Slice 7E behavior is absent.
 
-| Area                             | Current evidence                                                                                                                                                                                                                                                 |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Router render purity             | One expected failure proves a render-only pass creates one `beforeunload` and two `popstate` listeners and leaves native history wrapped.                                                                                                                        |
-| Router replay and unmount        | One expected failure proves StrictMode settles with two live `beforeunload` and three live `popstate` listeners, and final unmount does not reduce them.                                                                                                         |
-| Route-owner internals            | Three passing tests prove one blocker plus three subscriptions are disposed exactly once, disposal is terminal, the discarded owner issues no product action, and the retained owner applies the initial route exactly once.                                     |
-| Editor generations               | Seven expected failures cover retained readiness, isolated hosts, teardown ordering, stale success/failure/callback rejection, synchronous factory/create throws, asynchronous create rejection, teardown rejection, source fallback, and final unmount/remount. |
-| Current editor resources         | One passing characterization confirms replay currently creates two runtimes, destroys one, leaves one live, and destroys the last on final unmount; the ready contract still fails separately.                                                                   |
-| Registrations and page lifecycle | Passing StrictMode evidence proves two setup registrations, one replay cleanup, exact one-action delivery for `visibilitychange` and `pagehide`, and balanced final unmount for gate, executor, page listeners, and gate subscribers.                            |
-| Draft obligations                | Passing evidence proves terminal discard leaves zero timers/pending/active work without a write, and concurrent lifecycle flush callers share one receipt and perform one write before reaching zero.                                                            |
+The first red characterizations were converted into direct passing contracts;
+no existing test was skipped, relaxed, broadly mocked, or deleted to obtain the
+result.
 
-Targeted seam results before the dependency decision:
+### Resource Ledger
 
-- router parsing/owner/resource suites: 24 passing tests and 2 executable
-  expected failures;
-- editor ordinary/StrictMode suites: 7 passing tests and 7 executable expected
-  failures;
-- registration and persistence suites: 20 passing tests;
-- installed Milkdown lifecycle contract: 1 passing test.
+| Resource or boundary               | StrictMode settled                                 | Final unmount                                     |
+| ---------------------------------- | -------------------------------------------------- | ------------------------------------------------- |
+| Router render-only pass            | 0 listeners, histories, owners, or native wrappers | unchanged                                         |
+| TanStack `beforeunload` listeners  | 2 created, 1 destroyed, 1 live                     | 2 created, 2 destroyed, 0 live                    |
+| TanStack `popstate` listeners      | 4 created, 2 destroyed, 2 live                     | 4 created, 4 destroyed, 0 live                    |
+| Native history method wrappers     | retained generation installed                      | original methods restored                         |
+| Successful Crepe generations       | 2 created, 1 destroyed, 1 live and ready           | 2 created, 2 destroyed, 0 live                    |
+| StrictMode remount sequence        | 4 created, 3 destroyed, 1 live and ready           | 4 created, 4 destroyed, 0 live                    |
+| Gate and store-executor registry   | 2 setup, 1 cleanup, 1 live each                    | 2 setup, 2 cleanup, 0 live                        |
+| Page lifecycle listeners           | 2 setup, 1 cleanup, 1 live per event               | 2 setup, 2 cleanup, 0 live                        |
+| Gate and Zustand subscriptions     | 2 setup, first cleanup observed, 1 live each       | second cleanup observed, 0 live                   |
+| Concurrent lifecycle draft flushes | 2 callers, 1 receipt, 1 write, 1 settlement        | 0 timers, pending snapshots, or active keys       |
+| Dirty draft final-unmount flush    | 1 scheduled timer                                  | timer synchronously 0; 1 exact write; 0 remaining |
 
-Checkpoint verification after recording the scope gate:
+Two `popstate` listeners are the intended count for one installed TanStack
+history generation. The rejected-create Milkdown qualification below is not
+misreported as an Azurite-owned live generation.
 
-- `/opt/homebrew/bin/pnpm validate` passed with 441 total tests: 432 ordinary
-  passes and 9 executable expected failures;
-- `/opt/homebrew/bin/pnpm build` passed with the established production chunk-
-  size warning;
-- formatting, governance, the 400-line code limit, lint, script and workspace
-  typechecks, and `git diff --check` passed.
+### Duplicate-Action And Stale-Generation Proof
+
+| Action or failure seam                          | Exact result                                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Discarded route generation                      | 0 store applies and 0 navigations                                                               |
+| Retained initial route generation               | 1 initial apply and 0 navigation                                                                |
+| Successful Crepe replay                         | 1 ready retained generation; each successful retired generation destroyed once                  |
+| Stale editor callback/completion                | 0 publications, mode changes, readiness changes, or successor destruction                       |
+| Factory/create/rejected-create failure          | original failure; 0 destroys; 0 publications; 1 source fallback mode change; disconnected hosts |
+| First accepted source edit after create failure | exactly 1 publication with exact Markdown                                                       |
+| `visibilitychange` and `pagehide`               | exactly 1 commit each; post-unmount dispatch adds 0                                             |
+| Repeated draft lifecycle flush                  | 2 callers produce exactly 1 draft write and 1 settlement                                        |
+| Browser route cancellation/continuation         | cancel produces 0 target reads; continue produces exactly 1 target read and 1 settlement        |
+| Accepted optimized manual Save                  | 1 click, 1 PUT, HTTP 200, 1 filesystem value, exact Markdown, and `Saved`                       |
+
+Pending successful creation waits for predecessor destruction. Pending
+rejection starts the successor without calling the unsupported Milkdown destroy
+path. Final unmount during either pending outcome starts no successor, detaches
+the old host, and permits no stale publication.
 
 ### Installed Milkdown Failure Contract
 
@@ -172,11 +202,92 @@ cleanup of Milkdown's private partial resources or internal retry timer.
 
 ## Browser Acceptance
 
-To be completed with the existing product and QA roots in development and
-optimized-production builds on desktop and Pixel 6 through the Codex Playwright
-skill.
+The Codex Playwright skill exercised twelve isolated cells: product, route-QA,
+and Markdown-QA roots on desktop and Pixel 6 in both Vite development and
+optimized-production builds. Each build used a disposable filesystem cluster;
+each browser session used isolated storage. Sentry was disabled.
+
+| Root and viewport   | Development result                                                                                                | Optimized-production result                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Product desktop     | startup, exact source edit, 1 Save/PUT, WYSIWYG, sidebar, Back, and Forward; each requested note read once        | WYSIWYG startup, exact source Save, sidebar, Back, and Forward; accepted repeat proved 1 PUT/200 and exact disk bytes |
+| Product Pixel 6     | 412 x 839, touch, 0 overflow; exact source draft survived reload, recovered once, and Discard restored exact disk | same geometry; exact draft recovered after reload, then Discard restored the unchanged disk value                     |
+| Route QA desktop    | held transition retained URL/article; Cancel settled once and issued 0 target reads                               | same result: held settlement 0, Cancel settlement 1, 0 target reads                                                   |
+| Route QA Pixel 6    | 412 x 839, touch, 0 overflow; Continue settled once and issued exactly 1 target read                              | same result with exactly 1 `index.md` read                                                                            |
+| Markdown QA desktop | pending exact source, successful ready generation, reset/remount to generation 2, publications remained 0         | ready WYSIWYG selected through the production adapter; reset/remount reached generation 2 ready with 0 publications   |
+| Markdown QA Pixel 6 | rejected creation retained exact source, disabled WYSIWYG, then one source edit produced exactly 1 publication    | same rejected-create fallback; exact source edit, generation 1, publications 1, touch and 0 overflow                  |
+
+Every accepted API response was 200. Accepted development cells had zero page
+console errors; the product and route-QA dev entries emitted only their existing
+Vite Vue feature-flag warning. Optimized cells had zero page console errors and
+zero warnings. No unhandled rejection, stale callback, duplicate request,
+changed history occurrence, changed recovery outcome, or unexplained network
+failure remained.
+
+One exploratory optimized browser-CLI session disconnected after its filesystem
+write and was excluded from acceptance. A fresh isolated repeat qualified the
+save with one observed PUT, HTTP 200 in both browser and backend, `Saved`, and an
+84-byte exact disk value. Dialog and locator bookkeeping mistakes in discarded
+CLI commands likewise supplied no acceptance evidence and caused no product or
+network error.
 
 ## Final Measurements
 
-To be completed after the final diff: physical lines, authority owners,
-lifecycle-resource ledger, duplicate product actions, and result vocabulary.
+### Physical Production Lines
+
+The fixed baseline scope plus the new approved lifecycle file measures:
+
+| Responsibility scope                      |  Baseline |     Final |    Delta |
+| ----------------------------------------- | --------: | --------: | -------: |
+| Product and two QA React roots            |        85 |        94 |       +9 |
+| Router provider, owner, disposal, runtime |       743 |       808 |      +65 |
+| Editor authority, gate, runtime lifecycle |     1,106 |     1,356 |     +250 |
+| Note-browser and draft persistence        |       927 |       928 |       +1 |
+| **Total**                                 | **2,861** | **3,186** | **+325** |
+
+This is not a physical-code simplification. The former hook shrank by 39 lines,
+but the explicit Crepe-generation lifecycle adds 287 lines and router committed
+publication adds 65. The useful simplification is ownership: React cleanup no
+longer terminally destroys replay-stable Markdown session authority, and a
+retired route or Crepe generation can release only its own resources.
+
+### Ownership And Vocabulary
+
+- Product authority owners remain **7 -> 7**: filesystem, route owner, Zustand,
+  Markdown authority, editor gate, draft coordinator, and Dexie retain their
+  distinct responsibilities.
+- One new lifecycle-only coordinator owns disposable Crepe generations; it owns
+  no accepted Markdown, durable state, route intent, or storage.
+- Existing public product result statuses and reasons are unchanged. One
+  semantic cause, `unmount`, was added consistently to commit, publication, and
+  durability cause unions so final cleanup is truthful rather than disguised as
+  `pagehide`.
+- Four internal generation terminal outcomes—`creation_failed`, `released`,
+  `skipped`, and `teardown_failed`—make adapter sequencing exhaustive. They add
+  no user-state branch or Slice 7E vocabulary.
+
+## Automated And Repository Verification
+
+Final `/opt/homebrew/bin/pnpm validate` passed formatting, governance, the
+400-line code limit, lint, script/workspace typechecks, and all tests:
+
+| Workspace            | Test files |   Tests |
+| -------------------- | ---------: | ------: |
+| `packages/shared`    |          7 |      58 |
+| `packages/core`      |          9 |      41 |
+| `apps/web`           |         46 |     291 |
+| `apps/server`        |         13 |      56 |
+| **Repository total** |     **75** | **446** |
+
+Focused router lifecycle and ownership runs passed 26 tests; the broader route
+regression set passed 74. The bounded adversarial recheck passed its three
+focused files and 29 tests after both findings were repaired. Editor,
+installed-Milkdown characterization, StrictMode default, gate, store,
+persistence, draft recovery, conflict, save-session, page lifecycle, and final
+unmount tests all remain in the 291-test web suite. The final combined lifecycle
+and preservation selection passed 18 files and 135 tests.
+
+The ordinary optimized product build, both existing QA builds, and the product-
+bundle exclusion check passed; 197 ordinary product files contained no Markdown
+QA entry, marker, or fault controls. The established large-chunk warning remains
+diagnostic only. `git diff --check` passed. Slice 7E remains planned and its
+production behavior is unimplemented.

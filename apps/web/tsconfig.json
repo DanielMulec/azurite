@@ -13,6 +13,7 @@
     "test/**/*.tsx",
     "qa/markdown-fidelity/main.ts",
     "qa/route-transition/main.ts",
+    "vitest.config.ts",
     "vite.config.ts",
     "vite.markdown-fidelity-qa.config.ts",
     "vite.route-transition-qa.config.ts"

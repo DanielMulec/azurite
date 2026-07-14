@@ -15,9 +15,9 @@ import type { DraftDisposition } from "../persistence/draft-workflow-types.js";
 import type { EditorSessionGate } from "./editor-session-gate.js";
 import {
   createCrepeRuntime,
-  type CrepeRuntime,
   type CrepeRuntimeFactory,
 } from "./crepe-runtime.js";
+import { CrepeGenerationLifecycle } from "./crepe-generation-lifecycle.js";
 import { MarkdownAuthorityController } from "./markdown-authority-controller.js";
 import type { MarkdownAuthorityState } from "./markdown-authority-controller-types.js";
 
@@ -53,10 +53,8 @@ export type MilkdownControllerView = {
 type ControllerResources = {
   readonly callbacks: EditorCallbackBridge;
   readonly controller: MarkdownAuthorityController;
-  readonly createRuntime: CrepeRuntimeFactory;
-  readonly initialMarkdown: string;
+  readonly generations: CrepeGenerationLifecycle;
   readonly root: EditorRootOwner;
-  readonly runtime: CrepeRuntimeOwner;
 };
 
 /** Binds one pure authority controller to one Crepe instance and React view. */
@@ -87,7 +85,10 @@ function createControllerResources(
   input: MilkdownControllerInput,
 ): ControllerResources {
   const callbacks = new EditorCallbackBridge(input);
-  const runtime = new CrepeRuntimeOwner();
+  const generations = new CrepeGenerationLifecycle({
+    createRuntime: input.createRuntime ?? createCrepeRuntime,
+    initialMarkdown: input.initialMarkdown,
+  });
   const controller = new MarkdownAuthorityController({
     initialDisposition: input.initialDisposition,
     initialMarkdown: input.initialMarkdown,
@@ -95,19 +96,17 @@ function createControllerResources(
     initialRevision: input.initialRevision,
     onModeChange: callbacks.onModeChange,
     publish: callbacks.publish,
-    readProjection: () => runtime.require().getMarkdown(),
+    readProjection: () => generations.requireCurrentRuntime().getMarkdown(),
     replaceProjection: (markdown) => {
-      runtime.require().replaceMarkdown(markdown);
+      generations.requireCurrentRuntime().replaceMarkdown(markdown);
     },
     sessionKey: input.sessionKey,
   });
   return {
     callbacks,
     controller,
-    createRuntime: input.createRuntime ?? createCrepeRuntime,
-    initialMarkdown: input.initialMarkdown,
+    generations,
     root: new EditorRootOwner(),
-    runtime,
   };
 }
 
@@ -138,43 +137,26 @@ function createControllerView(
 }
 
 function useCrepeLifecycle(input: ControllerResources): void {
-  const { controller, createRuntime, initialMarkdown, root, runtime } = input;
+  const { controller, generations, root } = input;
   useEffect(() => {
     const rootElement = root.get();
     if (rootElement === null) {
       controller.markFailed("The editor root was not available.");
       return;
     }
-    let active = true;
-    const instance = createRuntime({
-      initialMarkdown,
-      onMarkdownUpdated: (markdown) => {
-        if (active) {
-          controller.publishWysiwyg(markdown);
-        }
+    return generations.activate(rootElement, {
+      markCreationFailed: () => {
+        controller.markFailed("The Milkdown editor could not be created.");
       },
-      root: rootElement,
+      markReady: () => controller.markReady().status !== "failed",
+      markTeardownFailed: () => {
+        controller.markFailed("The Milkdown editor could not be released.");
+      },
+      publishMarkdown: (markdown) => {
+        controller.publishWysiwyg(markdown);
+      },
     });
-    runtime.set(instance);
-    void instance.create().then(
-      () => {
-        if (active) {
-          controller.markReady();
-        }
-      },
-      () => {
-        if (active) {
-          controller.markFailed("The Milkdown editor could not be created.");
-        }
-      },
-    );
-    return () => {
-      active = false;
-      runtime.clear(instance);
-      controller.destroy();
-      void instance.destroy().catch(() => {});
-    };
-  }, [controller, createRuntime, initialMarkdown, root, runtime]);
+  }, [controller, generations, root]);
 }
 
 type EditorCallbacks = Pick<
@@ -199,27 +181,6 @@ class EditorCallbackBridge {
 
   publish = (command: PublicationCommand): PublicationResult =>
     this.#callbacks.onPublishMarkdown(command);
-}
-
-class CrepeRuntimeOwner {
-  #runtime: CrepeRuntime | undefined;
-
-  set(runtime: CrepeRuntime): void {
-    this.#runtime = runtime;
-  }
-
-  clear(runtime: CrepeRuntime): void {
-    if (this.#runtime === runtime) {
-      this.#runtime = undefined;
-    }
-  }
-
-  require(): CrepeRuntime {
-    if (this.#runtime === undefined) {
-      throw new Error("The Crepe runtime is not ready.");
-    }
-    return this.#runtime;
-  }
 }
 
 class EditorRootOwner {

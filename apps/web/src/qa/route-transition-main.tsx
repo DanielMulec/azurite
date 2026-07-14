@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AzuriteRouterProvider } from "../app-router.js";
@@ -28,11 +29,13 @@ if (rootElement === null) {
 }
 
 createRoot(rootElement).render(
-  <AzuriteErrorBoundary>
-    <AzuriteRouterProvider
-      createRouteGate={controller.createRouteGate}
-      runtimeOptions={{ confirmRestoration: controller.confirmRestoration }}
-    />
-    <RouteTransitionQaPanel controller={controller} />
-  </AzuriteErrorBoundary>,
+  <StrictMode>
+    <AzuriteErrorBoundary>
+      <AzuriteRouterProvider
+        createRouteGate={controller.createRouteGate}
+        runtimeOptions={{ confirmRestoration: controller.confirmRestoration }}
+      />
+      <RouteTransitionQaPanel controller={controller} />
+    </AzuriteErrorBoundary>
+  </StrictMode>,
 );

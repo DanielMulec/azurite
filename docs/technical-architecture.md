@@ -89,6 +89,12 @@ Azurite currently supports this end-to-end workflow:
 9. Reload, tab discard, missing-note recovery, and external disk changes surface
    explicit recovery or conflict states rather than silently discarding intent.
 
+The product root and both dedicated QA roots mount their complete React trees
+under StrictMode. React component tests use Testing Library's supported global
+StrictMode default. Diagnostic effect replay is therefore a current lifecycle
+contract rather than an opt-in test case: render is externally inert, committed
+setup is repeatable, and final unmount releases Azurite-owned resources.
+
 The implementation and completion evidence for this baseline live in
 `docs/slices/archive/`.
 
@@ -116,16 +122,23 @@ State ownership is explicit:
 Do not move canonical note content into a database without explicitly revisiting
 the markdown-first product promise.
 
-One action-aware route-transition owner is created beside the TanStack Router
-before React renders. It validates each immutable history occurrence, admits
-application and traversal navigation through a target-free pre-transition gate,
-and alone owns current-intent revalidation, exact occurrence confirmation, and
-terminal route outcomes. The installed TanStack History cancellation path is
-patched so Back, Forward, and multi-entry Go restore the predecessor by the
-exact inverse delta without replacing or losing an entry. An unconfirmed
-restoration retains the predecessor surface and publishes visible degraded
-status instead of claiming coherent cancellation. Native `beforeunload`
-blocking remains disabled.
+The router provider creates only an inert publication during render. Each
+committed setup creates and publishes a fresh TanStack browser-history, router,
+and action-aware route-transition-owner generation. Retirement first makes the
+generation unpublishable, then disposes route ownership and destroys that exact
+history generation, restoring wrapped native history methods and releasing its
+listeners, blockers, subscriptions, intents, and leases. A discarded generation
+cannot receive the store executor or issue product work.
+
+The current published route owner validates each immutable history occurrence,
+admits application and traversal navigation through a target-free
+pre-transition gate, and alone owns current-intent revalidation, exact
+occurrence confirmation, and terminal route outcomes. The installed TanStack
+History cancellation path is patched so Back, Forward, and multi-entry Go
+restore the predecessor by the exact inverse delta without replacing or losing
+an entry. An unconfirmed restoration retains the predecessor surface and
+publishes visible degraded status instead of claiming coherent cancellation.
+Native `beforeunload` blocking remains disabled.
 
 Zustand distinguishes the live selected transition, the last committed route
 view, and the rendered editor-session owner. Route reads require an exact
@@ -272,14 +285,30 @@ editing path. Dirty state compares authoritative current Markdown with the exact
 saved baseline using CRLF-to-LF equivalence only; it does not trim whitespace,
 parse an AST, or treat serializer-equivalent syntax as clean.
 
-One React-owned Markdown-authority controller owns each editor `sessionKey` and
-at most one Crepe instance. Its lifecycle is explicit: creating, ready, failed,
-or destroyed. Source input remains editable and publishes exact content while
-Crepe is creating or unavailable. Creation, readiness, source-to-WYSIWYG
-replacement, WYSIWYG-to-source display, and same-mode selection are
-synchronization events and do not publish content, increment a revision, create
-a draft, or enable Save. Same-session rerenders and successful Save retain the
-Crepe DOM, selection, synchronization checkpoint, and Undo history.
+One replay-stable React-owned Markdown-authority controller owns each editor
+`sessionKey`. It survives StrictMode's diagnostic effect cleanup and remains the
+synchronous projection/checkpoint adapter for that accepted product session; it
+is not durable storage. A separate Crepe-generation lifecycle serializes
+disposable WYSIWYG generations. Each committed generation receives a unique DOM
+host and callback identity, retires before teardown, and must still be current
+before it can publish, focus, replace Markdown, or change readiness. Successful
+predecessor destruction settles before a successor starts, so a stale
+completion can neither affect nor destroy the retained generation.
+
+Source input remains editable and publishes exact content while Crepe is
+creating or unavailable. Creation, readiness, source-to-WYSIWYG replacement,
+WYSIWYG-to-source display, and same-mode selection are synchronization events
+and do not publish content, increment a revision, create a draft, or enable
+Save. Same-session rerenders and successful Save retain the current Crepe DOM,
+selection, synchronization checkpoint, and Undo history.
+
+If official Milkdown `Editor.create()` rejects while its public state remains
+`OnCreate`, Azurite preserves that failure, retires the adapter generation,
+disconnects its host, rejects stale callbacks, and keeps exact source mode
+usable. Azurite does not patch Milkdown or claim terminal cleanup of Milkdown's
+private partial resources or internal retry timer after that upstream failure.
+Successful Milkdown generations are destroyed through the documented public
+API and leave no live Azurite-owned generation on final unmount.
 
 The controller keeps authoritative Markdown, the acknowledged serialized
 projection, and a synchronization checkpoint distinct. Exact source input
@@ -355,11 +384,11 @@ new explicit product decision.
 The current static editor import makes the full WYSIWYG dependency graph part of
 the initial web entry chunk. Daniel is interested in a future lazy-loading
 boundary that renders the application shell and note list before dynamically
-loading the rich editor. Slices 7B and 7C are complete, and the Slice 7D editor
-lifecycle is implemented pending its final promotion gate. Default the loading
-boundary's delivery until after Slice 7E diagnostics and the mandatory Slice 7F
-editor-correctness follow-up so those repairs and their QA observe the current
-editor lifecycle before its loading order changes.
+loading the rich editor. Slices 7B through 7D and the StrictMode lifecycle
+foundation are complete. Default the loading boundary's delivery until after
+Slice 7E diagnostics and the mandatory Slice 7F editor-correctness follow-up so
+those repairs and their QA observe the current editor lifecycle before its
+loading order changes.
 
 A focused future performance slice must measure development and built-preview
 cold start, time to application shell, time to editor readiness, emitted chunk

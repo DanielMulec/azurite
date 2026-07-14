@@ -87,45 +87,39 @@ describe("app router search parsing", () => {
 });
 
 describe("app router lifecycle ownership", () => {
-  it.fails(
-    "does not allocate browser resources during a render-only pass",
-    () => {
-      const ledger = startWindowLedger();
+  it("does not allocate browser resources during a render-only pass", () => {
+    const ledger = startWindowLedger();
 
-      renderToString(createElement(AzuriteRouterProvider));
+    renderToString(createElement(AzuriteRouterProvider));
 
-      expect(ledger.snapshot()).toEqual(emptyWindowResourceCounts());
-      expect(ledger.historyMethodsRestored()).toBe(true);
-    },
-  );
+    expect(ledger.snapshot()).toEqual(emptyWindowResourceCounts());
+    expect(ledger.historyMethodsRestored()).toBe(true);
+  });
 
-  it.fails(
-    "keeps one StrictMode generation and releases it on final unmount",
-    () => {
-      const ledger = startWindowLedger();
-      const view = render(
-        createElement(
-          StrictMode,
-          undefined,
-          createElement(AzuriteRouterProvider),
-        ),
-      );
+  it("keeps one StrictMode generation and releases it on final unmount", () => {
+    const ledger = startWindowLedger();
+    const view = render(
+      createElement(
+        StrictMode,
+        undefined,
+        createElement(AzuriteRouterProvider),
+      ),
+    );
 
-      expect.soft(ledger.snapshot()).toEqual({
-        beforeunload: { created: 2, destroyed: 1, live: 1 },
-        popstate: { created: 4, destroyed: 2, live: 2 },
-      });
-      expect.soft(ledger.historyMethodsRestored()).toBe(false);
+    expect.soft(ledger.snapshot()).toEqual({
+      beforeunload: { created: 2, destroyed: 1, live: 1 },
+      popstate: { created: 4, destroyed: 2, live: 2 },
+    });
+    expect.soft(ledger.historyMethodsRestored()).toBe(false);
 
-      view.unmount();
+    view.unmount();
 
-      expect.soft(ledger.snapshot()).toEqual({
-        beforeunload: { created: 2, destroyed: 2, live: 0 },
-        popstate: { created: 4, destroyed: 4, live: 0 },
-      });
-      expect(ledger.historyMethodsRestored()).toBe(true);
-    },
-  );
+    expect.soft(ledger.snapshot()).toEqual({
+      beforeunload: { created: 2, destroyed: 2, live: 0 },
+      popstate: { created: 4, destroyed: 4, live: 0 },
+    });
+    expect(ledger.historyMethodsRestored()).toBe(true);
+  });
 });
 
 type TrackedWindowEvent = "beforeunload" | "popstate";

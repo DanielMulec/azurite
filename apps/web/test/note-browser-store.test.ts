@@ -22,6 +22,7 @@ import {
 } from "./note-browser-route-test-helpers.js";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -80,6 +81,30 @@ describe("note browser store draft persistence", () => {
       markdown: "# Home\nUnsaved",
       noteId: "index.md",
     });
+  });
+
+  it("flushes one accepted draft and clears its timer for unmount", async () => {
+    vi.useFakeTimers();
+    const drafts = createMemoryDraftPersistence();
+    const writeDraft = vi.fn(drafts.persistence.writeDraft);
+    const store = createLoadedStore({
+      draftPersistence: { ...drafts.persistence, writeDraft },
+    });
+
+    store.getState().updateDraftMarkdown("# Exact unmount draft");
+    expect(vi.getTimerCount()).toBe(1);
+
+    const flush = store.getState().flushPendingDraft("unmount");
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(flush).resolves.toMatchObject({
+      cause: "unmount",
+      status: "durable",
+    });
+
+    expect(writeDraft).toHaveBeenCalledOnce();
+    expect(
+      drafts.read(readyClusterIdentity.clusterId, "index.md"),
+    ).toMatchObject({ markdown: "# Exact unmount draft" });
   });
 });
 

@@ -134,7 +134,7 @@ function useNoteBrowserSelectors(store: NoteBrowserStoreApi) {
 
 function useDraftLifecycleFlush(editorSessionGate: EditorSessionGate): void {
   useEffect(() => {
-    const flushDraft = (cause: "pagehide" | "visibilitychange") => {
+    const flushDraft = (cause: "pagehide" | "unmount" | "visibilitychange") => {
       void editorSessionGate.commitLifecycle(cause);
     };
     const flushWhenHidden = () => {
@@ -151,6 +151,7 @@ function useDraftLifecycleFlush(editorSessionGate: EditorSessionGate): void {
     return () => {
       document.removeEventListener("visibilitychange", flushWhenHidden);
       window.removeEventListener("pagehide", flushOnPageHide);
+      flushDraft("unmount");
     };
   }, [editorSessionGate]);
 }

@@ -13,6 +13,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { App } from "./App.js";
@@ -69,8 +70,16 @@ declare module "@tanstack/react-router" {
 }
 
 type AzuriteRouterRuntime = {
+  readonly dispose: () => void;
   readonly owner: RouteTransitionOwner;
   readonly router: AzuriteRouter;
+};
+
+type RouterRuntimePublication = {
+  readonly current: () => AzuriteRouterRuntime | undefined;
+  readonly publish: (runtime: AzuriteRouterRuntime) => void;
+  readonly retire: (runtime: AzuriteRouterRuntime) => void;
+  readonly subscribe: (listener: () => void) => () => void;
 };
 
 type AzuriteRouterProviderProps = {
@@ -89,14 +98,28 @@ export type AzuriteRouterRuntimeOptions = {
 export function AzuriteRouterProvider({
   createRouteGate,
   runtimeOptions,
-}: AzuriteRouterProviderProps = {}): ReactElement {
-  const [runtime] = useState(() => createAzuriteRouterRuntime(runtimeOptions));
-  useEffect(
-    () => () => {
-      runtime.owner.dispose();
-    },
-    [runtime],
+}: AzuriteRouterProviderProps = {}): ReactElement | null {
+  const [publication] = useState(createRouterRuntimePublication);
+  const runtime = useSyncExternalStore(
+    publication.subscribe,
+    publication.current,
+    publication.current,
   );
+  const confirmRestoration = runtimeOptions?.confirmRestoration;
+  useEffect(() => {
+    const nextRuntime = createAzuriteRouterRuntime({
+      ...(confirmRestoration === undefined ? {} : { confirmRestoration }),
+    });
+    publication.publish(nextRuntime);
+    return () => {
+      publication.retire(nextRuntime);
+      nextRuntime.dispose();
+    };
+  }, [confirmRestoration, publication]);
+
+  if (runtime === undefined) {
+    return null;
+  }
 
   return (
     <routeGateFactoryContext.Provider value={createRouteGate}>
@@ -107,7 +130,7 @@ export function AzuriteRouterProvider({
   );
 }
 
-/** Creates the production router and owner before RouterProvider renders. */
+/** Creates one disposable production router generation after React commits. */
 export function createAzuriteRouterRuntime(
   options: AzuriteRouterRuntimeOptions = {},
 ): AzuriteRouterRuntime {
@@ -118,7 +141,49 @@ export function createAzuriteRouterRuntime(
     history,
     router: createRouterAdapter(router),
   });
-  return { owner, router };
+  let disposed = false;
+  return {
+    dispose: () => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      owner.dispose();
+      history.destroy();
+    },
+    owner,
+    router,
+  };
+}
+
+function createRouterRuntimePublication(): RouterRuntimePublication {
+  let current: AzuriteRouterRuntime | undefined;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
+  return {
+    current: () => current,
+    publish: (runtime) => {
+      current = runtime;
+      notify();
+    },
+    retire: (runtime) => {
+      if (current !== runtime) {
+        return;
+      }
+      current = undefined;
+      notify();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
 }
 
 function getRestorationOptions(options: AzuriteRouterRuntimeOptions) {

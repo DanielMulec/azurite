@@ -20,6 +20,7 @@ export type PublicationTrigger =
   | "pre_route_transition"
   | "visibilitychange"
   | "pagehide"
+  | "unmount"
   | "explicit_retry";
 
 /** Exact-session input for one accepted authority publication. */
@@ -108,7 +109,8 @@ export type CommitCause =
   | "manual_save"
   | "route_transition"
   | "visibilitychange"
-  | "pagehide";
+  | "pagehide"
+  | "unmount";
 
 /** Exact result of committing a live rich-editor projection. */
 export type CommitResult =

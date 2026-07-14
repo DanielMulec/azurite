@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import "../../qa/markdown-fidelity/qa.css";
@@ -21,5 +22,7 @@ if (rootElement === null) {
 }
 
 createRoot(rootElement).render(
-  <MarkdownFidelityQaApp controller={controller} />,
+  <StrictMode>
+    <MarkdownFidelityQaApp controller={controller} />
+  </StrictMode>,
 );

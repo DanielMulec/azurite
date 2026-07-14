@@ -16,8 +16,9 @@ truth.
 
 ## Current Sequence
 
-The StrictMode lifecycle-conformance foundation is active and approved for
-implementation.
+The StrictMode lifecycle-conformance foundation is completed. No slice is
+currently active; Slice 7E remains planned pending its required refresh and
+explicit promotion.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -41,16 +42,16 @@ implementation.
    `docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md`;
    exact evidence is in
    `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
-5. Active: the unnumbered
-   [StrictMode Lifecycle Conformance Foundation](active/strictmode-lifecycle-conformance-foundation.md).
-   It defines the trustworthy lifecycle and ownership baseline required before
-   further semantic observability work. Production implementation resumed with
-   Milkdown officially released and unmodified and its rejected-create private
-   cleanup recorded as an explicit upstream limitation.
-6. Planned and blocked: Slice 7E, semantic editor and persistence diagnostics.
-   It remains valuable, but cannot be promoted until the lifecycle/ownership
-   foundation is trustworthy and its required post-7D refresh is complete. Its
-   plan is
+5. Completed: the unnumbered
+   [StrictMode Lifecycle Conformance Foundation](archive/strictmode-lifecycle-conformance-foundation.md).
+   Every current root and the component-test default now runs under StrictMode;
+   Azurite-owned router, editor-adapter, registration, persistence, and action
+   lifecycles are generation-safe. Milkdown remains officially released and
+   unmodified, with rejected-create private cleanup qualified explicitly.
+6. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle
+   prerequisite is complete, but it remains unimplemented and cannot be
+   promoted until its required post-7D refresh is complete and Daniel approves
+   the refreshed scope. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 7. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
    using the 7A runtime, 7B correlation, 7C route owner, 7D Markdown-authority

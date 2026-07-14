@@ -98,14 +98,17 @@ describe("MilkdownEditor lifecycle", () => {
     );
 
     await waitFor(() => {
-      expect(crepeInstances[0]?.create).toHaveBeenCalled();
+      expect(crepeInstances).toHaveLength(2);
+      expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
-    expect(crepeInstances[0]?.config.defaultValue).toBe("# Home");
+    expect(crepeInstances[0]?.destroy).toHaveBeenCalledOnce();
+    expect(crepeInstances[1]?.config.defaultValue).toBe("# Home");
+    expect(crepeInstances[1]?.destroy).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
 
     unmount();
 
-    expect(crepeInstances[0]?.destroy).toHaveBeenCalled();
+    expect(crepeInstances[1]?.destroy).toHaveBeenCalledOnce();
   });
 });
 
@@ -127,7 +130,8 @@ describe("MilkdownEditor replacement", () => {
     );
 
     await waitFor(() => {
-      expect(crepeInstances[0]?.create).toHaveBeenCalled();
+      expect(crepeInstances).toHaveLength(2);
+      expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
     rerender(
       <MilkdownEditor
@@ -145,10 +149,13 @@ describe("MilkdownEditor replacement", () => {
     );
 
     await waitFor(() => {
-      expect(crepeInstances).toHaveLength(2);
+      expect(crepeInstances).toHaveLength(4);
+      expect(crepeInstances[3]?.create).toHaveBeenCalledOnce();
     });
-    expect(crepeInstances[0]?.destroy).toHaveBeenCalled();
-    expect(crepeInstances[1]?.config.defaultValue).toBe("# Project");
+    expect(crepeInstances[1]?.destroy).toHaveBeenCalledOnce();
+    expect(crepeInstances[2]?.destroy).toHaveBeenCalledOnce();
+    expect(crepeInstances[3]?.config.defaultValue).toBe("# Project");
+    expect(crepeInstances[3]?.destroy).not.toHaveBeenCalled();
   });
 });
 
@@ -171,8 +178,10 @@ describe("MilkdownEditor session stability", () => {
       />,
     );
     await waitFor(() => {
-      expect(crepeInstances).toHaveLength(1);
+      expect(crepeInstances).toHaveLength(2);
+      expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
+    expect(crepeInstances[0]?.destroy).toHaveBeenCalledOnce();
 
     rerender(
       <MilkdownEditor
@@ -189,14 +198,15 @@ describe("MilkdownEditor session stability", () => {
       />,
     );
 
-    expect(crepeInstances).toHaveLength(1);
-    expect(crepeInstances[0]?.destroy).not.toHaveBeenCalled();
+    expect(crepeInstances).toHaveLength(2);
+    expect(crepeInstances[1]?.destroy).not.toHaveBeenCalled();
   });
 });
 
 describe("MilkdownEditor controllable creation", () => {
   it("keeps exact source editable while create is pending", async () => {
     const create = createDeferred<undefined>();
+    const onEditorModeChange = vi.fn();
     let markdown = "# Stale construction";
     const replaceMarkdown = vi.fn((next: string) => {
       markdown = next;
@@ -214,22 +224,25 @@ describe("MilkdownEditor controllable creation", () => {
         createRuntime={createRuntime}
         initialDisposition="none"
         initialMarkdown="# Exact source"
-        initialMode="markdown"
+        initialMode="wysiwyg"
         initialRevision={0}
         noteId="index.md"
-        onEditorModeChange={() => {}}
+        onEditorModeChange={onEditorModeChange}
         onPublishMarkdown={publish}
         sessionGate={createTestEditorSessionGate()}
         sessionKey="pending-session"
         title="Home"
       />,
     );
+    expect(screen.queryByLabelText("Markdown source for Home")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Markdown" }));
     const source = screen.getByLabelText("Markdown source for Home");
     fireEvent.change(source, { target: { value: "# Pre-ready edit" } });
 
     expect(source).toHaveValue("# Pre-ready edit");
     expect(screen.getByRole("button", { name: "WYSIWYG" })).toBeDisabled();
     expect(publish).toHaveBeenCalledOnce();
+    expect(onEditorModeChange).toHaveBeenCalledOnce();
     create.resolve(undefined);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "WYSIWYG" })).toBeEnabled();
@@ -238,6 +251,7 @@ describe("MilkdownEditor controllable creation", () => {
 
     expect(replaceMarkdown).toHaveBeenCalledWith("# Pre-ready edit");
     expect(publish).toHaveBeenCalledOnce();
+    expect(onEditorModeChange).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -300,9 +314,10 @@ describe("MilkdownEditor source mode", () => {
     );
 
     await waitFor(() => {
-      expect(crepeInstances[0]?.create).toHaveBeenCalled();
+      expect(crepeInstances).toHaveLength(2);
+      expect(crepeInstances[1]?.create).toHaveBeenCalledOnce();
     });
-    setFirstCrepeMarkdown("# Edited in WYSIWYG");
+    setCurrentCrepeMarkdown("# Edited in WYSIWYG");
 
     fireEvent.click(screen.getByRole("button", { name: "Markdown" }));
     const source = screen.getByLabelText("Markdown source for Home");
@@ -314,18 +329,18 @@ describe("MilkdownEditor source mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "WYSIWYG" }));
 
     expect(replaceAllMock).toHaveBeenCalledWith("# Edited in source", true);
-    expect(crepeInstances[0]?.editor.action).toHaveBeenCalled();
+    expect(crepeInstances[1]?.editor.action).toHaveBeenCalledOnce();
   });
 });
 
-function setFirstCrepeMarkdown(markdown: string): void {
-  const firstCrepe = crepeInstances[0];
+function setCurrentCrepeMarkdown(markdown: string): void {
+  const currentCrepe = crepeInstances.at(-1);
 
-  if (firstCrepe === undefined) {
+  if (currentCrepe === undefined) {
     throw new Error("Expected a Crepe instance.");
   }
 
-  firstCrepe.markdown = markdown;
+  currentCrepe.markdown = markdown;
 }
 
 function createDeferred<Value>() {

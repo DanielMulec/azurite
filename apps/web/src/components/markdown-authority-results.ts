@@ -142,5 +142,6 @@ const publicationTriggerByCommitCause: Record<CommitCause, PublicationTrigger> =
     mode_switch: "pre_mode_switch",
     pagehide: "pagehide",
     route_transition: "pre_route_transition",
+    unmount: "unmount",
     visibilitychange: "visibilitychange",
   };

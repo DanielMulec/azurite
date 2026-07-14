@@ -250,10 +250,12 @@ the entry template live in `docs/research-sources.md`.
 - Notes: The current public editor implementation enters `OnCreate` before
   loading plugins. Public `destroy()` reschedules itself while that status is
   active, while a rejected `create()` does not transition the editor out of
-  `OnCreate`. Azurite pins the installed 7.21.2 behavior with a contract test.
-- Caveats: Repository `main` may change independently of Azurite's lockfile.
-  Re-run the installed-version contract test before considering an upgrade or
-  removing a local compatibility decision.
+  `OnCreate`. Azurite pins the installed 7.21.2 behavior with a contract test;
+  the latest official 7.21.3 release, published 2026-07-12, retains the same
+  implementation.
+- Caveats: Repository `main` and future releases may change independently of
+  Azurite's lockfile. Re-run the installed-version contract test before
+  considering an upgrade or changing the qualified failure boundary.
 
 ### TanStack Router
 

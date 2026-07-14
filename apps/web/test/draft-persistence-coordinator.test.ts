@@ -193,7 +193,8 @@ describe("repeated lifecycle flush admission", () => {
       writeDraft,
     });
     const snapshot = createSnapshot();
-    admit(coordinator, snapshot);
+    const settled = vi.fn();
+    admit(coordinator, snapshot, settled);
 
     const visibilityFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
     const pageHideFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
@@ -201,6 +202,7 @@ describe("repeated lifecycle flush admission", () => {
     await expect(visibilityFlush).resolves.toEqual({ status: "written" });
     await expect(pageHideFlush).resolves.toEqual({ status: "written" });
     expect(writeDraft).toHaveBeenCalledOnce();
+    expect(settled).toHaveBeenCalledOnce();
     expect(coordinator.pendingSnapshotCount).toBe(0);
     expect(coordinator.activeKeyCount).toBe(0);
     expect(vi.getTimerCount()).toBe(0);

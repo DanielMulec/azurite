@@ -31,3 +31,11 @@ persistence issues, terminal Discard epochs, and target-free editor handoff
 through Slice 7C. Its full development/optimized desktop/Pixel 6, fault,
 lifecycle-harness, authenticated Sentry, and final repository evidence is in
 `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+
+The unnumbered StrictMode Lifecycle Conformance Foundation makes the product,
+route-QA, Markdown-QA, and component-test roots Strict by default; establishes
+render-pure committed router generations, replay-stable editor-session authority,
+disposable Crepe generations, balanced registrations, and final draft settlement;
+and keeps official Milkdown unmodified with its rejected-create limitation
+qualified. Exact evidence is in
+`docs/qa/strictmode-lifecycle-conformance-foundation.md`.

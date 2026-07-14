@@ -2,9 +2,20 @@
 
 ## Status
 
-Active. Daniel approved proposal `de2b400` and the revised unmodified-Milkdown
-boundary on 2026-07-14. Production resumed from checkpoint `eaf6841`; evidence
-remains in `docs/qa/strictmode-lifecycle-conformance-foundation.md`.
+Completed and archived on 2026-07-14. Daniel approved proposal `de2b400` and
+the revised unmodified-Milkdown boundary; production resumed from checkpoint
+`eaf6841`. The product and both QA roots, plus the component-test default, now
+run under full-root StrictMode. Router/history generations, replay-stable editor
+session authority, disposable Crepe generations, registrations, page lifecycle,
+and final draft settlement satisfy the contract below.
+
+All 446 tests, the ordinary and two existing QA builds, product-bundle exclusion,
+desktop/Pixel 6 development and optimized-production acceptance, line and
+governance gates, and final diff checks passed. Milkdown remains officially
+released and unmodified; its exact rejected-create limitation remains qualified.
+Detailed evidence is in
+`docs/qa/strictmode-lifecycle-conformance-foundation.md`. Slice 7E remains
+planned and unimplemented.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout proposal, review, and promotion.

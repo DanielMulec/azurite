@@ -84,32 +84,23 @@ describe("StrictMode note-browser registrations", () => {
       ["pagehide"],
     ]);
 
-    const unsubscribe = vi.fn();
     const gate = browser.result.current.editorSessionGate;
-    const subscribe = vi.fn((listener: () => void) => {
-      const remove = gate.subscribe(listener);
-      return () => {
-        unsubscribe();
-        remove();
-      };
-    });
-    const subscriber = renderHook(
-      () => useSyncExternalStore(subscribe, gate.getSnapshot, gate.getSnapshot),
-      { reactStrictMode: true },
+    expectStrictSubscriptionBalanced(gate.subscribe, gate.getSnapshot);
+    const store = createNoteBrowserStore({ api: createApi() });
+    expectStrictSubscriptionBalanced(
+      (listener) => store.subscribe(listener),
+      () => store.getState().selectedNoteId,
     );
-    expect(subscribe).toHaveBeenCalledTimes(2);
-    expect(unsubscribe).toHaveBeenCalledOnce();
-    subscriber.unmount();
-    expect(unsubscribe).toHaveBeenCalledTimes(2);
 
     browser.unmount();
     expect(unregisterGate).toHaveBeenCalledTimes(2);
     expect(unregisterExecutor).toHaveBeenCalledTimes(2);
     expect(listenerCalls(removeDocument, "visibilitychange")).toBe(2);
     expect(listenerCalls(removeWindow, "pagehide")).toBe(2);
+    expect(commitLifecycle).toHaveBeenLastCalledWith("unmount");
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("pagehide"));
-    expect(commitLifecycle).toHaveBeenCalledTimes(2);
+    expect(commitLifecycle).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -389,4 +380,21 @@ function listenerCalls(
   eventName: string,
 ): number {
   return listener.mock.calls.filter(([name]) => name === eventName).length;
+}
+
+function expectStrictSubscriptionBalanced(
+  subscribe: (listener: () => void) => () => void,
+  getSnapshot: () => unknown,
+): void {
+  const countedSubscribe = vi.fn((listener: () => void) =>
+    vi.fn(subscribe(listener)),
+  );
+  const subscriber = renderHook(
+    () => useSyncExternalStore(countedSubscribe, getSnapshot, getSnapshot),
+    { reactStrictMode: true },
+  );
+  expect(countedSubscribe).toHaveBeenCalledTimes(2);
+  expect(countedSubscribe.mock.results[0]?.value).toHaveBeenCalledOnce();
+  subscriber.unmount();
+  expect(countedSubscribe.mock.results[1]?.value).toHaveBeenCalledOnce();
 }
