@@ -352,17 +352,17 @@ is a new product warning or weakened validation.
 
 ## Cleanup Ledger
 
-| Owned resource                                             | Cleanup action                                                        | Current result                                      |
-| ---------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------- |
-| All product, harness, route, and fault Playwright sessions | Closed through the Playwright CLI                                     | Complete                                            |
-| Fastify and Vite processes                                 | Graceful `SIGINT`/normal shutdown                                     | Complete; ports `3000`, `5173`, and `4173` are free |
-| `output/playwright`                                        | Kept free of this run's temporary evidence                            | Complete                                            |
-| Authenticated Chrome clone                                 | Never created                                                         | Complete                                            |
-| `QA_ROOT` disposable clusters/evidence                     | Retain until the durable record is committed, then delete before pass | Pending                                             |
+| Owned resource                                             | Cleanup action                             | Current result                                      |
+| ---------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| All product, harness, route, and fault Playwright sessions | Closed through the Playwright CLI          | Complete                                            |
+| Fastify and Vite processes                                 | Graceful `SIGINT`/normal shutdown          | Complete; ports `3000`, `5173`, and `4173` are free |
+| `output/playwright`                                        | Kept free of this run's temporary evidence | Complete                                            |
+| Authenticated Chrome clone                                 | Never created                              | Complete                                            |
+| `QA_ROOT` disposable clusters/evidence                     | Deleted after the durable evidence commit  | Complete                                            |
 
 No unrelated process, browser profile, cluster, path, or tracked artifact was
-changed. The final completion update must confirm `QA_ROOT` deletion and free
-ports after the permission-bound gates finish.
+changed. After deletion, `QA_ROOT` was absent, `output/playwright` remained
+empty, and ports `3000`, `5173`, and `4173` were free.
 
 ## Completion Gate
 
@@ -377,7 +377,7 @@ ports after the permission-bound gates finish.
 - [ ] The unrelated formatter blocker is explicitly authorized and resolved
       without an ignore or policy exception.
 - [ ] Complete `pnpm validate` passes from the beginning.
-- [ ] `QA_ROOT` is deleted after durable evidence is committed.
+- [x] `QA_ROOT` is deleted after durable evidence is committed.
 - [ ] The completed slice is archived on clean `main` synchronized with
       `origin/main`.
 
