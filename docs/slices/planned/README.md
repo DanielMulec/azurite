@@ -13,9 +13,9 @@ retain only risks unique to that slice.
 
 Current order after completed Slice 7D:
 
-1. Review and explicitly approve the proposed
+1. Complete the active
    [StrictMode Lifecycle Conformance Foundation](../active/strictmode-lifecycle-conformance-foundation.md),
-   then implement and verify it before promoting later work.
+   including its full regression and browser proof, before promoting later work.
 2. Slice 7E, semantic editor and persistence diagnostics, remains valuable but
    blocked until the lifecycle/ownership foundation is trustworthy and a
    substantive refresh against the completed Slice 7D implementation is

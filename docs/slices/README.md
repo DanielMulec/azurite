@@ -16,8 +16,8 @@ truth.
 
 ## Current Sequence
 
-A StrictMode lifecycle-conformance foundation is proposed. Production-code
-implementation requires Daniel's explicit approval.
+The StrictMode lifecycle-conformance foundation is active and approved for
+implementation.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -41,10 +41,10 @@ implementation requires Daniel's explicit approval.
    `docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md`;
    exact evidence is in
    `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
-5. Proposed: the unnumbered
+5. Active: the unnumbered
    [StrictMode Lifecycle Conformance Foundation](active/strictmode-lifecycle-conformance-foundation.md).
    It defines the trustworthy lifecycle and ownership baseline required before
-   further semantic observability work. Implementation is not yet approved.
+   further semantic observability work.
 6. Planned and blocked: Slice 7E, semantic editor and persistence diagnostics.
    It remains valuable, but cannot be promoted until the lifecycle/ownership
    foundation is trustworthy and its required post-7D refresh is complete. Its

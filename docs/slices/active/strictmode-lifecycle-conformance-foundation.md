@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed. Production-code implementation requires Daniel's explicit approval.
+Active. Daniel approved production-code implementation on 2026-07-14 from
+proposal commit `de2b400edc6fac8937e36e767072f19f1956128a`.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout proposal, review, and promotion.

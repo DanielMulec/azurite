@@ -2,9 +2,8 @@
 
 The
 [StrictMode Lifecycle Conformance Foundation](strictmode-lifecycle-conformance-foundation.md)
-is the single proposed slice. Its architecture and verification boundary are
-ready for review; production-code implementation requires Daniel's explicit
-approval.
+is the single active slice. Daniel approved its architecture and verification
+boundary for production-code implementation on 2026-07-14.
 
 Slice 7E remains planned, unrenumbered, and valuable, but blocked until the
 lifecycle foundation is implemented and trustworthy and its required post-7D
