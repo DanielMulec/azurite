@@ -127,6 +127,19 @@ describe("SaveableNoteEditor save state", () => {
 });
 
 describe("SaveableNoteEditor recovery state", () => {
+  it("explains how to inspect or dispose of a future-version record", () => {
+    renderEditor({
+      editor: createEditor({ draftDisposition: "preserved_unknown" }),
+    });
+
+    expect(
+      screen.getByText(/compatible newer Azurite build/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Discard draft/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("blocks normal save for recovered conflicts and confirms destructive discard", () => {
     const onDiscardDraftAndReloadDiskVersion = vi.fn(() => Promise.resolve());
     vi.spyOn(window, "confirm").mockReturnValue(true);

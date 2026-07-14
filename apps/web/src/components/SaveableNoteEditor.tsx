@@ -124,8 +124,22 @@ function SaveToolbar({
           </button>
         </div>
       </div>
+      <FutureRecordGuidance editor={editor} />
     </div>
   );
+}
+
+function FutureRecordGuidance({
+  editor,
+}: {
+  readonly editor: EditorSession;
+}): ReactElement | null {
+  return editor.draftDisposition === "preserved_unknown" ? (
+    <p className="text-sm leading-6 text-[var(--azurite-muted)]">
+      A compatible newer Azurite build is required to inspect or dispose of this
+      recovery record.
+    </p>
+  ) : null;
 }
 
 function DraftRetryButton(props: {
