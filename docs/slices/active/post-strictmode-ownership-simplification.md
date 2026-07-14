@@ -6,10 +6,11 @@ Active. Daniel accepted the documentation-only Task 3A analysis at commit
 `9bb787889ad6cad4e4d55ae02ed7c0397dce494f`. Task 3B editor-session authority
 and Task 3C persistence-result simplification are complete with authoritative
 evidence in `docs/qa/post-strictmode-editor-session-authority.md` and
-`docs/qa/post-strictmode-persistence-results.md`. Tasks 3D–3E remain unapproved;
-Slice 7E remains planned, unrefreshed, unpromoted, and unimplemented until the
-selected units below are complete unless Daniel explicitly reselects this
-proposal's scope.
+`docs/qa/post-strictmode-persistence-results.md`. Daniel approved the
+post-Task-3C Task 3D store-workflow boundary on 2026-07-14; Task 3E remains
+unapproved. Slice 7E remains planned, unrefreshed, unpromoted, and unimplemented
+until the selected units below are complete unless Daniel explicitly reselects
+this proposal's scope.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
@@ -58,12 +59,12 @@ below; no JSONL transcript was needed.
 
 Physical envelopes overlap and must not be summed:
 
-| Seam               |                                                                   Current physical production envelope | Verified vocabulary and caller evidence                                                                                                                                                                                 |
-| ------------------ | -----------------------------------------------------------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor session     | 4,274 lines: store/contracts 1,204; controller family 935; Crepe/hook 532; gate 569; React chain 1,034 | 14-field `EditorSession`; four mirrored controller fields; publication 3 statuses/6 reasons; synchronization 3 statuses/5 causes/4 failure reasons; commit 4 variants/3 statuses/6 reasons; gate preparation 5 variants |
-| Persistence ladder |      5,752 lines across 35 files: storage/coordinator 1,430; Zustand translations 3,018; gate/UI 1,304 | 9 result families, 34 union members, 21 status literals, 15 failure/rejection reasons, 8 dispositions, 6 operations, 4 retry actions, and 13 public Zustand actions                                                     |
-| Store engine       |               4,925 lines across the 20 `StoreContext` consumers; 5,723 lines in the full state folder | 26 injected context members, only 24 consumed; 120 `context.*` calls; Zustand exposes 16 actions plus 7 state fields                                                                                                    |
-| Sentry fail-open   |                            900 lines: shared runtime contract 287, web adapter 299, server adapter 314 | Web/server adapter diff changes only 22/37 lines; both implement the same record, capture, scope, attribute, error-context, and span decisions                                                                          |
+| Seam               |                                                                     Current physical production envelope | Verified vocabulary and caller evidence                                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor session     |   4,274 lines: store/contracts 1,204; controller family 935; Crepe/hook 532; gate 569; React chain 1,034 | 14-field `EditorSession`; four mirrored controller fields; publication 3 statuses/6 reasons; synchronization 3 statuses/5 causes/4 failure reasons; commit 4 variants/3 statuses/6 reasons; gate preparation 5 variants |
+| Persistence ladder |        5,752 lines across 35 files: storage/coordinator 1,430; Zustand translations 3,018; gate/UI 1,304 | 9 result families, 34 union members, 21 status literals, 15 failure/rejection reasons, 8 dispositions, 6 operations, 4 retry actions, and 13 public Zustand actions                                                     |
+| Store engine       | 4,048 lines across the 20 `StoreContext` consumers; 4,868 lines across 29 files in the full state folder | 26 injected context members, only 24 consumed; 144 `StoreContext` occurrences; Zustand exposes 13 actions: six route-executor operations and seven product/gate actions                                                 |
+| Sentry fail-open   |                              900 lines: shared runtime contract 287, web adapter 299, server adapter 314 | Web/server adapter diff changes only 22/37 lines; both implement the same record, capture, scope, attribute, error-context, and span decisions                                                                          |
 
 Principal production anchors, with baseline physical lines, make those
 envelopes reproducible:
@@ -76,7 +77,7 @@ envelopes reproducible:
 - Persistence after Task 3C: `draft-database.ts` 389, coordinator 400 plus 225
   in its type/helper/decision files, `draft-workflow-types.ts` 114, cleanup 225,
   recovery 211, Discard 318, durability 131, and the unified retry command 39.
-- Store: `note-browser-contracts.ts` 140, store 371, action utilities 368, route
+- Store after Task 3C: `note-browser-contracts.ts` 133, store 344, action utilities 368, route
   actions 281, and `route-store-executor.ts` 134.
 - Sentry: shared `runtime-observability.ts` 287,
   `web-runtime-observability.ts` 299, and `server-runtime-observability.ts` 314.
@@ -139,20 +140,17 @@ closure are real behavior and remain. Detailed failure evidence belongs once in
 
 ### 3. Distributed Store Capabilities
 
-The claimed 26 is exact for internal `StoreContext`, not for product
-capabilities. The members split into API access; 15 route/list/read ownership,
-sequence, and rollback operations; three active-Save operations; coordinator
-and cleanup-retry access; two allocators; and generic `get`/`set`. Two members,
-`draftPersistence` and `setCurrentRouteIntent`, are unused. Construction casts
-`{}` to the full context and late-fills it through `configureContext`.
+The 26-member internal `StoreContext` contains one API capability, 14 consumed
+route/list/read operations, three active-Save operations, two persistence
+owners, two identity allocators, generic `get`/`set`, and two dead capabilities:
+`draftPersistence` and `setCurrentRouteIntent`. Its 14-field runtime casts `{}`
+to the full context and late-fills it through `configureContext`.
 
-The 16 Zustand actions are six route-executor operations, eight UI operations,
-one gate flush, and dead `updateDraftMarkdown`. Three persistence-retry callbacks
-are threaded under 66 prop-name occurrences even though `retryAction` already
-selects the operation. Two Discard actions already converge on one target
-workflow. Route results remain materially consumed and must not collapse;
-recovery and Discard results are widened to `Promise<unknown>` and ignored by UI,
-while the gate branches only on durability unavailable versus safe.
+The 13 Zustand actions are six route-executor operations and seven product/gate
+actions. The six route operations leave Zustand while the existing six-operation
+`RouteStoreExecutor` remains the cross-layer seam. The two Discard actions
+already converge on one target workflow. Route results remain materially
+consumed and must not collapse.
 
 ### 4. Shared Sentry Fail-Open Foundation
 
@@ -244,10 +242,13 @@ one.
   `note-browser-actions.ts` barrel, obsolete `baseline-route-draft-gate.ts`, and
   combine the two Discard entries into one current-draft command.
 
-This unit must re-measure after units 1–2. Its stable outcome is removal of the
-26-member generic capability surface and late-fill cast, not relocation: the two
-dead members, route/save wrapper protocols, forwarding layers, duplicate
-Discard entry, and their parameter threading must cease to exist.
+The post-Task-3C baseline is 26 context members across 20 consumers and 4,048
+lines, 144 `StoreContext` occurrences, and 13 Zustand actions. Completion
+requires `StoreContext` **26 -> 0**, consumers and occurrences **20/144 -> 0**,
+Zustand actions **13 -> 6**, public Save-map accessors **3 -> 0**, Discard
+commands **2 -> 1**, the late-fill layer **1 -> 0**, and dead capabilities
+**2 -> 0**. The seven legitimate product authorities remain **7 -> 7**; moved
+or renamed ceremony does not qualify.
 
 ### 4. Extract The Shared Sentry Fail-Open Carrier
 
@@ -312,7 +313,7 @@ git diff --check
 
 ## Acceptance Criteria
 
-- The four units remain separately approved and serial; persistence and store
+- The four units remain separately gated and serial; persistence and store
   simplification are not combined and no parallel implementation uses the same
   `main` baseline.
 - Each unit deletes the named code and shows a net reduction in at least one
