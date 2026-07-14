@@ -2,10 +2,9 @@
 
 ## Status
 
-- Product, lifecycle-harness, route-gate, storage-fault, desktop, and Pixel 6
-  decisions: **Passed on 2026-07-14**.
-- Repository completion decision: **Blocked pending two explicit-authority
-  gates**.
+- Product, lifecycle-harness, route-gate, storage-fault, desktop, Pixel 6,
+  authenticated Sentry, and repository completion decisions: **Passed on
+  2026-07-14**.
 - QA date and timezone: 2026-07-13 through 2026-07-14, Europe/Vienna.
 - Browser-tested implementation commit:
   `9a3666c0eccf8c834c31535f48358955ab9ae4f4`.
@@ -14,22 +13,13 @@
   route-gate composition, legacy recovery disposition, future-schema
   preservation, and the shared product guardrails.
 - Authoritative contract:
-  `docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+  `docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
 
-Every selected product and fault scenario passed. Two non-product gates remain
-incomplete and are not counted as passing:
-
-1. the runbook requires Daniel's explicit authorization before cloning an
-   authenticated Chrome profile to inspect the selected Sentry-enabled
-   exercise in the Sentry UI; and
-2. repository-wide `pnpm validate` stops at Prettier because the unrelated,
-   user-owned
-   `docs/follow-ups/slice-7d-simplification-discussion.md` is unformatted.
-   Slice 7D introduced no Prettier ignore, ESLint ignore, override, disable, or
-   policy exception, and this QA run did not edit that document.
-
-This record becomes `Passed` only after both gates complete, final validation
-runs from the beginning, cleanup finishes, and the completed slice is archived.
+Every selected product, fault, diagnostic, formatter, validation, cleanup, and
+archive gate passed. Daniel authorized both remaining actions on 2026-07-14:
+format the repository-owned follow-up Markdown through the normal Prettier
+policy and create the runbook's complete ephemeral authenticated Chrome clone.
+No formatter, lint, or validation exclusion was introduced.
 
 ## Environment And Run Ownership
 
@@ -46,8 +36,8 @@ runs from the beginning, cleanup finishes, and the completed slice is archived.
 | Product origins              | Vite development `http://127.0.0.1:5173`; optimized preview `http://127.0.0.1:4173`; both proxied to loopback Fastify at `127.0.0.1:3000`                                                                                              |
 | Product cluster IDs          | Development desktop `eb2229d2-4030-4e3e-b5aa-e883f64c2d60`; development Pixel 6 `b0663079-8748-4bd1-b8fa-41cf8bf7555c`; preview desktop `e557368b-fd6c-472e-ab5b-dcb8979d5a09`; preview Pixel 6 `beababcc-c762-4167-8287-6c7c1352eff9` |
 | Fault cluster IDs            | Preview desktop `9f2406b2-3e06-46b3-ad97-d41e96de831e`; ready-identity preview Pixel 6 `fbbdb272-11b7-403d-8959-39981c991212`; a separate Pixel cluster deliberately made cluster identity unwritable                                  |
-| Sentry                       | Disabled in all four product cells; one optimized desktop local Sentry-enabled diagnostic cell emitted 11 configured envelope resources with no uncaught browser fault; authenticated UI inspection remains pending                    |
-| Supplemental authorized data | None. No authenticated Chrome clone was created because Daniel has not yet given the runbook's explicit authorization                                                                                                                  |
+| Sentry                       | Disabled in all four product cells; one optimized desktop local Sentry-enabled diagnostic cell emitted 11 configured envelope resources with no uncaught browser fault; authenticated Issues inspection passed                         |
+| Supplemental authorized data | Authorized complete ephemeral Chrome clone `slice-7d-sentry-20260714T064629Z-ed4436f`; deleted immediately after the narrow authenticated Sentry inspection                                                                            |
 
 Before each stateful cell, the selected ports and owned process identities were
 checked, Fastify remained loopback-only, `/health` and the expected API/frontend
@@ -260,11 +250,22 @@ The browser reported zero uncaught errors, and local network evidence observed
 11 configured envelope resources. Slice 7D adds no Sentry semantics and does
 not rely on Sentry for product behavior.
 
-The runbook separately requires an authenticated Sentry UI inspection to prove
-the selected exercise introduced no uncaught fault. That inspection requires an
-ephemeral clone of Daniel's authenticated Chrome profile and therefore explicit
-authorization. No clone or authenticated inspection has occurred. This cell is
-`BLOCKED`, not silently accepted from transport evidence alone.
+Daniel explicitly authorized the runbook's complete-clone procedure. The source
+and clone each contained `4,270,465,028` regular-file bytes, `32,711` regular
+files, and `2,883` directories when the copy completed; the aggregate deltas
+were zero after omitting only the three permitted singleton locks. A later
+checksum comparison observed 42 source changes while Daniel's real Chrome was
+demonstrably still running, which is the runbook's allowed live-write case. The
+ordinary cloned Chrome retained the authenticated Sentry session.
+
+The authenticated `azurite-web` Issues view for `local-debug` showed no issue
+seen in the preceding 12 hours, a window containing the complete 7D QA run. The
+broader 24-hour view contained only the explicitly labeled deliberate Sentry
+test issue last seen 19 hours earlier, before 7D began. Together with the local
+zero-uncaught-error result and 11 configured envelope resources, this proves the
+selected diagnostic exercise introduced no uncaught fault. Playwright detached,
+the cloned Chrome stopped, the entire clone and its eight run-specific local
+artifacts were deleted, and its CDP port was closed.
 
 ## Slice 7E Diagnostic Input Boundary
 
@@ -294,17 +295,17 @@ or become a state owner. No 7E telemetry behavior was implemented in 7D.
 
 ## Console And Request Evidence
 
-| Cell or scenario                | Console result                                      | Request/storage evidence                                                      |
-| ------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Normal optimized desktop        | Zero errors and warnings                            | Expected reads/PUTs only; pristine sweep had zero PUTs                        |
-| Normal optimized Pixel 6        | Zero errors and warnings                            | Expected reads/PUTs only; no overflow                                         |
-| Development product/harness     | Existing Vue feature-flag warning only; zero errors | Real Fastify requests; harness changed lifecycle timing, not responses        |
-| Optimized product/harness       | Zero errors and warnings                            | Real Fastify requests; product rebuilt afterward                              |
-| External conflict               | One expected failed-resource entry                  | Exactly one deliberate `409`; no overwrite                                    |
-| Missing note                    | One expected missing-note response                  | Expected `404`; Discard removed only the seeded compatible record             |
-| IndexedDB fault sessions        | Expected Dexie upgrade/delete close/reopen warnings | Real schema version 1000 fault; repair recreated production schema version 10 |
-| Fresh post-fault Pixel 6        | Zero errors and warnings                            | Clean disk editor, zero drafts, no remote Sentry transport                    |
-| Local Sentry-enabled diagnostic | Zero uncaught browser errors                        | 11 configured envelope resources; authenticated Sentry UI result pending      |
+| Cell or scenario                | Console result                                      | Request/storage evidence                                                                           |
+| ------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Normal optimized desktop        | Zero errors and warnings                            | Expected reads/PUTs only; pristine sweep had zero PUTs                                             |
+| Normal optimized Pixel 6        | Zero errors and warnings                            | Expected reads/PUTs only; no overflow                                                              |
+| Development product/harness     | Existing Vue feature-flag warning only; zero errors | Real Fastify requests; harness changed lifecycle timing, not responses                             |
+| Optimized product/harness       | Zero errors and warnings                            | Real Fastify requests; product rebuilt afterward                                                   |
+| External conflict               | One expected failed-resource entry                  | Exactly one deliberate `409`; no overwrite                                                         |
+| Missing note                    | One expected missing-note response                  | Expected `404`; Discard removed only the seeded compatible record                                  |
+| IndexedDB fault sessions        | Expected Dexie upgrade/delete close/reopen warnings | Real schema version 1000 fault; repair recreated production schema version 10                      |
+| Fresh post-fault Pixel 6        | Zero errors and warnings                            | Clean disk editor, zero drafts, no remote Sentry transport                                         |
+| Local Sentry-enabled diagnostic | Zero uncaught browser errors                        | 11 configured envelope resources; authenticated 12-hour Issues query returned zero matching issues |
 
 ## Findings And Attempt Disposition
 
@@ -316,8 +317,8 @@ or become a state owner. No 7E telemetry behavior was implemented in 7D.
 | 7D-QA-4 | Runner setup    | One IndexedDB fault snippet was malformed, and early Discard attempts mishandled the confirmation dialog | Recorded runner mistakes. Isolated clean reruns used the real object store and explicit dialog acceptance; no product result was inferred from failed attempts |
 | 7D-QA-5 | Runner setup    | A post-Discard probe called `inputValue()` after the product correctly returned to WYSIWYG               | Probe error only. A fresh snapshot and DOM/state/IndexedDB inspection proved the successful product result                                                     |
 | 7D-QA-6 | Runner setup    | A fresh-session command selected a work directory before creating it                                     | No process started. The directory was created first and the fresh Pixel cell reran with zero errors/warnings                                                   |
-| 7D-QA-7 | Completion gate | Authenticated Sentry UI inspection lacks explicit Chrome-clone authorization                             | Pending Daniel authorization; cannot count as passed                                                                                                           |
-| 7D-QA-8 | Completion gate | `pnpm validate` stops on the unrelated user-owned follow-up Markdown file                                | No ignore or policy exception added. Pending explicit permission to format that file, followed by a complete validation rerun                                  |
+| 7D-QA-7 | Completion gate | Authenticated Sentry UI inspection initially lacked Chrome-clone authorization                           | Daniel authorized the complete ephemeral clone; authenticated `azurite-web`/`local-debug` Issues inspection passed and the clone was deleted                   |
+| 7D-QA-8 | Completion gate | `pnpm validate` initially stopped on the repository-owned follow-up Markdown file                        | Daniel authorized normal formatting; commit `ed4436f` formatted it, no exclusion was added, and complete validation passed from the beginning                  |
 
 The three product findings were inseparable from the current 7D user story:
 each made a required 7D state false after otherwise successful implementation.
@@ -326,21 +327,23 @@ capability, so scope remained 7D. Runner issues changed no product scope.
 
 ## Automated Verification
 
-At commit `9a3666c0eccf8c834c31535f48358955ab9ae4f4`:
+The browser-tested implementation is commit
+`9a3666c0eccf8c834c31535f48358955ab9ae4f4`. Final completion validation ran
+from the documentation-complete tree based on formatter commit `ed4436f`:
 
-| Command                                                               | Result                                                                                                                   |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `/opt/homebrew/bin/pnpm --filter @azurite/web test`                   | 43 files, 270 tests passed                                                                                               |
-| `/opt/homebrew/bin/pnpm test`                                         | Shared 58, Core 41, Web 270, Server 56; **425 total passed**                                                             |
-| `/opt/homebrew/bin/pnpm check:file-lines`                             | Passed; every code file is at or below 400 lines                                                                         |
-| `/opt/homebrew/bin/pnpm lint`                                         | Passed with zero warnings; no lint rule, config, ignore, override, or disable was changed                                |
-| `/opt/homebrew/bin/pnpm typecheck:scripts`                            | Passed                                                                                                                   |
-| `/opt/homebrew/bin/pnpm typecheck`                                    | Passed in shared, core, web, and server                                                                                  |
-| `/opt/homebrew/bin/pnpm qa:markdown-fidelity:build`                   | Passed; optimized lifecycle harness built                                                                                |
-| `/opt/homebrew/bin/pnpm build`                                        | Passed; existing measured editor chunk-size warning only                                                                 |
-| `/opt/homebrew/bin/pnpm qa:markdown-fidelity:assert-product-excluded` | Passed; 197 ordinary product files contain no harness entry, marker, or fault control                                    |
-| `git diff --check`                                                    | Passed                                                                                                                   |
-| `/opt/homebrew/bin/pnpm validate`                                     | **Blocked at Prettier only** by `docs/follow-ups/slice-7d-simplification-discussion.md`; downstream stages pass directly |
+| Command                                                               | Result                                                                                                      |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/opt/homebrew/bin/pnpm --filter @azurite/web test`                   | 43 files, 270 tests passed                                                                                  |
+| `/opt/homebrew/bin/pnpm test`                                         | Shared 58, Core 41, Web 270, Server 56; **425 total passed**                                                |
+| `/opt/homebrew/bin/pnpm check:file-lines`                             | Passed; every code file is at or below 400 lines                                                            |
+| `/opt/homebrew/bin/pnpm lint`                                         | Passed with zero warnings; no lint rule, config, ignore, override, or disable was changed                   |
+| `/opt/homebrew/bin/pnpm typecheck:scripts`                            | Passed                                                                                                      |
+| `/opt/homebrew/bin/pnpm typecheck`                                    | Passed in shared, core, web, and server                                                                     |
+| `/opt/homebrew/bin/pnpm qa:markdown-fidelity:build`                   | Passed; optimized lifecycle harness built                                                                   |
+| `/opt/homebrew/bin/pnpm build`                                        | Passed; existing measured editor chunk-size warning only                                                    |
+| `/opt/homebrew/bin/pnpm qa:markdown-fidelity:assert-product-excluded` | Passed; 197 ordinary product files contain no harness entry, marker, or fault control                       |
+| `git diff --check`                                                    | Passed                                                                                                      |
+| `/opt/homebrew/bin/pnpm validate`                                     | Passed from the beginning: formatter, file lines, strict lint, script/package typechecks, and all 425 tests |
 
 The web tests emit happy-dom's existing `Window scrollTo` limitation. The
 optimized builds emit the already-tracked Milkdown/editor chunk warning. Neither
@@ -352,17 +355,18 @@ is a new product warning or weakened validation.
 
 ## Cleanup Ledger
 
-| Owned resource                                             | Cleanup action                             | Current result                                      |
-| ---------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------- |
-| All product, harness, route, and fault Playwright sessions | Closed through the Playwright CLI          | Complete                                            |
-| Fastify and Vite processes                                 | Graceful `SIGINT`/normal shutdown          | Complete; ports `3000`, `5173`, and `4173` are free |
-| `output/playwright`                                        | Kept free of this run's temporary evidence | Complete                                            |
-| Authenticated Chrome clone                                 | Never created                              | Complete                                            |
-| `QA_ROOT` disposable clusters/evidence                     | Deleted after the durable evidence commit  | Complete                                            |
+| Owned resource                                             | Cleanup action                                                     | Current result                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------- |
+| All product, harness, route, and fault Playwright sessions | Closed through the Playwright CLI                                  | Complete                                            |
+| Fastify and Vite processes                                 | Graceful `SIGINT`/normal shutdown                                  | Complete; ports `3000`, `5173`, and `4173` are free |
+| `output/playwright`                                        | Kept free of this run's temporary evidence                         | Complete                                            |
+| Authenticated Chrome clone                                 | Full clone, local CDP inspection, graceful stop, complete deletion | Complete; no clone file or listener remains         |
+| `QA_ROOT` disposable clusters/evidence                     | Deleted after the durable evidence commit                          | Complete                                            |
 
 No unrelated process, browser profile, cluster, path, or tracked artifact was
-changed. After deletion, `QA_ROOT` was absent, `output/playwright` remained
-empty, and ports `3000`, `5173`, and `4173` were free.
+changed. After deletion, both QA roots were absent, `output/playwright` remained
+empty, all eight clone-run Playwright artifacts were removed, and ports `3000`,
+`5173`, `4173`, and the clone's ephemeral CDP port were free.
 
 ## Completion Gate
 
@@ -373,12 +377,12 @@ empty, and ports `3000`, `5173`, and `4173` were free.
 - [x] Every product finding and runner attempt has an explicit disposition.
 - [x] Harness and product build boundaries passed without a production fault
       switch.
-- [ ] Authenticated Sentry UI inspection is authorized and passed.
-- [ ] The unrelated formatter blocker is explicitly authorized and resolved
+- [x] Authenticated Sentry UI inspection is authorized and passed.
+- [x] The formatter blocker is explicitly authorized and resolved
       without an ignore or policy exception.
-- [ ] Complete `pnpm validate` passes from the beginning.
+- [x] Complete `pnpm validate` passes from the beginning.
 - [x] `QA_ROOT` is deleted after durable evidence is committed.
-- [ ] The completed slice is archived on clean `main` synchronized with
+- [x] The completed slice is archived on clean `main` synchronized with
       `origin/main`.
 
-Final decision: **`Blocked`** pending the two explicit-authority gates above.
+Final decision: **`Passed`**. Slice 7D is complete and archived.

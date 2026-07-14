@@ -9,8 +9,9 @@
   opened or changed.
 - Validation: `/opt/homebrew/bin/pnpm validate` and
   `/opt/homebrew/bin/pnpm build` passed with 282 tests.
-- Release decision: **not passed** because an untouched note can become dirty
-  and eligible for an unintended formatting rewrite.
+- Release decision: the original **P1 blocker was resolved on 2026-07-14** by
+  Slice 7D. Its four-cell development/optimized desktop/Pixel 6 matrix proved
+  untouched and mode-only notes remain clean, draft-free, and byte-exact.
 
 This document is the authoritative repository record of the production desktop
 QA report supplied after Slice 7B desktop observability QA. The original report
@@ -39,13 +40,13 @@ coverage gaps and shared defects, not an optimized-build-only regression.
 
 ## Findings
 
-| Severity | Finding                                                                                 | Evidence                                                                                                                                                                       | Disposition                                                                                                        |
-| -------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| P1       | An untouched Markdown note can immediately become dirty.                                | Several real-format documents showed `Unsaved changes` and enabled Save before input.                                                                                          | Slice 7D, Markdown Fidelity And Honest Dirty State.                                                                |
-| P2       | Browser Back can restore URL and content while leaving the wrong sidebar item selected. | Product Vision content returned while Technical Architecture remained `aria-current`; the exact pre-7B tree later reproduced the persistent split with real delayed responses. | Classified as pre-existing and ordered as Slice 7C, URL Selection And History Coherence. It is not 7B or 7D scope. |
-| P2       | Crepe's block `+` handle can insert a blank paragraph instead of keeping its menu open. | Reproduced in production and development without a console error.                                                                                                              | Existing editor-interaction finding; not part of the fidelity slice.                                               |
-| P3       | A stopped backend produces misleading recovery copy.                                    | Vite's proxy `502` body became “Azurite returned an unexpected response shape.”                                                                                                | Separate local-runtime resilience and recovery-copy work.                                                          |
-| P3       | The production entry bundle remains large.                                              | Main JavaScript was about 1.51 MB raw and 471 KB gzip; Vite emitted its chunk warning.                                                                                         | Existing measured editor-loading and bundle-performance candidate after correctness work.                          |
+| Severity | Finding                                                                                 | Evidence                                                                                                                                                                       | Disposition                                                                                                          |
+| -------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| P1       | An untouched Markdown note can immediately become dirty.                                | Several real-format documents showed `Unsaved changes` and enabled Save before input.                                                                                          | Resolved by completed Slice 7D; exact evidence is in `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`. |
+| P2       | Browser Back can restore URL and content while leaving the wrong sidebar item selected. | Product Vision content returned while Technical Architecture remained `aria-current`; the exact pre-7B tree later reproduced the persistent split with real delayed responses. | Classified as pre-existing and ordered as Slice 7C, URL Selection And History Coherence. It is not 7B or 7D scope.   |
+| P2       | Crepe's block `+` handle can insert a blank paragraph instead of keeping its menu open. | Reproduced in production and development without a console error.                                                                                                              | Existing editor-interaction finding; not part of the fidelity slice.                                                 |
+| P3       | A stopped backend produces misleading recovery copy.                                    | Vite's proxy `502` body became “Azurite returned an unexpected response shape.”                                                                                                | Separate local-runtime resilience and recovery-copy work.                                                            |
+| P3       | The production entry bundle remains large.                                              | Main JavaScript was about 1.51 MB raw and 471 KB gzip; Vite emitted its chunk warning.                                                                                         | Existing measured editor-loading and bundle-performance candidate after correctness work.                            |
 
 ## P1 Integrity Evidence
 

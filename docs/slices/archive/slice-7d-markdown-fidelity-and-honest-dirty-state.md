@@ -2,13 +2,22 @@
 
 ## Status
 
-Active as of 2026-07-13 after Slice 7C completed its narrow
-pending-predecessor cancellation correction. The post-7C adversarial review has
-refreshed this plan against the implemented route, editor, Save, cluster-identity,
-and Dexie contracts. Slice 7D consumes the validated action-aware history owner,
-typed target-free pre-transition gate, rendered outgoing-session identity,
-route-or-reload load authorization, exact-current revalidation, coherent no-op
-predicate, and typed terminal outcome without becoming a second route owner.
+Completed and archived on 2026-07-14. Implementation commit
+`9a3666c0eccf8c834c31535f48358955ab9ae4f4` contains the browser-tested product
+baseline after the three in-scope QA corrections. The full four-cell
+development/optimized desktop/Pixel 6 matrix, lifecycle harness, route-gate and
+storage-fault scenarios, authenticated Sentry diagnostic, cleanup ledger, and
+final validation results are recorded in
+`docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+
+The completed implementation preserves exact Markdown authority until an
+accepted edit, keeps one same-session Crepe owner through Save and rerenders,
+orders browser-draft reads and mutations, preserves unread and future-version
+records, makes cleanup and Discard failure actionable, and leaves Slice 7C as
+the sole route owner. All 425 tests, strict lint and typechecks, the 400-line
+gate, formatter ownership, both specialized builds, ordinary product build,
+harness-exclusion assertion, desktop/Pixel browser matrix, and repository
+synchronization gate passed. Slice 7E behavior was not implemented or promoted.
 
 The post-7C adversarial review assigned two additional findings to this slice
 because they are inseparable from architecture already selected here:

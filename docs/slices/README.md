@@ -31,12 +31,13 @@ truth.
    `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`; exact
    evidence and the other finding dispositions are in
    `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
-4. Active: Slice 7D, Markdown fidelity and honest dirty state. It consumes
-   the corrected Slice 7C gate, preserves exact Markdown authority, orders
-   browser-draft persistence, makes cleanup and Discard failure explicit,
-   preserves post-Save route coherence, and retains failed-write retry
-   obligations. Its plan is
-   `docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
+4. Completed: Slice 7D, Markdown fidelity and honest dirty state. It preserves
+   exact Markdown authority, orders browser-draft persistence, keeps Save and
+   route ownership honest through degraded recovery, and retains same-session
+   editor state. Its archived plan is
+   `docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md`;
+   exact evidence is in
+   `docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.
 5. Planned: Slice 7E, semantic editor and persistence diagnostics. It has a hard
    post-7D refresh gate before promotion. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.

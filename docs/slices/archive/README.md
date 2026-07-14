@@ -24,3 +24,10 @@ narrow pending-predecessor correction completed on 2026-07-13 in implementation
 commit `8831867b1de57ffa67fc89d529ba6d2aff777923`; the exact regression and
 development/optimized desktop/Pixel 6 evidence are in
 `docs/qa/slice-7c-url-selection-and-history-coherence.md`.
+
+Slice 7D establishes exact Markdown authority, one same-session Crepe owner,
+ordered browser-draft reads and mutations, honest record disposition and
+persistence issues, terminal Discard epochs, and target-free editor handoff
+through Slice 7C. Its full development/optimized desktop/Pixel 6, fault,
+lifecycle-harness, authenticated Sentry, and final repository evidence is in
+`docs/qa/slice-7d-markdown-fidelity-and-honest-dirty-state.md`.

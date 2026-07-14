@@ -30,8 +30,8 @@ and historical physical-phone runtime evidence is now an implemented dependency,
 not a future prerequisite. The 2026-07-13 adversarial resequencing made Slice
 7C the next product slice, now completed in
 `docs/slices/archive/slice-7c-url-selection-and-history-coherence.md`. Slice 7D
-is active and Slice 7E follows in
-`docs/slices/active/slice-7d-markdown-fidelity-and-honest-dirty-state.md` and
+is completed and archived, while Slice 7E remains planned in
+`docs/slices/archive/slice-7d-markdown-fidelity-and-honest-dirty-state.md` and
 `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 
 The historical physical-phone session recorded the mobile Markdown newline
