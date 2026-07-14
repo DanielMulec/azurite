@@ -1,23 +1,23 @@
 import type { DraftMutationSnapshot } from "../persistence/draft-workflow-types.js";
 import type {
   NoteBrowserStore,
-  StoreContext,
+  NoteBrowserStateAccess,
 } from "./note-browser-contracts.js";
 import type { EditorSession } from "./note-browser-types.js";
 
 /** Returns the current ready editor, if the rendered surface owns one. */
 export function getCurrentEditor(
-  context: Pick<StoreContext, "get">,
+  state: NoteBrowserStateAccess,
 ): EditorSession | undefined {
-  return getStateEditor(context.get());
+  return getStateEditor(state.getState());
 }
 
 /** Returns the current editor only when one exact session owns the surface. */
 export function getExactEditor(
   sessionKey: string,
-  context: Pick<StoreContext, "get">,
+  state: NoteBrowserStateAccess,
 ): EditorSession | undefined {
-  const editor = getCurrentEditor(context);
+  const editor = getCurrentEditor(state);
   return editor?.sessionKey === sessionKey ? editor : undefined;
 }
 

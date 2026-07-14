@@ -17,7 +17,6 @@ import {
   getErrorMessage,
   isNoteNotFoundError,
 } from "./note-browser-action-utils.js";
-import type { StoreContext } from "./note-browser-contracts.js";
 import {
   createBrowserOperationEvidence,
   recordLoadResult,
@@ -34,6 +33,14 @@ import {
   applyPendingRouteSelection,
   applyReadyRoute,
 } from "./note-browser-route-state.js";
+import {
+  allocateEditorSessionKey,
+  isCurrentNoteRequest,
+  nextNoteRequestSequence,
+  type ActiveNoteLoad,
+  type RouteWorkflowAccess,
+  type RouteWorkflowRuntime,
+} from "./note-browser-route-runtime.js";
 import { createNoteRequestMetadata } from "./note-operation-metadata.js";
 
 /** Exact route-or-reload authorization and destination for one note read. */
@@ -46,10 +53,11 @@ export type AuthorizedNoteReadInput = {
 };
 
 type NoteRequest = {
-  readonly context: StoreContext;
+  readonly access: RouteWorkflowAccess;
   readonly evidence: BrowserOperationEvidence;
   readonly input: AuthorizedNoteReadInput;
   readonly requestSequence: number;
+  readonly runtime: RouteWorkflowRuntime;
 };
 
 type NoteReadAttempt =
@@ -59,26 +67,31 @@ type NoteReadAttempt =
 /** Reads one note under exact route-or-reload authorization. */
 export function readAuthorizedNote(
   input: AuthorizedNoteReadInput,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  runtime: RouteWorkflowRuntime,
 ): Promise<RouteStoreApplyResult> {
-  const coalesced = getCoalescedPromise(input, context);
+  const coalesced = getCoalescedPromise(input, runtime);
   if (coalesced !== undefined) {
     return coalesced;
   }
-  return startAuthorizedRead(input, context);
+  return startAuthorizedRead(input, access, runtime);
 }
 
 /** Resolves an explicit route missing from the current ready note list. */
 export async function recoverMissingAuthorizedRoute(
   input: AuthorizedNoteReadInput,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  runtime: RouteWorkflowRuntime,
 ): Promise<RouteStoreApplyResult> {
-  const requestSequence = context.nextNoteRequestSequence();
-  if (!applyPendingRouteSelection(input.noteId, context)) {
-    context.restoreRoutePredecessor();
+  const requestSequence = nextNoteRequestSequence(runtime);
+  if (!applyPendingRouteSelection(input.noteId, access.state)) {
+    runtime.routeRollback.restore(
+      access.state.getState(),
+      access.state.setState,
+    );
     return storeApplyFailed;
   }
-  const request = createRequest(input, requestSequence, context);
+  const request = createRequest(input, requestSequence, access, runtime);
   const result = await applyMissingDraftSafely(request);
   restoreFailedCurrentApplication(result, request);
   recordRouteEvidence(
@@ -91,14 +104,18 @@ export async function recoverMissingAuthorizedRoute(
 
 function startAuthorizedRead(
   input: AuthorizedNoteReadInput,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  runtime: RouteWorkflowRuntime,
 ): Promise<RouteStoreApplyResult> {
-  const requestSequence = context.nextNoteRequestSequence();
-  if (!applyPendingRouteSelection(input.noteId, context)) {
-    context.restoreRoutePredecessor();
+  const requestSequence = nextNoteRequestSequence(runtime);
+  if (!applyPendingRouteSelection(input.noteId, access.state)) {
+    runtime.routeRollback.restore(
+      access.state.getState(),
+      access.state.setState,
+    );
     return Promise.resolve(storeApplyFailed);
   }
-  const request = createRequest(input, requestSequence, context);
+  const request = createRequest(input, requestSequence, access, runtime);
   recordSelectionRoute(input.noteId, input.routeSource);
   const promise = runBrowserOperation({
     callback: async () => {
@@ -113,26 +130,29 @@ function startAuthorizedRead(
       [runtimeObservabilityAttributeNames.routeSource]: input.routeSource,
     },
   }).finally(() => {
-    context.clearActiveNoteLoad(promise);
+    if (runtime.activeNoteLoad?.promise === promise) {
+      runtime.activeNoteLoad = undefined;
+    }
   });
-  context.setActiveNoteLoad({
+  runtime.activeNoteLoad = {
     authorization: input.authorization,
     metadata: request.evidence.metadata,
     noteId: input.noteId,
     promise,
     requestSequence,
     routeSource: input.routeSource,
-  });
+  };
   return promise;
 }
 
 function createRequest(
   input: AuthorizedNoteReadInput,
   requestSequence: number,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  runtime: RouteWorkflowRuntime,
 ): NoteRequest {
   return {
-    context,
+    access,
     evidence: createBrowserOperationEvidence({
       metadata: createNoteRequestMetadata(),
       noteId: input.noteId,
@@ -141,6 +161,7 @@ function createRequest(
     }),
     input,
     requestSequence,
+    runtime,
   };
 }
 
@@ -155,7 +176,7 @@ async function performAuthorizedRead(
 
 async function readNoteAttempt(request: NoteRequest): Promise<NoteReadAttempt> {
   try {
-    const response = await request.context.api.readNote(
+    const response = await request.access.api.readNote(
       request.input.noteId,
       request.evidence.metadata,
     );
@@ -210,15 +231,17 @@ async function applyLoadedNote(
   const draftApplication = await readRouteDraft(
     note.id,
     response.clusterIdentity,
-    request.context,
+    request.access.draftCoordinator,
   );
   if (!isCurrentRequest(request)) {
     return { status: "stale" };
   }
-  const editor = createEditorSession(note, draftApplication, request.context);
+  const editor = createEditorSession(note, draftApplication, (noteId, hash) =>
+    allocateEditorSessionKey(noteId, hash, request.runtime),
+  );
   const clusterPatch = getClusterIdentityPatch(
     response.clusterIdentity,
-    request.context.get().draftRecoveryStatus,
+    request.access.state.getState().draftRecoveryStatus,
   );
   return applyReadyRoute(
     {
@@ -227,7 +250,8 @@ async function applyLoadedNote(
       noteId: note.id,
       statePatch: { ...clusterPatch, ...draftApplication.statePatch },
     },
-    request.context,
+    request.access.state,
+    request.runtime.routeRollback.commit,
   )
     ? {
         requestSequence: request.requestSequence,
@@ -256,11 +280,12 @@ async function applyMissingDraft(
   request: NoteRequest,
 ): Promise<RouteStoreApplyResult> {
   return await applyMissingRouteRead({
-    context: request.context,
+    access: request.access,
     isCurrent: () => isCurrentRequest(request),
     location: request.input.location,
     noteId: request.input.noteId,
     requestSequence: request.requestSequence,
+    runtime: request.runtime,
   });
 }
 
@@ -285,7 +310,8 @@ function applyTargetError(
       message: getErrorMessage(error),
       noteId: request.input.noteId,
     },
-    request.context,
+    request.access.state,
+    request.runtime.routeRollback.commit,
   );
   return applied
     ? { reason: "note_read_failed", status: "failed" }
@@ -293,10 +319,14 @@ function applyTargetError(
 }
 
 function isCurrentRequest(request: NoteRequest): boolean {
-  return request.context.isCurrentNoteRequest(
-    request.input.authorization,
-    request.requestSequence,
-    request.input.noteId,
+  return isCurrentNoteRequest(
+    {
+      authorization: request.input.authorization,
+      noteId: request.input.noteId,
+      requestSequence: request.requestSequence,
+    },
+    request.access,
+    request.runtime,
   );
 }
 
@@ -305,7 +335,10 @@ function restoreFailedCurrentApplication(
   request: NoteRequest,
 ): void {
   if (isStoreApplyFailure(result) && isCurrentRequest(request)) {
-    request.context.restoreRoutePredecessor();
+    request.runtime.routeRollback.restore(
+      request.access.state.getState(),
+      request.access.state.setState,
+    );
   }
 }
 
@@ -315,17 +348,17 @@ function isStoreApplyFailure(result: RouteStoreApplyResult): boolean {
 
 function getCoalescedPromise(
   input: AuthorizedNoteReadInput,
-  context: StoreContext,
+  runtime: RouteWorkflowRuntime,
 ): Promise<RouteStoreApplyResult> | undefined {
   if (input.forceReload === true) {
     return undefined;
   }
-  const active = context.getActiveNoteLoad();
+  const active = runtime.activeNoteLoad;
   return hasSameAuthorization(active, input) ? active.promise : undefined;
 }
 
 function hasSameAuthorization(
-  active: ReturnType<StoreContext["getActiveNoteLoad"]>,
+  active: ActiveNoteLoad | undefined,
   input: AuthorizedNoteReadInput,
 ): active is NonNullable<typeof active> {
   return (

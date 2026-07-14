@@ -3,39 +3,51 @@ import { createDraftPersistenceIssue } from "../persistence/draft-issues.js";
 import { createEditorSession } from "./note-browser-action-utils.js";
 import type {
   NoteBrowserStore,
-  StoreContext,
 } from "./note-browser-contracts.js";
 import {
   readRouteDraft,
   type RouteDraftApplication,
 } from "./note-browser-route-drafts.js";
+import {
+  type RouteWorkflowAccess,
+} from "./note-browser-route-runtime.js";
 import type { EditorSession } from "./note-browser-types.js";
 
 /** Retries an unread browser record without replacing dirty live authority. */
 export async function retryBrowserRecoveryAction(
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  allocateSessionKey: (noteId: string, contentHash: string) => string,
 ): Promise<void> {
-  const editor = getRecoveryRetryEditor(context);
+  const editor = getRecoveryRetryEditor(access);
   if (!isCleanRecoveryEditor(editor)) {
     return;
   }
-  const identity = context.get().clusterIdentity;
+  const identity = access.state.getState().clusterIdentity;
   if (identity === undefined) {
-    applyUnavailableIdentity(editor, context);
+    applyUnavailableIdentity(editor, access);
     return;
   }
-  const application = await readRouteDraft(editor.note.id, identity, context);
-  const current = getExactRecoveryEditor(editor.sessionKey, context);
+  const application = await readRouteDraft(
+    editor.note.id,
+    identity,
+    access.draftCoordinator,
+  );
+  const current = getExactRecoveryEditor(editor.sessionKey, access);
   if (!isCleanRecoveryEditor(current)) {
     return;
   }
-  applyRecoveryApplication(editor.sessionKey, application, context);
+  applyRecoveryApplication(
+    editor.sessionKey,
+    application,
+    access,
+    allocateSessionKey,
+  );
 }
 
 function getRecoveryRetryEditor(
-  context: StoreContext,
+  access: RouteWorkflowAccess,
 ): EditorSession | undefined {
-  const noteState = context.get().noteState;
+  const noteState = access.state.getState().noteState;
   if (noteState.status !== "ready") {
     return undefined;
   }
@@ -46,9 +58,9 @@ function getRecoveryRetryEditor(
 
 function getExactRecoveryEditor(
   ownerKey: string,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
 ): EditorSession | undefined {
-  const noteState = context.get().noteState;
+  const noteState = access.state.getState().noteState;
   if (noteState.status !== "ready") {
     return undefined;
   }
@@ -60,27 +72,28 @@ function getExactRecoveryEditor(
 function applyRecoveryApplication(
   ownerKey: string,
   application: RouteDraftApplication,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  allocateSessionKey: (noteId: string, contentHash: string) => string,
 ): void {
-  const editor = getExactRecoveryEditor(ownerKey, context);
+  const editor = getExactRecoveryEditor(ownerKey, access);
   if (editor === undefined) {
     return;
   }
   if (application.disposition === "recovery_read_unavailable") {
-    applyUnavailableRecovery(editor, application, context);
+    applyUnavailableRecovery(editor, application, access);
     return;
   }
   if (application.disposition === "preserved_unknown") {
-    applyProtectedRecovery(editor, application, context);
+    applyProtectedRecovery(editor, application, access);
     return;
   }
-  applyResolvedRecovery(editor, application, context);
+  applyResolvedRecovery(editor, application, access, allocateSessionKey);
 }
 
 function applyUnavailableRecovery(
   editor: EditorSession,
   application: RouteDraftApplication,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
 ): void {
   const issue = createDraftPersistenceIssue({
     clusterId: application.clusterId,
@@ -95,7 +108,7 @@ function applyUnavailableRecovery(
     retryAction: "retry_browser_recovery",
     sessionKey: editor.sessionKey,
   });
-  context.set((state) => {
+  access.state.setState((state) => {
     const owned = getOwnedStateEditor(state, editor.sessionKey);
     return owned === undefined
       ? state
@@ -112,9 +125,9 @@ function applyUnavailableRecovery(
 function applyProtectedRecovery(
   editor: EditorSession,
   application: RouteDraftApplication,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
 ): void {
-  context.set((state) => {
+  access.state.setState((state) => {
     const owned = getOwnedStateEditor(state, editor.sessionKey);
     return owned === undefined
       ? state
@@ -136,13 +149,18 @@ function applyProtectedRecovery(
 function applyResolvedRecovery(
   editor: EditorSession,
   application: RouteDraftApplication,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
+  allocateSessionKey: (noteId: string, contentHash: string) => string,
 ): void {
-  const replacement = createEditorSession(editor.note, application, context);
-  context.set({
+  const replacement = createEditorSession(
+    editor.note,
+    application,
+    allocateSessionKey,
+  );
+  access.state.setState({
     ...getResolvedRecoveryStatePatch(application),
     committedRouteView: rebaseCommittedOwner(
-      context.get().committedRouteView,
+      access.state.getState().committedRouteView,
       replacement.sessionKey,
     ),
     noteState: { editor: replacement, status: "ready" },
@@ -159,7 +177,7 @@ function getResolvedRecoveryStatePatch(
 
 function applyUnavailableIdentity(
   editor: EditorSession,
-  context: StoreContext,
+  access: RouteWorkflowAccess,
 ): void {
   const issue = createDraftPersistenceIssue({
     clusterId: undefined,
@@ -171,7 +189,7 @@ function applyUnavailableIdentity(
     retryAction: "retry_browser_recovery",
     sessionKey: editor.sessionKey,
   });
-  context.set({
+  access.state.setState({
     noteState: {
       editor: { ...editor, persistenceIssue: issue },
       status: "ready",

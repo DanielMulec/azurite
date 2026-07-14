@@ -7,7 +7,7 @@ import type {
 } from "../persistence/draft-workflow-types.js";
 import type {
   NoteBrowserStore,
-  StoreContext,
+  NoteBrowserStateAccess,
 } from "./note-browser-contracts.js";
 import {
   editorOwnsSnapshot,
@@ -20,12 +20,12 @@ import type { EditorSession } from "./note-browser-types.js";
 export function applySnapshotSettlement(
   snapshot: DraftMutationSnapshot,
   result: DraftSnapshotResult,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): void {
-  context.set((state) => {
-    const editor = getStateEditor(state);
+  state.setState((current) => {
+    const editor = getStateEditor(current);
     if (!editorOwnsSnapshot(editor, snapshot)) {
-      return state;
+      return current;
     }
     const patch = getSettlementPatch(editor, snapshot, result);
     return patch === undefined
@@ -38,7 +38,7 @@ export function applySnapshotSettlement(
 export function getSnapshotAdmissionIssue(
   snapshot: DraftMutationSnapshot,
   editor: EditorSession,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ) {
   if (snapshot.disposition === "recovery_read_unavailable") {
     return removeRecoveryRetry(editor);
@@ -46,7 +46,7 @@ export function getSnapshotAdmissionIssue(
   if (snapshot.disposition === "preserved_unknown") {
     return undefined;
   }
-  return getIdentityAdmissionIssue(snapshot, context);
+  return getIdentityAdmissionIssue(snapshot, state);
 }
 
 function removeRecoveryRetry(editor: EditorSession) {
@@ -56,12 +56,12 @@ function removeRecoveryRetry(editor: EditorSession) {
 
 function getIdentityAdmissionIssue(
   snapshot: DraftMutationSnapshot,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ) {
   if (snapshot.clusterId !== undefined) {
     return undefined;
   }
-  const identity = getUnavailableIdentity(context.get().clusterIdentity);
+  const identity = getUnavailableIdentity(state.getState().clusterIdentity);
   if (identity === undefined) {
     return undefined;
   }

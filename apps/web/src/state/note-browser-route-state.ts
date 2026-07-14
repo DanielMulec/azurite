@@ -1,7 +1,7 @@
 import type { ValidatedLocationOccurrence } from "../routing/route-transition-types.js";
 import type {
   NoteBrowserStore,
-  StoreContext,
+  NoteBrowserStateAccess,
 } from "./note-browser-contracts.js";
 import type { EditorSession, MissingNoteDraft } from "./note-browser-types.js";
 
@@ -22,7 +22,8 @@ type RouteStatePatch =
 /** Applies and commits one ready editor surface as a single store mutation. */
 export function applyReadyRoute(
   input: NoteRouteIdentity & { readonly editor: EditorSession },
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
   return applyCommittedRoutePatch(
     {
@@ -37,14 +38,16 @@ export function applyReadyRoute(
       routeHistoryStatus: { status: "available" },
       selectedNoteId: input.noteId,
     },
-    context,
+    state,
+    commitRouteApplication,
   );
 }
 
 /** Applies and commits one missing-note surface without an editor owner. */
 export function applyMissingRoute(
   input: NoteRouteIdentity,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
   return applyCommittedRoutePatch(
     {
@@ -59,7 +62,8 @@ export function applyMissingRoute(
       routeHistoryStatus: { status: "available" },
       selectedNoteId: input.noteId,
     },
-    context,
+    state,
+    commitRouteApplication,
   );
 }
 
@@ -69,7 +73,8 @@ export function applyMissingDraftRoute(
     readonly draft: MissingNoteDraft;
     readonly renderedOwnerKey: string;
   },
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
   return applyCommittedRoutePatch(
     {
@@ -93,14 +98,16 @@ export function applyMissingDraftRoute(
       routeHistoryStatus: { status: "available" },
       selectedNoteId: input.noteId,
     },
-    context,
+    state,
+    commitRouteApplication,
   );
 }
 
 /** Applies and commits one target-owned note-read error surface. */
 export function applyErrorRoute(
   input: NoteRouteIdentity & { readonly message: string },
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
   return applyCommittedRoutePatch(
     {
@@ -119,14 +126,16 @@ export function applyErrorRoute(
       routeHistoryStatus: { status: "available" },
       selectedNoteId: input.noteId,
     },
-    context,
+    state,
+    commitRouteApplication,
   );
 }
 
 /** Applies and commits the explicit empty-cluster route surface. */
 export function applyEmptyRoute(
   location: ValidatedLocationOccurrence,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
   return applyCommittedRoutePatch(
     {
@@ -140,56 +149,58 @@ export function applyEmptyRoute(
       routeHistoryStatus: { status: "available" },
       selectedNoteId: undefined,
     },
-    context,
+    state,
+    commitRouteApplication,
   );
 }
 
 /** Selects a current target while retaining an outgoing rendered projection. */
 export function applyPendingRouteSelection(
   noteId: string,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): boolean {
   return applyStorePatchAtomically(
     (state) => ({
       noteState: keepRenderedSurface(state),
       selectedNoteId: noteId,
     }),
-    context,
+    state,
   );
 }
 
 /** Applies one state mutation and restores the exact snapshot after a throw. */
 export function applyStorePatchAtomically(
   patch: RouteStatePatch,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): boolean {
-  const previous = context.get();
+  const previous = state.getState();
   try {
-    context.set(patch);
+    state.setState(patch);
     return true;
   } catch {
-    restorePreviousState(previous, context);
+    restorePreviousState(previous, state);
     return false;
   }
 }
 
 function applyCommittedRoutePatch(
   patch: RouteStatePatch,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
+  commitRouteApplication: () => void,
 ): boolean {
-  const applied = applyStorePatchAtomically(patch, context);
+  const applied = applyStorePatchAtomically(patch, state);
   if (applied) {
-    context.commitRouteApplication();
+    commitRouteApplication();
   }
   return applied;
 }
 
 function restorePreviousState(
   previous: NoteBrowserStore,
-  context: StoreContext,
+  state: NoteBrowserStateAccess,
 ): void {
   try {
-    context.set(previous, true);
+    state.setState(previous, true);
   } catch {
     // Zustand mutates state before subscribers run, so the rollback still lands.
   }

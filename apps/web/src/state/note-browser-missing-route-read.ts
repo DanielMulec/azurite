@@ -1,6 +1,5 @@
 import type { RouteStoreApplyResult } from "../routing/route-store-executor.js";
 import type { ValidatedLocationOccurrence } from "../routing/route-transition-types.js";
-import type { StoreContext } from "./note-browser-contracts.js";
 import {
   readRouteDraft,
   type RouteDraftApplication,
@@ -9,13 +8,19 @@ import {
   applyMissingDraftRoute,
   applyMissingRoute,
 } from "./note-browser-route-state.js";
+import {
+  allocateEditorSessionKey,
+  type RouteWorkflowAccess,
+  type RouteWorkflowRuntime,
+} from "./note-browser-route-runtime.js";
 
 type MissingRouteReadInput = {
-  readonly context: StoreContext;
+  readonly access: RouteWorkflowAccess;
   readonly isCurrent: () => boolean;
   readonly location: ValidatedLocationOccurrence;
   readonly noteId: string;
   readonly requestSequence: number;
+  readonly runtime: RouteWorkflowRuntime;
 };
 
 /** Resolves a missing note and optional browser draft as one terminal route view. */
@@ -24,8 +29,8 @@ export async function applyMissingRouteRead(
 ): Promise<RouteStoreApplyResult> {
   const application = await readRouteDraft(
     input.noteId,
-    getMissingRouteClusterIdentity(input.context),
-    input.context,
+    getMissingRouteClusterIdentity(input.access),
+    input.access.draftCoordinator,
   );
   if (!input.isCurrent()) {
     return { status: "stale" };
@@ -39,9 +44,9 @@ export async function applyMissingRouteRead(
       );
 }
 
-function getMissingRouteClusterIdentity(context: StoreContext) {
+function getMissingRouteClusterIdentity(access: RouteWorkflowAccess) {
   return (
-    context.get().clusterIdentity ?? {
+    access.state.getState().clusterIdentity ?? {
       reason: "metadata_unavailable" as const,
       status: "unavailable" as const,
     }
@@ -58,7 +63,8 @@ function applyMissingWithoutDraft(
       noteId: input.noteId,
       statePatch: application.statePatch,
     },
-    input.context,
+    input.access.state,
+    input.runtime.routeRollback.commit,
   );
   return applied
     ? {
@@ -74,9 +80,10 @@ function applyRecoveredMissingDraft(
   draft: NonNullable<RouteDraftApplication["draft"]>,
   statePatch: RouteDraftApplication["statePatch"],
 ): RouteStoreApplyResult {
-  const renderedOwnerKey = input.context.nextEditorSessionKey(
+  const renderedOwnerKey = allocateEditorSessionKey(
     input.noteId,
     "missing-draft",
+    input.runtime,
   );
   const applied = applyMissingDraftRoute(
     {
@@ -90,7 +97,8 @@ function applyRecoveredMissingDraft(
       renderedOwnerKey,
       statePatch,
     },
-    input.context,
+    input.access.state,
+    input.runtime.routeRollback.commit,
   );
   return applied
     ? {

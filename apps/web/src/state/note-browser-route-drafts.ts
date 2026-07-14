@@ -1,6 +1,7 @@
 import type { ClusterIdentity } from "@azurite/shared";
 
 import type { DraftRecord } from "../persistence/draft-records.js";
+import type { DraftPersistenceCoordinator } from "../persistence/draft-persistence-coordinator.js";
 import type {
   DraftDisposition,
   DraftFailureDetail,
@@ -11,7 +12,6 @@ import {
 } from "./note-browser-action-utils.js";
 import type {
   NoteBrowserStore,
-  StoreContext,
 } from "./note-browser-contracts.js";
 
 /** Draft lookup result prepared for one atomic terminal route mutation. */
@@ -28,13 +28,13 @@ export type RouteDraftApplication = {
 export async function readRouteDraft(
   noteId: string,
   clusterIdentity: ClusterIdentity,
-  context: StoreContext,
+  draftCoordinator: DraftPersistenceCoordinator,
 ): Promise<RouteDraftApplication> {
   const clusterId = getReadyClusterId(clusterIdentity);
   if (clusterId === undefined) {
     return unavailableIdentityApplication(clusterIdentity);
   }
-  const result = await context.draftCoordinator.readDraft(clusterId, noteId);
+  const result = await draftCoordinator.readDraft(clusterId, noteId);
   if (result.status === "failed") {
     return getFailedDraftApplication(clusterId, result.failure);
   }

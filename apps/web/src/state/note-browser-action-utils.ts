@@ -18,7 +18,7 @@ import type {
   NoteBrowserSnapshot,
   NoteViewState,
 } from "./note-browser-types.js";
-import type { StoreContext } from "./note-browser-contracts.js";
+import type { NoteBrowserStateAccess } from "./note-browser-contracts.js";
 
 const blockedSaveStatuses: readonly EditorSession["saveStatus"][] = [
   "conflict",
@@ -28,10 +28,13 @@ const blockedSaveStatuses: readonly EditorSession["saveStatus"][] = [
 /** Applies cluster identity and updates visible draft recovery availability. */
 export function applyClusterIdentity(
   clusterIdentity: ClusterIdentity,
-  context: Pick<StoreContext, "get" | "set">,
+  state: NoteBrowserStateAccess,
 ): void {
-  context.set(
-    getClusterIdentityPatch(clusterIdentity, context.get().draftRecoveryStatus),
+  state.setState(
+    getClusterIdentityPatch(
+      clusterIdentity,
+      state.getState().draftRecoveryStatus,
+    ),
   );
 }
 
@@ -60,11 +63,11 @@ export function getClusterIdentityPatch(
 export function createEditorSession(
   note: NoteContentWithHash,
   draftApplication: RouteDraftApplication,
-  context: Pick<StoreContext, "nextEditorSessionKey">,
+  allocateSessionKey: (noteId: string, contentHash: string) => string,
 ): EditorSession {
   const draft = draftApplication.draft;
   const draftDisposition = getDraftDisposition(note, draftApplication);
-  const sessionKey = context.nextEditorSessionKey(note.id, note.contentHash);
+  const sessionKey = allocateSessionKey(note.id, note.contentHash);
   const recoveredSnapshotKey =
     draft === undefined ? undefined : `${sessionKey}:recovered-record`;
 
@@ -147,9 +150,9 @@ export function isSelectedNoteReady(
 /** Returns the current ready editor for the requested note, if still active. */
 export function getCurrentEditorForNote(
   noteId: string,
-  context: Pick<StoreContext, "get">,
+  state: NoteBrowserStateAccess,
 ): EditorSession | undefined {
-  const noteState = context.get().noteState;
+  const noteState = state.getState().noteState;
 
   if (noteState.status !== "ready") {
     return undefined;
@@ -161,9 +164,9 @@ export function getCurrentEditorForNote(
 /** Returns the current editor only when the exact originating session owns it. */
 export function getCurrentEditorForSession(
   editor: Pick<EditorSession, "note" | "sessionKey">,
-  context: Pick<StoreContext, "get">,
+  state: NoteBrowserStateAccess,
 ): EditorSession | undefined {
-  const currentEditor = getCurrentEditorForNote(editor.note.id, context);
+  const currentEditor = getCurrentEditorForNote(editor.note.id, state);
 
   return currentEditor?.sessionKey === editor.sessionKey
     ? currentEditor
@@ -213,9 +216,11 @@ function hasModePatchChange(
 /** Marks durable browser draft recovery as degraded for a visible reason. */
 export function degradeDraftRecovery(
   reason: DraftPersistenceUnavailableReason,
-  context: Pick<StoreContext, "set">,
+  state: NoteBrowserStateAccess,
 ): void {
-  context.set({ draftRecoveryStatus: getDegradedDraftRecoveryStatus(reason) });
+  state.setState({
+    draftRecoveryStatus: getDegradedDraftRecoveryStatus(reason),
+  });
 }
 
 /** Creates the visible degraded state for one browser-draft failure. */
