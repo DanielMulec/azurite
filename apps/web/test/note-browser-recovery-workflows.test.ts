@@ -213,6 +213,86 @@ describe("successful Save queue cleanup retry", () => {
   });
 });
 
+describe("failed snapshot retry", () => {
+  it("writes the retained immutable snapshot without recapturing newer live state", async () => {
+    const writeDraft = vi
+      .fn<DraftPersistence["writeDraft"]>()
+      .mockResolvedValueOnce({
+        reason: "quota_exceeded",
+        status: "unavailable",
+      })
+      .mockResolvedValueOnce({ status: "written" });
+    const store = createLoadedStore({
+      draftPersistence: createPersistence({ writeDraft }),
+    });
+    publishSourceMarkdown(store, "# Exact failed snapshot");
+    await store.getState().flushPendingDraft();
+    expect(getEditor(store).persistenceIssue).toMatchObject({
+      retryAction: "retry_draft_persistence",
+    });
+
+    store.setState((state) => {
+      if (state.noteState.status !== "ready") {
+        return state;
+      }
+      return {
+        noteState: {
+          editor: {
+            ...state.noteState.editor,
+            currentMarkdown: "# Newer live state",
+          },
+          status: "ready",
+        },
+      };
+    });
+    await store.getState().retryDraftPersistence();
+
+    expect(writeDraft).toHaveBeenCalledTimes(2);
+    expect(writeDraft.mock.calls[1]?.[0]).toEqual(
+      writeDraft.mock.calls[0]?.[0],
+    );
+    expect(writeDraft.mock.calls[1]?.[0].markdown).toBe(
+      "# Exact failed snapshot",
+    );
+    expect(getEditor(store).currentMarkdown).toBe("# Newer live state");
+  });
+});
+
+describe("cleanup retry supersession", () => {
+  it("drops an obsolete cleanup retry when a newer accepted edit owns recovery", async () => {
+    const memory = createMemoryDraftPersistence([
+      createTestDraft({ baseContentHash: "sha256-old", markdown: "# Home" }),
+    ]);
+    const deleteSaved = vi
+      .fn<DraftPersistence["deleteDraftIfSavedSnapshotMatches"]>()
+      .mockResolvedValueOnce({ reason: "write_failed", status: "unavailable" })
+      .mockImplementation(memory.persistence.deleteDraftIfSavedSnapshotMatches);
+    const store = createLoadedStore({
+      draftPersistence: {
+        ...memory.persistence,
+        deleteDraftIfSavedSnapshotMatches: deleteSaved,
+      },
+      recovery: "draft",
+    });
+    await store.getState().saveSelectedNote();
+    expect(getEditor(store).draftDisposition).toBe("cleanup_required");
+
+    publishSourceMarkdown(store, "# Newer accepted edit");
+    await store.getState().retryDraftCleanup();
+    await store.getState().flushPendingDraft();
+
+    expect(deleteSaved).toHaveBeenCalledOnce();
+    expect(getEditor(store)).toMatchObject({
+      currentMarkdown: "# Newer accepted edit",
+      draftDisposition: "generated_durable",
+      persistenceIssue: undefined,
+    });
+    expect(
+      memory.read(readyClusterIdentity.clusterId, "index.md")?.markdown,
+    ).toBe("# Newer accepted edit");
+  });
+});
+
 function createPersistence(patch: Partial<DraftPersistence>): DraftPersistence {
   return {
     deleteDraft: () => Promise.resolve({ status: "absent" }),

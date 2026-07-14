@@ -198,9 +198,11 @@ describe("repeated lifecycle flush admission", () => {
 
     const visibilityFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
     const pageHideFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
+    const unmountFlush = coordinator.flushSnapshot(snapshot.snapshotKey);
 
     await expect(visibilityFlush).resolves.toEqual({ status: "written" });
     await expect(pageHideFlush).resolves.toEqual({ status: "written" });
+    await expect(unmountFlush).resolves.toEqual({ status: "written" });
     expect(writeDraft).toHaveBeenCalledOnce();
     expect(settled).toHaveBeenCalledOnce();
     expect(coordinator.pendingSnapshotCount).toBe(0);
