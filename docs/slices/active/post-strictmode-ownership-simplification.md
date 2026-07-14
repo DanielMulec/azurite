@@ -75,7 +75,7 @@ envelopes reproducible:
   chain 1,034.
 - Persistence after Task 3C: `draft-database.ts` 389, coordinator 400 plus 225
   in its type/helper/decision files, `draft-workflow-types.ts` 114, cleanup 225,
-  recovery 205, Discard 318, durability 125, and the unified retry command 26.
+  recovery 211, Discard 318, durability 131, and the unified retry command 39.
 - Store: `note-browser-contracts.ts` 140, store 371, action utilities 368, route
   actions 281, and `route-store-executor.ts` 134.
 - Sentry: shared `runtime-observability.ts` 287,
