@@ -14,11 +14,17 @@ Authoritative evidence lives in
 `docs/qa/post-strictmode-store-workflow-boundaries.md`. Daniel approved the
 re-baselined Task 3E shared Sentry fail-open carrier for implementation on
 2026-07-15 from authoritative clean commit
-`3d98cc9fca31a86c2c2b846e8cb346400e647ecf`. Task 3E is candidate complete
-with evidence in `docs/qa/post-strictmode-sentry-fail-open-carrier.md` and
-awaits separate independent conformance review. Slice 7E remains planned,
-unrefreshed, unpromoted, and unimplemented until Daniel explicitly approves a
-later refreshed scope.
+`3d98cc9fca31a86c2c2b846e8cb346400e647ecf`. After one documentation-only
+correction and focused reviewer recheck, Daniel accepted Task 3E at
+`b2218fe366929fd195cbfa969da25302e83f433b` on 2026-07-15. Authoritative
+evidence lives in `docs/qa/post-strictmode-sentry-fail-open-carrier.md`.
+
+All four selected units are complete and accepted. Daniel determined on
+2026-07-15 that their real reductions still leave materially more runtime and
+test ceremony than the current product warrants. The simplification program
+therefore remains active. No 7X slice will be refreshed, promoted, or started
+until the remaining cleanup has been re-baselined and Daniel has approved the
+next coherent simplification unit.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
@@ -32,6 +38,21 @@ Azurite will simplify the implemented editor and recovery workflow before Slice
 2. simplify persistence results;
 3. replace the distributed store capability context with workflow boundaries;
 4. extract the shared Sentry fail-open carrier.
+
+All four units above are independently accepted. Their completion closes this
+selected sequence and does not close the broader simplification expedition.
+Tracked ordinary TypeScript and TSX runtime source under `apps` and `packages`,
+excluding QA roots, fell from **18,804 -> 17,196** physical lines between the
+pre-Task-3A baseline and the accepted post-Task-3E state, a reduction of
+**1,608**. The current automated suite contains **469 executed cases across 78
+test files** and **13,931 physical lines** of test and helper code.
+
+A read-only audit identified **80 to 140** carefully selected cases, **35 to
+50** files, and **4,000 to 6,000** test lines as an evidence-based compression
+compass. These are investigation anchors. Re-baselining must reproduce the
+measurements, identify remaining runtime ceremony, map retained tests to unique
+product and engineering guarantees, and bring Daniel the next scope decision
+before any deletion contract or 7X promotion is approved.
 
 The sequence is deliberately serial on `main`; every unit re-baselines after its
 predecessor. Persistence and store work remain separate because the current call
@@ -309,14 +330,15 @@ disabled zero-traffic proof, real React/Node SDK 10.64.0 delivery, joined
 browser-to-server traces, one unique Replay per enabled release, expected issue
 counts, and graceful shutdown delivery. Exact measurements, filesystem proof,
 Sentry evidence, findings, and cleanup live in
-`docs/qa/post-strictmode-sentry-fail-open-carrier.md`. The implementation remains
-a candidate pending separate independent conformance acceptance.
+`docs/qa/post-strictmode-sentry-fail-open-carrier.md`. Independent conformance
+review closed one documentation-only correction, and Daniel accepted the
+corrected candidate at `b2218fe366929fd195cbfa969da25302e83f433b`.
 
 ## Negative Side-Effect Guardrails
 
 Baseline: [Product guardrails](../../reference/product-guardrails.md).
 
-Accepted Tasks 3B through 3D retain their documented guardrails and evidence.
+Accepted Tasks 3B through 3E retain their documented guardrails and evidence.
 
 - Shared fail-open extraction must preserve disabled no-op behavior, product
   callback identity/count/result/throw/rejection, scope isolation, and enabled
@@ -324,7 +346,7 @@ Accepted Tasks 3B through 3D retain their documented guardrails and evidence.
 
 ## Verification Plan
 
-Tasks 3B through 3D retain their accepted QA evidence. Task 3E is a direct
+Tasks 3B through 3E retain their accepted QA evidence. Task 3E was a direct
 observability change under the Playwright runbook. Shared-carrier and
 thin-adapter tests prove disabled/enabled record/capture/span, exact once-only
 delivery, hostile carriers, attribute filtering, caught-error normalization,

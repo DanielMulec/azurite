@@ -20,8 +20,10 @@ The StrictMode lifecycle-conformance foundation, Task 3B editor-session
 authority consolidation, and Task 3C persistence-result simplification are
 completed. The post-StrictMode simplification program remains the authoritative
 active document. Task 3D store-workflow boundaries are complete and accepted.
-Task 3E is candidate complete and awaits separate independent conformance
-review; Slice 7E remains unapproved, unrefreshed, and unimplemented.
+Task 3E is complete and accepted at
+`b2218fe366929fd195cbfa969da25302e83f433b`. Daniel has kept the simplification
+program active for another re-baseline and scope decision. No 7X slice is next;
+Slice 7E remains unapproved, unrefreshed, and unimplemented.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -51,7 +53,7 @@ review; Slice 7E remains unapproved, unrefreshed, and unimplemented.
    Azurite-owned router, editor-adapter, registration, persistence, and action
    lifecycles are generation-safe. Milkdown remains officially released and
    unmodified, with rejected-create private cleanup qualified explicitly.
-6. Active program; Tasks 3B through 3D accepted and Task 3E candidate complete:
+6. Active program; Tasks 3B through 3E accepted:
    [Post-StrictMode Ownership Simplification](active/post-strictmode-ownership-simplification.md).
    Task 3B consolidated editor-session authority and Task 3C simplified the
    persistence result ladder. Task 3D removed the universal store context and
@@ -59,16 +61,19 @@ review; Slice 7E remains unapproved, unrefreshed, and unimplemented.
    Daniel accepted its independently reviewed delivery at
    `1cbdbe3f598ae71dfac07e29e9b46ad91f1a46f0`. Its evidence is in
    `docs/qa/post-strictmode-store-workflow-boundaries.md`. Daniel approved the
-   re-baselined shared Sentry fail-open carrier on 2026-07-15. Task 3E now
-   consolidates record, capture, and span selection in one shared stateless
-   Sentry-free carrier. Its complete evidence is in
-   `docs/qa/post-strictmode-sentry-fail-open-carrier.md`; it awaits separate
-   independent conformance review.
-7. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle
-   prerequisite is complete, but it remains unimplemented and cannot be
-   refreshed or promoted until all four selected ownership-simplification units
-   are complete, unless Daniel explicitly reselects that proposal, and Daniel
-   approves the later refreshed scope. Its plan is
+   re-baselined shared Sentry fail-open carrier on 2026-07-15. Task 3E
+   consolidated record, capture, and span selection in one shared stateless
+   Sentry-free carrier. After independent review and one documentation-only
+   correction, Daniel accepted Task 3E at
+   `b2218fe366929fd195cbfa969da25302e83f433b`. Its complete evidence is in
+   `docs/qa/post-strictmode-sentry-fail-open-carrier.md`. Daniel determined that
+   the accepted four-unit sequence still leaves excessive runtime and test
+   ceremony, so the next checkpoint is a fresh simplification re-baseline and
+   scope decision.
+7. Planned and deliberately paused: Slice 7E, semantic editor and persistence
+   diagnostics. Its lifecycle prerequisites are complete. Daniel has explicitly
+   directed that no 7X work start until the continuing simplification expedition
+   is re-baselined and the next unit is approved. Its plan is
    `docs/slices/planned/slice-7e-semantic-editor-and-persistence-diagnostics.md`.
 8. Required immediately after 7E: Slice 7F, a focused editor-correctness repair
    using the 7A runtime, 7B correlation, 7C route owner, 7D Markdown-authority

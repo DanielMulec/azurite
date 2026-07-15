@@ -2,18 +2,20 @@
 
 ## Outcome
 
-Task 3E passed implementation and internal candidate verification on 2026-07-15.
-Web and server now delegate runtime record, capture, and span delivery to one
-stateless Sentry-free carrier in `packages/shared`. Both surfaces retain their
-caller-facing function names, independent runtime installation state, and
-surface-specific configuration, SDK initialization, integrations, enablement,
-flush, and shutdown authorities.
+Task 3E passed implementation, internal candidate verification, and independent
+conformance acceptance on 2026-07-15. Web and server now delegate runtime
+record, capture, and span delivery to one stateless Sentry-free carrier in
+`packages/shared`. Both surfaces retain their caller-facing function names,
+independent runtime installation state, and surface-specific configuration, SDK
+initialization, integrations, enablement, flush, and shutdown authorities.
 
 The authoritative start is
 `3d98cc9fca31a86c2c2b846e8cb346400e647ecf`. The final implementation commit
 is `ad1943755c68031d64afe8b70fa0c1cfe37ce9cd`; the exact implementation range
 is `3d98cc9fca31a86c2c2b846e8cb346400e647ecf..ad1943755c68031d64afe8b70fa0c1cfe37ce9cd`.
-Task 3E remains a candidate awaiting separate independent conformance review.
+The corrected accepted candidate is
+`b2218fe366929fd195cbfa969da25302e83f433b`; the complete reviewed range is
+`3d98cc9fca31a86c2c2b846e8cb346400e647ecf..b2218fe366929fd195cbfa969da25302e83f433b`.
 
 ## Delivered Boundary
 
@@ -376,3 +378,26 @@ observability contracts remain live, automated proof is green, all eight
 browser cells passed, authenticated Sentry evidence passed, and cleanup is
 complete. This internal result does not constitute Task 3E acceptance. The
 candidate awaits a separate independent conformance review.
+
+## Independent Conformance Acceptance
+
+Independent conformance review session
+`019f651b-79a3-7b81-8997-a91f6ec652e3` reviewed the complete Task 3E candidate
+range from `3d98cc9fca31a86c2c2b846e8cb346400e647ecf` through
+`0d44c406dfdc931b6104ea318c56e22366b4ca7d`. Runtime behavior, structural
+reduction, automated verification, browser evidence, Sentry delivery, cleanup,
+and scope conformed to the approved contract. The review returned one mandatory
+documentation correction: the cleanup ledger named a nonexistent
+`.azurite/cluster-id` path instead of `.azurite/cluster.json` and its
+`clusterId` field.
+
+Correction `b2218fe366929fd195cbfa969da25302e83f433b` is a direct child of
+`0d44c406dfdc931b6104ea318c56e22366b4ca7d` and changes only this QA ledger. The
+same reviewer performed a focused recheck and returned `ACCEPT` with zero
+remaining mandatory corrections. Formatting and diff checks passed, all local
+and remote `main` refs matched the correction commit at recheck time, and the
+worktree was clean. No automated or browser rerun was required because runtime,
+architecture, scope, and preservation guarantees were unchanged.
+
+Daniel accepted Task 3E at
+`b2218fe366929fd195cbfa969da25302e83f433b` on 2026-07-15. Task 3E is complete.
