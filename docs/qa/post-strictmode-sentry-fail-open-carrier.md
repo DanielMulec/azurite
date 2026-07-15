@@ -159,6 +159,55 @@ note and sentinel remained byte-identical.
 | Built preview, Pixel 6, disabled        | PASS   | `3235d812-1f4d-4a0f-8675-34306b0788f5` |                                                  0 | absent        |
 | Built preview, Pixel 6, enabled         | PASS   | `4edcb584-ecf0-4091-ae92-02558f0d4113` |                                 25 / 25 successful | present       |
 
+### Run ownership and cleanup allowlist
+
+The run used these exact owned roots and identifiers:
+
+```text
+QA_RUN_ID=task3e-20260715T071105Z-3d98cc9
+QA_ROOT=/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T//azurite-task3e-20260715T071105Z-3d98cc9.O7t4Yp
+ARTIFACT_ROOT=/Users/danielmulec/Projekte/azurite/output/playwright/task3e-20260715T071105Z-3d98cc9
+BROWSER_SESSION_PREFIX=task3e-20260715T071105Z-3d98cc9
+RELEASE_PREFIX=azurite-task3e-20260715T071105Z-3d98cc9
+API_ORIGIN=http://127.0.0.1:3000
+DEV_ORIGIN=http://127.0.0.1:5173
+PREVIEW_ORIGIN=http://127.0.0.1:4173
+```
+
+Every cell path below is rooted at the exact `QA_ROOT` and `ARTIFACT_ROOT`
+above. The runtime entries include the listener PID followed by its owned
+unified-exec PTY session ID. The first three listener pairs were retained
+directly from `lsof`. The remaining five web PIDs were reconstructed from the
+same adjacent paired-spawn sequence, independently retained Fastify PIDs, and
+the exact PTY session identities. Final cleanup used the PTY sessions and
+listener ports, then verified that every recorded PID had exited.
+
+| Cell label                 | Cluster path                                     | Browser session                                   | Artifact path                            | Web runtime                            | Fastify runtime                    |
+| -------------------------- | ------------------------------------------------ | ------------------------------------------------- | ---------------------------------------- | -------------------------------------- | ---------------------------------- |
+| `dev-desktop-disabled`     | `QA_ROOT/cells/dev-desktop-disabled/cluster`     | `BROWSER_SESSION_PREFIX-dev-desktop-disabled`     | `ARTIFACT_ROOT/dev-desktop-disabled`     | PID 9319, PTY 58101, `DEV_ORIGIN`      | PID 9320, PTY 87676, `API_ORIGIN`  |
+| `dev-desktop-enabled`      | `QA_ROOT/cells/dev-desktop-enabled/cluster`      | `BROWSER_SESSION_PREFIX-dev-desktop-enabled`      | `ARTIFACT_ROOT/dev-desktop-enabled`      | PID 21477, PTY 59869, `DEV_ORIGIN`     | PID 21478, PTY 13646, `API_ORIGIN` |
+| `dev-pixel6-disabled`      | `QA_ROOT/cells/dev-pixel6-disabled/cluster`      | `BROWSER_SESSION_PREFIX-dev-pixel6-disabled`      | `ARTIFACT_ROOT/dev-pixel6-disabled`      | PID 26223, PTY 84427, `DEV_ORIGIN`     | PID 26224, PTY 92295, `API_ORIGIN` |
+| `dev-pixel6-enabled`       | `QA_ROOT/cells/dev-pixel6-enabled/cluster`       | `BROWSER_SESSION_PREFIX-dev-pixel6-enabled`       | `ARTIFACT_ROOT/dev-pixel6-enabled`       | PID 33555, PTY 67370, `DEV_ORIGIN`     | PID 33556, PTY 61440, `API_ORIGIN` |
+| `preview-desktop-disabled` | `QA_ROOT/cells/preview-desktop-disabled/cluster` | `BROWSER_SESSION_PREFIX-preview-desktop-disabled` | `ARTIFACT_ROOT/preview-desktop-disabled` | PID 39429, PTY 97317, `PREVIEW_ORIGIN` | PID 39430, PTY 1603, `API_ORIGIN`  |
+| `preview-desktop-enabled`  | `QA_ROOT/cells/preview-desktop-enabled/cluster`  | `BROWSER_SESSION_PREFIX-preview-desktop-enabled`  | `ARTIFACT_ROOT/preview-desktop-enabled`  | PID 43308, PTY 39312, `PREVIEW_ORIGIN` | PID 43309, PTY 55567, `API_ORIGIN` |
+| `preview-pixel6-disabled`  | `QA_ROOT/cells/preview-pixel6-disabled/cluster`  | `BROWSER_SESSION_PREFIX-preview-pixel6-disabled`  | `ARTIFACT_ROOT/preview-pixel6-disabled`  | PID 47109, PTY 66920, `PREVIEW_ORIGIN` | PID 47110, PTY 40445, `API_ORIGIN` |
+| `preview-pixel6-enabled`   | `QA_ROOT/cells/preview-pixel6-enabled/cluster`   | `BROWSER_SESSION_PREFIX-preview-pixel6-enabled`   | `ARTIFACT_ROOT/preview-pixel6-enabled`   | PID 50670, PTY 34458, `PREVIEW_ORIGIN` | PID 50671, PTY 73134, `API_ORIGIN` |
+
+Each cell's exact release identity is `RELEASE_PREFIX-<cell label>`. Its three
+filesystem sentinels are `00-direct-<cell label>.md`,
+`10-route-<cell label>.md`, and `99-sentinel-<cell label>.md` inside that
+cell's cluster. Each cluster also owned its `.azurite/cluster-id` value shown in
+the matrix table. These identities, the eight path rows, and the eight PID/PTY
+pairs formed the complete product-cell cleanup allowlist.
+
+Authenticated Sentry inspection additionally owned
+`BROWSER_SESSION_PREFIX-sentry-inspection`, the complete
+`QA_ROOT/chrome-profile-clone`, and cloned Chrome root PID 55817. The clone was
+deleted only after Playwright detached and that PID exited. The source Chrome
+profile, `.env.local`, the four pre-existing `.playwright-mcp` entries, and the
+parked `QA_ROOT/preexisting-web-dist` directory were explicitly protected from
+cleanup.
+
 The in-flight development Pixel Replay request was followed by a unique,
 release-filtered Replay in Sentry, so its delivery completed. All other listed
 envelopes returned a successful 2xx response before browser shutdown.
@@ -226,15 +275,17 @@ Authenticated inspection proved the real SDK metadata:
 Release-filtered Sentry Logs and Trace Explorer showed natural
 `notes.list`, `note.load`, `note.read`, route navigation, `note.save`,
 `api.request`, `telemetry.runtime.trace_headers.seen`, and Fastify route
-evidence. Counts include the cell's natural workflow plus bounded startup and
-shutdown evidence:
+evidence. The representative request and note-operation pairs below came from
+the cell's captured response headers. The trace is the release-filtered joined
+trace inspected in Sentry. Counts include the natural workflow plus bounded
+startup and shutdown evidence:
 
-| Enabled cell    | Release logs | Trace-header logs | Joined trace                       | Replay                             |
-| --------------- | -----------: | ----------------: | ---------------------------------- | ---------------------------------- |
-| Dev desktop     |          105 |                13 | `2f47390d59994706b8564fde16ca0532` | `fc8d32cc101447af95a07a7d06bb3449` |
-| Dev Pixel 6     |          102 |                12 | `5f7a665b83a9464a923a0bdef5e4da52` | `ed9902fb3844461388231299a5f979fc` |
-| Preview desktop |           96 |                13 | `7349930885bd4a6b967b07bdd870ff9f` | `2ba342c5fdbb4112a9552b013ef07dc3` |
-| Preview Pixel 6 |           96 |                13 | `8ad61efd56c84c16a368cc7bf3bcfbc1` | `9914e29da7ae415fabe7fbf054768db0` |
+| Enabled release identity                                          | Logs | Trace-header logs | Representative request ID              | Representative note-operation ID       | Joined trace                       | Replay                             |
+| ----------------------------------------------------------------- | ---: | ----------------: | -------------------------------------- | -------------------------------------- | ---------------------------------- | ---------------------------------- |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-desktop-enabled`     |  105 |                13 | `2c6d2b5e-a7cf-42a1-9673-d53ec43fdc61` | `cffd5a07-410d-4629-ba4d-2038b59ebdf1` | `2f47390d59994706b8564fde16ca0532` | `fc8d32cc101447af95a07a7d06bb3449` |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-pixel6-enabled`      |  102 |                12 | `6e6ee88c-b76b-47dd-b50f-799b6955d681` | `8494db70-4dcf-42fc-88a0-4a3bc31f5074` | `5f7a665b83a9464a923a0bdef5e4da52` | `ed9902fb3844461388231299a5f979fc` |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-desktop-enabled` |   96 |                13 | `a9599c97-30b0-4330-8ea5-8282c677a58e` | `e3d1f0bd-8476-4b87-a41f-488eecf909f1` | `7349930885bd4a6b967b07bdd870ff9f` | `2ba342c5fdbb4112a9552b013ef07dc3` |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-pixel6-enabled`  |   96 |                13 | `25f9e35b-e1ab-46d7-909a-33fed2c549c3` | `e7da1abd-2cdd-4b94-a06d-aab4c8759e1b` | `8ad61efd56c84c16a368cc7bf3bcfbc1` | `9914e29da7ae415fabe7fbf054768db0` |
 
 Each trace visibly joined browser work, `api.request`, proxied HTTP, Fastify
 request handling, and server `note.read` or `note.save` semantic spans. The
@@ -250,6 +301,13 @@ one deliberate web issue event and one deliberate server issue event. Both
 preview releases returned zero web issues and zero server issues. The expected
 `409` therefore created no unexpected issue in any enabled cell.
 
+| Enabled release identity                                          | Deliberate web issues | Deliberate server issues | Unexpected `409` issues | Shutdown delivery and process result                                       |
+| ----------------------------------------------------------------- | --------------------: | -----------------------: | ----------------------: | -------------------------------------------------------------------------- |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-desktop-enabled`     |                     1 |                        1 |                       0 | started 08:18:47.064Z, flushed 08:18:47.192Z, exit 0                       |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-pixel6-enabled`      |                     1 |                        1 |                       0 | started 08:18:48.781Z, flushed 08:18:48.896Z, exit 0                       |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-desktop-enabled` |                     0 |                        0 |                       0 | started 08:18:50.523Z, flushed 08:18:50.637Z, exit 0                       |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-pixel6-enabled`  |                     0 |                        0 |                       0 | started 08:16:46.965Z, flushed 08:16:47.080Z, exit 0, 227 ms total process |
+
 The original package-manager PTY signal ended its wrapper before shutdown
 records were observable. A bounded, non-product direct-listener probe then sent
 `SIGTERM` to each enabled release. All four listeners exited with code zero and
@@ -261,13 +319,14 @@ not change.
 
 ## Findings And Dispositions
 
-| Finding                                                                                            | Disposition                                                                                                                                            |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Protected ignored `apps/web/dist` caused the first validation setup to scan old generated bundles. | Parked byte-for-byte, reran the complete validation successfully, then restored the exact original directory. No repository or policy change.          |
-| One initial disabled desktop Playwright listener attempt failed before writes.                     | Restarted with a unique owned listener. No product request or filesystem mutation occurred.                                                            |
-| One development desktop enabled strict locator was ambiguous after sidebar selection.              | Continued from the observed coherent state. No duplicate interaction or request occurred.                                                              |
-| Package-manager PTY shutdown did not expose Sentry shutdown records.                               | Reproduced graceful shutdown directly for all four enabled releases. Each exited zero and delivered one started/flushed pair. No code repair required. |
-| Development Pixel observed one Replay envelope in flight at browser close.                         | Authenticated Sentry showed exactly one release-filtered Replay with the unique cell workflow. Delivery confirmed.                                     |
+| Finding                                                                                             | Disposition                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protected ignored `apps/web/dist` caused the first validation setup to scan old generated bundles.  | Parked byte-for-byte, reran the complete validation successfully, then restored the exact original directory. No repository or policy change.           |
+| One initial disabled desktop Playwright listener attempt failed before writes.                      | Restarted with a unique owned listener. No product request or filesystem mutation occurred.                                                             |
+| One development desktop enabled strict locator was ambiguous after sidebar selection.               | Continued from the observed coherent state. No duplicate interaction or request occurred.                                                               |
+| Package-manager PTY shutdown did not expose Sentry shutdown records.                                | Reproduced graceful shutdown directly for all four enabled releases. Each exited zero and delivered one started/flushed pair. No code repair required.  |
+| Development Pixel observed one Replay envelope in flight at browser close.                          | Authenticated Sentry showed exactly one release-filtered Replay with the unique cell workflow. Delivery confirmed.                                      |
+| Internal conformance review found the run ownership and release-correlation evidence too aggregate. | Added the exact roots, cell paths, sessions, runtime identities, sentinels, releases, request/operation pairs, issue counts, and shutdown dispositions. |
 
 No implementation finding required Scope Re-selection. No semantic, SDK,
 configuration, correlation, Replay, shutdown, storage, or product-workflow
@@ -275,8 +334,8 @@ behavior changed.
 
 ## Cleanup Ledger
 
-- All eight browser sessions, eight frontend/backend listeners, and four direct
-  shutdown probes were stopped.
+- All eight browser sessions, eight frontend/backend listener pairs, and four
+  direct shutdown probes were stopped by exact owned session or PID identity.
 - All eight disposable clusters and their `.azurite` identities were removed
   after the byte/hash ledger above was recorded.
 - The Playwright inspection session detached before the cloned Chrome process
