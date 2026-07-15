@@ -202,13 +202,14 @@ cluster.
 | Optimized-production Pixel 6 | Startup, touch sidebar, Back/Forward, source/WYSIWYG switching, exact edit, durable reload recovery, Save and cleanup passed; 412/412 width had no overflow and console was clean.                                  |
 | Optimized Pixel 6 + Sentry   | The cumulative workflow, correlation, browser/server SDK, Logs, Trace Explorer, Replay, expected-conflict, and cleanup proof below passed without changing product results or request ownership.                    |
 
-All phone cells used the Playwright `Pixel 6` descriptor: 412 × 839 CSS
-viewport and 2.625 device-pixel ratio. The Sentry-enabled cell additionally
-proved one touch point and a 412/412 document width. In the original cells each
-Save produced one PUT; expected navigation and reload produced one current read
-per transition. No unexpected browser error, duplicate write/action,
-incoherent sidebar/history state, or leaked lifecycle resource appeared.
-Development emitted only the existing Vue esm-bundler feature-flag warning.
+All phone cells used the Playwright `Pixel 6` descriptor. The original matrix
+recorded its 412 × 839 CSS viewport; the Sentry-enabled cell additionally
+recorded its 412 × 915 CSS screen, 2.625 device-pixel ratio, one touch point,
+and 412/412 document width. In the original cells each Save produced one PUT;
+expected navigation and reload produced one current read per transition. No
+unexpected browser error, duplicate write/action, incoherent sidebar/history
+state, or leaked lifecycle resource appeared. Development emitted only the
+existing Vue esm-bundler feature-flag warning.
 
 All Playwright sessions, profiles/artifacts, five temporary clusters, browser
 draft records, ports 3000/4173/5173, and server/Vite runtimes were removed.
@@ -234,6 +235,33 @@ moved into `page.evaluate`, an exact Replay Play locator, and Sentry Logs'
 canonical `logsQuery` parameter. None repeated a product submission or created
 an extra request. No Task 3D regression appeared, so production code and the
 four Sentry-disabled acceptance cells remained unchanged.
+
+The cell ran in actual Chrome **150.0.7871.116**. Its exact emulated Android
+Chrome user agent was
+`Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.10 Mobile Safari/537.36`;
+Sentry consequently identified it as Chrome Mobile 151.0.7922 on Android 12.
+The emulated screen was **412 × 915 CSS pixels**.
+`matchMedia("(pointer: coarse)").matches` was `true`,
+`matchMedia("(hover: none)").matches` was `true`, `maxTouchPoints` was one,
+and the device-pixel ratio was 2.625.
+
+The exact successful Playwright `tap()` interactions were:
+
+- `page.getByRole("button", {name: /Task 3D Sentry Route 231041Z/}).tap()`;
+- `page.getByRole("button", {name: "Markdown"}).tap()` three times, before
+  existing-note recovery, Save, and missing-note recovery;
+- `page.getByRole("button", {name: "Discard draft and reload disk version"}).tap()`;
+- `page.getByRole("textbox").tap()` before WYSIWYG typing and Undo;
+- `page.getByRole("button", {name: "Save"}).tap()` for the successful Save;
+- `page.locator("article").getByRole("button", {name: "Save", exact: true}).tap()`
+  for the expected-conflict submission;
+- `page.getByRole("button", {name: /Task 3D Sentry Initial 231041Z/}).tap()`;
+- `page.getByRole("button", {name: /Task 3D Cluster Sentinel 231041Z/}).tap()`.
+
+Back and Forward used Playwright navigation commands. The conflict-restoration
+and missing-note Discard confirmations used `click()` plus dialog acceptance.
+The ambiguous pre-request Save locator performed no interaction and emitted no
+request.
 
 ### Product preservation
 
@@ -322,6 +350,19 @@ unexpected issue.
 
 ### Cleanup and security ledger
 
+The exact owned cleanup allowlist was:
+
+| Resource                         | Exact identity                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Product Playwright session       | `task3d-sentry-preservation-20260714T231041Z-ee10775-optimized-pixel6-sentry-enabled`                                                      |
+| Authenticated inspection session | `task3d-sentry-preservation-20260714T231041Z-ee10775-sentry-inspection`                                                                    |
+| Complete Chrome clone            | `/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T/azurite-task3d-sentry-preservation-20260714T231041Z-ee10775.4E3ExL/chrome-profile-clone` |
+| Disposable cluster               | `/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T/azurite-task3d-sentry-preservation-20260714T231041Z-ee10775.4E3ExL/cluster`              |
+| Fastify runtime                  | PID 26512 at `127.0.0.1:3000`                                                                                                              |
+| Optimized-preview runtime        | PID 26607 at `http://127.0.0.1:4173`                                                                                                       |
+| Owned QA root                    | `/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T/azurite-task3d-sentry-preservation-20260714T231041Z-ee10775.4E3ExL`                      |
+| Owned artifact root              | `/Users/danielmulec/Projekte/azurite/output/playwright/task3d-sentry-preservation-20260714T231041Z-ee10775`                                |
+
 The authorized Chrome source remained running and untouched. A whole-profile
 metadata-preserving `ditto` clone omitted only `SingletonLock`,
 `SingletonCookie`, and `SingletonSocket`. A second reconciliation pass, needed
@@ -333,17 +374,14 @@ CDP port 60813; Playwright attached read-only and detached before shutdown.
 
 The clone, its entire process group, all clone logs, and authenticated
 Playwright inspection artifacts were deleted immediately after inspection.
-The remaining disposable QA root
-`/var/folders/z7/vnklz78n3954_0ljxwny2p0m0000gn/T/azurite-task3d-sentry-preservation-20260714T231041Z-ee10775.4E3ExL`
-and repository artifact root
-`output/playwright/task3d-sentry-preservation-20260714T231041Z-ee10775` were
-then deleted in full, including the cluster, raw network/header captures, and
-product trace. Owned browser PID 27445, server PID 26512, preview PID 26607,
-the product and inspection Playwright sessions, and listeners on 3000/4173 were
-stopped. The ignored `.env.local` remained unmodified. Final inspection found
-no browser session, clone process, artifact, QA root, runtime, listener, branch,
-or additional worktree. No DSN, token, cookie, authorization header, secret
-value, or authenticated clone data was printed, committed, or retained.
+The allowlisted QA and artifact roots were then deleted in full, including the
+cluster, raw network/header captures, and product trace. Owned browser PID
+27445, server PID 26512, preview PID 26607, the product and inspection
+Playwright sessions, and listeners on 3000/4173 were stopped. The ignored
+`.env.local` remained unmodified. Final inspection found no browser session,
+clone process, artifact, QA root, runtime, listener, branch, or additional
+worktree. No DSN, token, cookie, authorization header, secret value, or
+authenticated clone data was printed, committed, or retained.
 
 ## Independent Review And Delivery
 

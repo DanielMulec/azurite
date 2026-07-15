@@ -254,9 +254,11 @@ or renamed ceremony does not qualify.
 
 Implementation completed on 2026-07-14 and met those structural targets. The
 same 20-file physical envelope fell **4,048 -> 3,935** lines; the full evidence,
-preserved guarantees, verification counts, and four-cell browser matrix live in
-`docs/qa/post-strictmode-store-workflow-boundaries.md`. Task 3E remains a
-separate unapproved checkpoint.
+preserved guarantees, and verification counts live in
+`docs/qa/post-strictmode-store-workflow-boundaries.md`. Browser evidence is the
+original four-cell development/optimized desktop/Pixel 6 product matrix plus
+one additional optimized Pixel 6 Sentry-enabled preservation cell. Task 3E
+remains a separate unapproved checkpoint.
 
 ### 4. Extract The Shared Sentry Fail-Open Carrier
 
