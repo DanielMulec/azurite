@@ -11,7 +11,8 @@ flush, and shutdown authorities.
 
 The authoritative start is
 `3d98cc9fca31a86c2c2b846e8cb346400e647ecf`. The final implementation commit
-and exact delivery range are recorded after the candidate commit is created.
+is `ad1943755c68031d64afe8b70fa0c1cfe37ce9cd`; the exact implementation range
+is `3d98cc9fca31a86c2c2b846e8cb346400e647ecf..ad1943755c68031d64afe8b70fa0c1cfe37ce9cd`.
 Task 3E remains a candidate awaiting separate independent conformance review.
 
 ## Delivered Boundary
