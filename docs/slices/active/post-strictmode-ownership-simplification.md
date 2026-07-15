@@ -7,14 +7,16 @@ Active. Daniel accepted the documentation-only Task 3A analysis at commit
 and Task 3C persistence-result simplification are complete with authoritative
 evidence in `docs/qa/post-strictmode-editor-session-authority.md` and
 `docs/qa/post-strictmode-persistence-results.md`. Daniel approved the
-post-Task-3C Task 3D store-workflow boundary on 2026-07-14; Task 3E remains
-unapproved. Daniel accepted Task 3D at
+post-Task-3C Task 3D store-workflow boundary on 2026-07-14. Daniel accepted Task 3D at
 `1cbdbe3f598ae71dfac07e29e9b46ad91f1a46f0` on 2026-07-15 after independent
 conformance review returned `ACCEPT` with zero mandatory corrections.
 Authoritative evidence lives in
-`docs/qa/post-strictmode-store-workflow-boundaries.md`. Slice 7E remains
-planned, unrefreshed, unpromoted, and unimplemented until the selected units
-below are complete unless Daniel explicitly reselects this proposal's scope.
+`docs/qa/post-strictmode-store-workflow-boundaries.md`. Daniel approved the
+re-baselined Task 3E shared Sentry fail-open carrier for implementation on
+2026-07-15 from clean operational commit
+`a26d4f6671f96d15bce606e3951c861b763ca35a`. Slice 7E remains planned,
+unrefreshed, unpromoted, and unimplemented until the selected units below are
+complete unless Daniel explicitly reselects this proposal's scope.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
@@ -260,62 +262,69 @@ preserved guarantees, and verification counts live in
 `docs/qa/post-strictmode-store-workflow-boundaries.md`. Browser evidence is the
 original four-cell development/optimized desktop/Pixel 6 product matrix plus
 one additional optimized Pixel 6 Sentry-enabled preservation cell. Task 3E
-remains a separate unapproved checkpoint.
+remains a separate approved implementation checkpoint.
 
 ### 4. Extract The Shared Sentry Fail-Open Carrier
 
-- Add one stateless, Sentry-free shared carrier implementation receiving the
-  existing minimal SDK/config values. Keep active runtime installation and SDK
-  initialization local to web/server; keep enablement/flush server-only.
-- Remove one duplicate implementation of record, capture, span, attribute,
-  scope, caught-error, and best-effort decisions. Thin local functions preserve
-  current caller names without reimplementing the branch trees.
+- Complete the existing shared fail-open span seam as one stateless, Sentry-free
+  carrier receiving only the minimal carrier callbacks plus current environment
+  and release values. Keep the two active runtime states and installation local
+  to web/server.
+- Consolidate the duplicated record, capture, adapter-level span selection,
+  attribute, scope, caught-error, and best-effort decisions. Thin local functions
+  preserve current caller names without reimplementing the branch trees.
+- Keep configuration parsing, SDK initialization and dynamic imports, Replay,
+  Fastify integration, trace targets, server enablement/flush, and shutdown
+  budgets local to their current authorities and behaviorally unchanged.
 - Do not add semantic events, payloads, state snapshots, instrumentation, or
   Slice 7E behavior.
 
-The duplicated adapters contain more than 200 lines of common decision logic;
-combined production lines and fail-open branch implementations must decrease,
-with the three common decision trees **2 copies -> 1**. This foundation is
-independently useful and is the last prerequisite before any Slice 7E refresh.
+The exact affected baseline is **900** physical production lines: shared 287,
+web 299, and server 314. The adapters retain 277 ordered common lines and differ
+by only 22 web/37 server lines. Include every replacement or new carrier file in
+the result: total lines fall below 900; record, capture, and adapter-level span
+trees fall **2 copies -> 1**; the existing exact-once span executor remains
+singular; product authorities remain **7 -> 7**; and local runtime-state owners
+remain **2 -> 2**. Moving or renaming branch trees does not qualify.
+
+Scope Re-selection is required if implementation needs a new shared state or
+configuration authority, dependency, semantic event or payload, SDK
+initialization, transport, Replay, correlation, shutdown-policy change, new QA
+surface or build variant, or Slice 7E instrumentation. A newly discovered
+fail-open defect that changes behavior also returns to Daniel for approval.
 
 ## Negative Side-Effect Guardrails
 
 Baseline: [Product guardrails](../../reference/product-guardrails.md).
 
-- A smaller editor contract must not recreate Crepe, reset Undo/selection,
-  change exact source spelling, accept a stale callback, or authorize Save or
-  handoff after a rejected publication.
-- A smaller persistence contract must not let reads overtake writes, recapture a
-  failed retry, delete a newer/future record, lose an epoch barrier, or turn a
-  blocked destructive handoff into continuation.
-- Store workflow consolidation must not move route-intent activation before gate
-  continuation/location confirmation, invalidate a still-loading predecessor,
-  weaken stale-result ownership, or merge same-note and different-note Save
-  behavior.
+Accepted Tasks 3B through 3D retain their documented guardrails and evidence.
+
 - Shared fail-open extraction must preserve disabled no-op behavior, product
   callback identity/count/result/throw/rejection, scope isolation, and enabled
   server shutdown flush semantics.
 
 ## Verification Plan
 
-Existing proof is anchored in `markdown-authority-controller`,
-`editor-session-gate`, and `app-router` tests for editor authority;
-`draft-database-mutation-outcomes`, `draft-persistence-coordinator`, recovery,
-Discard, and concurrency tests for persistence; store/hardening/save ownership
-and the four route-owner suites for store workflows; and the shared, web, and
-server `runtime-observability` suites for Sentry. The completed Slice 7D and
-StrictMode QA documents supply browser and preserved-behavior evidence.
+Tasks 3B through 3D retain their accepted QA evidence. Task 3E is a direct
+observability change under the Playwright runbook. Shared-carrier and
+thin-adapter tests prove disabled/enabled record/capture/span, exact once-only
+delivery, hostile carriers, attribute filtering, caught-error normalization,
+scope fallback, exact product and promise outcomes, usable installation, actual
+server flush delegation, correlation, and unchanged SDK-free core/product
+boundaries. The focused baseline is **18 files / 82 tests**. Run the full
+development/built-preview, desktop/Pixel 6, Sentry-disabled/enabled eight-cell
+matrix.
 
-| Unit                | Required proof                                                                                                                                                                                                                                                                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Editor authority    | Controller, Milkdown, StrictMode, gate, mode-revision, draft-settlement, Save-session, route, recovery, and future-schema suites; product and Markdown-QA desktop/Pixel 6 development and optimized-production acceptance including exact source, WYSIWYG, Undo, mode switch, Save/conflict, Back/Forward, failure fallback, and unmount.               |
-| Persistence results | Database mutation, coordinator, recovery, Discard, gate, save-session, concurrency, route-race, and lifecycle tests prove ordering, exact retry, queue release, conditional cleanup, future-schema preservation, same-surface failed Discard, one replay receipt/write, and zero final obligations; desktop/Pixel 6 recovery acceptance in both builds. |
-| Store workflows     | Route owner application/cancellation/outcome/lifecycle, store, hardening, concurrency, recovery, Discard, Save ownership, gate, and UI suites; both-build desktop/Pixel 6 startup, sidebar/history, edit/Save/conflict, recovery/Discard, and unmount acceptance.                                                                                       |
-| Sentry carrier      | Shared, web, and server runtime-observability tests cover disabled/enabled record/capture/span, hostile SDK carriers, exact product outcome, server enablement/flush, API/note correlation, and unchanged SDK-free core/product boundaries; full builds suffice because no product UI changes.                                                          |
+| Sentry mode | Required proof                                                                                                                                                                                                                                                                                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enabled     | Real React/Node SDK startup and delivery; natural list/read/route/Save/conflict logs; trace propagation and browser/API/Fastify/server joining; unique disposable Replay; exact operation counts; expected `409` without an unexpected issue; graceful shutdown delivery; and development-cell deliberate record/capture/span proof through the existing diagnostics surface. |
+| Disabled    | Matching product outcomes and operation counts; zero Sentry traffic and trace headers; intact Azurite correlation; and unchanged disabled shutdown.                                                                                                                                                                                                                           |
 
-Every unit records before/after production lines, owners, result families,
-statuses, capabilities, translation layers, and material caller branches. Run
-focused proof, then:
+Deterministic carrier tests own hostile SDK behavior; no new production QA hook
+or optimized-build diagnostics surface is permitted.
+
+Task 3E records before/after production lines, owners, contracts, carrier
+operations, and material caller branches. Run focused proof, then:
 
 ```sh
 /opt/homebrew/bin/pnpm validate
