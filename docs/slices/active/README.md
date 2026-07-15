@@ -16,9 +16,11 @@ All four selected simplification units are complete and accepted. The active
 program remains open because Daniel determined that the current runtime and
 test surface still contains materially excessive ceremony. Daniel approved the
 read-only Zero-Based Complexity Re-Baseline on 2026-07-15 and suspended the
-earlier numerical compression compass as planning authority. No 7X slice is
-next in the delivery sequence; Slice 7E remains planned, unrenumbered,
-unrefreshed, unpromoted, and unimplemented.
+earlier numerical compression compass as planning authority. All three
+independent investigations are complete. The active program records the current
+B2 decision posture and approval boundary. No 7X slice is next in the delivery
+sequence; Slice 7E remains planned, unrenumbered, unrefreshed, unpromoted, and
+unimplemented.
 
 The Route Failure Resilience outcomes from the Slice 7C adversarial review
 remain deliberately deferred until after Slice 7F and visible Cluster product

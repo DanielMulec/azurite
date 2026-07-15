@@ -31,6 +31,12 @@ checkpoint on 2026-07-15. It will challenge the current runtime, verification,
 QA, and live-authority cost from current product behavior and guarantees before
 another implementation unit is selected.
 
+All three read-only stages completed on 2026-07-15. Their independent
+clean-room, repository-cost, and reconciliation reports are supporting evidence,
+not implementation authority. The complete reconciliation report remains
+separate evidence; this document records the durable decision posture that
+survived Daniel's review.
+
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
 
@@ -71,11 +77,47 @@ Every stage must prevent metric gaming, distinguish current product guarantees
 from inherited machinery, and return evidence to Daniel before documentation
 selects an implementation unit or changes an accepted product guarantee.
 
-The sequence is deliberately serial on `main`; every unit re-baselines after its
-predecessor. Persistence and store work remain separate because the current call
-graph permits a smaller persistence contract while all store workflows continue
-to work. Combining them would mix result semantics with route, save, and store
-ownership without completing additional user value.
+The reconciliation ranked a coherent frontend authority re-foundation ahead of
+in-place pruning and a whole-product refoundation. Daniel then fixed one missing
+product constraint: TanStack Router has a certain long-term role because cluster
+opening and future product surfaces must be addressable. The current preferred
+candidate is therefore **B2**, a
+router-retaining frontend authority re-foundation. B2 keeps TanStack Router and
+the principal React, Zustand, Dexie, Milkdown/Crepe, Sentry, Fastify, Zod, and
+TypeScript stack while challenging the amount of Azurite-owned coordination
+around it.
+
+B2 is a promising proposition, not approved architecture or implementation
+scope. Option A, in-place pruning, remains the fallback if a read-only
+definition and feasibility checkpoint cannot show that B2 creates a materially
+smaller and clearer authority model without weakening current guarantees or
+future extension seams. The reconciliation's runtime and proof envelopes remain
+investigation hypotheses rather than acceptance targets. Option C has no current
+product justification for reopening the comparatively stable core, server,
+formats, and durable contracts.
+
+Any later B2 checkpoint must preserve the outcomes behind navigation ownership,
+stale-work rejection, ordered draft persistence, exact Markdown authority,
+Crepe lifecycle safety, and Sentry diagnostics. It may consolidate or replace
+their current gates, leases, registries, executors, epochs, result families, and
+distributed Zustand workflow only where a smaller design proves the same
+outcomes. Trusted-Origin enforcement and unsafe Markdown URL handling remain
+separate Scope Re-selection findings rather than silently annexed
+simplification work.
+
+Daniel's intended product sequence after simplification is to refresh and
+complete Slice 7E diagnostics, resolve the mandatory Slice 7F correctness
+disposition against the resulting architecture, deliver file creation,
+deletion, and rename as coherent basic CRUD work, and then build the real
+Azurite cluster, indexing, linking, graph, and scripting capabilities. The
+definition checkpoint must provide deliberate seams for that sequence without
+implementing speculative future machinery.
+
+The accepted sequence ran serially on `main`; every unit re-baselined after its
+predecessor. Persistence and store work were delivered separately because the
+call graph permitted a smaller persistence contract while all store workflows
+continued to work. Combining them would have mixed result semantics with route,
+save, and store ownership without completing additional user value.
 
 The accepted four-unit sequence was consolidation, not a rewrite. Zustand
 remains the accepted live product authority, the Markdown controller remains a
