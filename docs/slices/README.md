@@ -22,8 +22,10 @@ completed. The post-StrictMode simplification program remains the authoritative
 active document. Task 3D store-workflow boundaries are complete and accepted.
 Task 3E is complete and accepted at
 `b2218fe366929fd195cbfa969da25302e83f433b`. Daniel has kept the simplification
-program active for another re-baseline and scope decision. No 7X slice is next;
-Slice 7E remains unapproved, unrefreshed, and unimplemented.
+program active and approved a read-only Zero-Based Complexity Re-Baseline as the
+next checkpoint. The earlier numerical compression compass is suspended as
+planning authority. No 7X slice is next; Slice 7E remains unapproved,
+unrefreshed, and unimplemented.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -68,8 +70,8 @@ Slice 7E remains unapproved, unrefreshed, and unimplemented.
    `b2218fe366929fd195cbfa969da25302e83f433b`. Its complete evidence is in
    `docs/qa/post-strictmode-sentry-fail-open-carrier.md`. Daniel determined that
    the accepted four-unit sequence still leaves excessive runtime and test
-   ceremony, so the next checkpoint is a fresh simplification re-baseline and
-   scope decision.
+   ceremony, so the next checkpoint is the approved read-only Zero-Based
+   Complexity Re-Baseline and its later scope decision.
 7. Planned and deliberately paused: Slice 7E, semantic editor and persistence
    diagnostics. Its lifecycle prerequisites are complete. Daniel has explicitly
    directed that no 7X work start until the continuing simplification expedition

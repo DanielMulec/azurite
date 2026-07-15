@@ -26,6 +26,11 @@ therefore remains active. No 7X slice will be refreshed, promoted, or started
 until the remaining cleanup has been re-baselined and Daniel has approved the
 next coherent simplification unit.
 
+Daniel approved the read-only **Zero-Based Complexity Re-Baseline** as the next
+checkpoint on 2026-07-15. It will challenge the current runtime, verification,
+QA, and live-authority cost from current product behavior and guarantees before
+another implementation unit is selected.
+
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
 
@@ -47,12 +52,24 @@ pre-Task-3A baseline and the accepted post-Task-3E state, a reduction of
 **1,608**. The current automated suite contains **469 executed cases across 78
 test files** and **13,931 physical lines** of test and helper code.
 
-A read-only audit identified **80 to 140** carefully selected cases, **35 to
-50** files, and **4,000 to 6,000** test lines as an evidence-based compression
-compass. These are investigation anchors. Re-baselining must reproduce the
-measurements, identify remaining runtime ceremony, map retained tests to unique
-product and engineering guarantees, and bring Daniel the next scope decision
-before any deletion contract or 7X promotion is approved.
+Daniel suspended the earlier **80 to 140** cases, **35 to 50** files, and
+**4,000 to 6,000** test lines compass as planning authority. Those figures
+remain historical hypotheses rather than an approved floor or target. The
+questions of whether the current behavior can fit near **3,000 runtime lines**
+or receive credible proof through approximately **10 tests** are challenge
+hypotheses, not deletion contracts.
+
+The Zero-Based Complexity Re-Baseline uses three independent read-only stages:
+
+1. derive the current product contract and a clean-room minimum without first
+   inheriting the implemented architecture;
+2. reproduce the repository cost and map runtime, tests, QA harnesses, and live
+   documentation to unique current guarantees; and
+3. reconcile both investigations independently into decision-ready options.
+
+Every stage must prevent metric gaming, distinguish current product guarantees
+from inherited machinery, and return evidence to Daniel before documentation
+selects an implementation unit or changes an accepted product guarantee.
 
 The sequence is deliberately serial on `main`; every unit re-baselines after its
 predecessor. Persistence and store work remain separate because the current call
@@ -60,12 +77,15 @@ graph permits a smaller persistence contract while all store workflows continue
 to work. Combining them would mix result semantics with route, save, and store
 ownership without completing additional user value.
 
-This is consolidation, not a rewrite. Zustand remains the accepted live product
-authority, the Markdown controller remains a projection/checkpoint adapter,
-Crepe remains a disposable WYSIWYG runtime, the editor gate remains a transient
-handoff capability, the draft coordinator retains ordering obligations, Dexie
-retains durable recovery, the route owner retains navigation authority, and
-Sentry remains diagnostic infrastructure.
+The accepted four-unit sequence was consolidation, not a rewrite. Zustand
+remains the accepted live product authority, the Markdown controller remains a
+projection/checkpoint adapter, Crepe remains a disposable WYSIWYG runtime, the
+editor gate remains a transient handoff capability, the draft coordinator
+retains ordering obligations, Dexie retains durable recovery, the route owner
+retains navigation authority, and Sentry remains diagnostic infrastructure.
+The zero-based investigation may recommend pruning, bounded subsystem
+replacement, or deeper re-foundation; none becomes approved architecture or
+implementation scope until Daniel selects it after reconciliation.
 
 ## User Story
 
