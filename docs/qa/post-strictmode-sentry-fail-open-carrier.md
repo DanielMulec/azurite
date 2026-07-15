@@ -196,9 +196,10 @@ listener ports, then verified that every recorded PID had exited.
 Each cell's exact release identity is `RELEASE_PREFIX-<cell label>`. Its three
 filesystem sentinels are `00-direct-<cell label>.md`,
 `10-route-<cell label>.md`, and `99-sentinel-<cell label>.md` inside that
-cell's cluster. Each cluster also owned its `.azurite/cluster-id` value shown in
-the matrix table. These identities, the eight path rows, and the eight PID/PTY
-pairs formed the complete product-cell cleanup allowlist.
+cell's cluster. Each cluster also owned its `.azurite/cluster.json` file, whose
+`clusterId` field is the UUID shown in the matrix table. These identities, the
+eight path rows, and the eight PID/PTY pairs formed the complete product-cell
+cleanup allowlist.
 
 Authenticated Sentry inspection additionally owned
 `BROWSER_SESSION_PREFIX-sentry-inspection`, the complete
