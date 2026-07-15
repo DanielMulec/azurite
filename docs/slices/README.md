@@ -19,8 +19,8 @@ truth.
 The StrictMode lifecycle-conformance foundation, Task 3B editor-session
 authority consolidation, and Task 3C persistence-result simplification are
 completed. The post-StrictMode simplification program remains the authoritative
-active document. Task 3D store-workflow boundaries are implemented; Task 3E and
-Slice 7E remain unapproved and unimplemented.
+active document. Task 3D store-workflow boundaries are complete and accepted;
+Task 3E and Slice 7E remain unapproved and unimplemented.
 
 1. Completed: Slice 7A, Sentry runtime delivery foundation.
 2. Completed: Slice 7B, request correlation and note-route evidence. Both
@@ -50,12 +50,13 @@ Slice 7E remain unapproved and unimplemented.
    Azurite-owned router, editor-adapter, registration, persistence, and action
    lifecycles are generation-safe. Milkdown remains officially released and
    unmodified, with rejected-create private cleanup qualified explicitly.
-6. Active program; Tasks 3B–3D implemented and Task 3E unapproved:
+6. Active program; Tasks 3B through 3D accepted and Task 3E unapproved:
    [Post-StrictMode Ownership Simplification](active/post-strictmode-ownership-simplification.md).
    Task 3B consolidated editor-session authority and Task 3C simplified the
    persistence result ladder. Task 3D removed the universal store context and
-   established private route, Save, draft, and Discard workflow boundaries. Its
-   evidence is in
+   established private route, Save, draft, and Discard workflow boundaries.
+   Daniel accepted its independently reviewed delivery at
+   `1cbdbe3f598ae71dfac07e29e9b46ad91f1a46f0`. Its evidence is in
    `docs/qa/post-strictmode-store-workflow-boundaries.md`; the Sentry unit
    remains a separate unapproved checkpoint.
 7. Planned: Slice 7E, semantic editor and persistence diagnostics. Its lifecycle

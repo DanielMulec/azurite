@@ -8,11 +8,13 @@ and Task 3C persistence-result simplification are complete with authoritative
 evidence in `docs/qa/post-strictmode-editor-session-authority.md` and
 `docs/qa/post-strictmode-persistence-results.md`. Daniel approved the
 post-Task-3C Task 3D store-workflow boundary on 2026-07-14; Task 3E remains
-unapproved. Task 3D implementation is complete with authoritative evidence in
-`docs/qa/post-strictmode-store-workflow-boundaries.md`; independent conformance
-acceptance is deliberately not claimed here. Slice 7E remains planned,
-unrefreshed, unpromoted, and unimplemented until the selected units below are
-complete unless Daniel explicitly reselects this proposal's scope.
+unapproved. Daniel accepted Task 3D at
+`1cbdbe3f598ae71dfac07e29e9b46ad91f1a46f0` on 2026-07-15 after independent
+conformance review returned `ACCEPT` with zero mandatory corrections.
+Authoritative evidence lives in
+`docs/qa/post-strictmode-store-workflow-boundaries.md`. Slice 7E remains
+planned, unrefreshed, unpromoted, and unimplemented until the selected units
+below are complete unless Daniel explicitly reselects this proposal's scope.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
