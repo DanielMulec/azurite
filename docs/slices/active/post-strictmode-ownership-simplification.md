@@ -13,10 +13,12 @@ conformance review returned `ACCEPT` with zero mandatory corrections.
 Authoritative evidence lives in
 `docs/qa/post-strictmode-store-workflow-boundaries.md`. Daniel approved the
 re-baselined Task 3E shared Sentry fail-open carrier for implementation on
-2026-07-15 from clean operational commit
-`a26d4f6671f96d15bce606e3951c861b763ca35a`. Slice 7E remains planned,
-unrefreshed, unpromoted, and unimplemented until the selected units below are
-complete unless Daniel explicitly reselects this proposal's scope.
+2026-07-15 from authoritative clean commit
+`3d98cc9fca31a86c2c2b846e8cb346400e647ecf`. Task 3E is candidate complete
+with evidence in `docs/qa/post-strictmode-sentry-fail-open-carrier.md` and
+awaits separate independent conformance review. Slice 7E remains planned,
+unrefreshed, unpromoted, and unimplemented until Daniel explicitly approves a
+later refreshed scope.
 
 Follow the bounded-review and concise-document rules in
 `docs/working-agreement.md` throughout implementation and promotion.
@@ -292,6 +294,23 @@ configuration authority, dependency, semantic event or payload, SDK
 initialization, transport, Replay, correlation, shutdown-policy change, new QA
 surface or build variant, or Slice 7E instrumentation. A newly discovered
 fail-open defect that changes behavior also returns to Daniel for approval.
+
+Implementation completed on 2026-07-15 without Scope Re-selection. One new
+315-line shared carrier reduced the affected production envelope **900 -> 740**
+lines: shared exact-once seam 287, shared carrier 315, web facade 59, and server
+facade 79. Record, capture, and adapter-level span selection each fell
+**2 copies -> 1**; the exact-once executor stayed **1 -> 1**, product
+authorities stayed **7 -> 7**, and local runtime owners stayed **2 -> 2**.
+
+The focused suite passed **19 files / 87 tests** and full validation passed
+**78 files / 469 tests**. The full development/preview, desktop/Pixel 6,
+disabled/enabled eight-cell matrix passed with exact product operations,
+disabled zero-traffic proof, real React/Node SDK 10.64.0 delivery, joined
+browser-to-server traces, one unique Replay per enabled release, expected issue
+counts, and graceful shutdown delivery. Exact measurements, filesystem proof,
+Sentry evidence, findings, and cleanup live in
+`docs/qa/post-strictmode-sentry-fail-open-carrier.md`. The implementation remains
+a candidate pending separate independent conformance acceptance.
 
 ## Negative Side-Effect Guardrails
 

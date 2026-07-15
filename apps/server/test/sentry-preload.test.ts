@@ -12,9 +12,13 @@ const tsxExecutable = fileURLToPath(
 );
 const statePrefix = "AZURITE_PRELOAD_STATE=";
 const stateProbe = [
-  "import('fastify').then(() => {",
+  "import('fastify').then(async () => {",
   "const state = globalThis[Symbol.for('azurite.sentry.preload-state')];",
-  `console.log('${statePrefix}' + JSON.stringify(state));`,
+  "const runtime = await import('./src/observability/server-runtime-observability.js');",
+  "const event = { name: 'carrier.preload', surface: 'server' };",
+  "runtime.recordServerRuntimeEvent(event);",
+  "const spanResult = runtime.runServerRuntimeSpan(event, () => 'carrier-usable');",
+  `console.log('${statePrefix}' + JSON.stringify({ ...state, carrierEnabled: runtime.isServerSentryRuntimeEnabled(), carrierUsable: spanResult === 'carrier-usable' }));`,
   "});",
 ].join("");
 
@@ -37,6 +41,8 @@ describe("custom server Sentry preload", () => {
     });
 
     expect(state).toEqual({
+      carrierEnabled: false,
+      carrierUsable: true,
       fastifyIntegrationConfigured: false,
       runtimeContextConfigured: false,
       sdkImported: false,
@@ -52,6 +58,8 @@ describe("custom server Sentry preload", () => {
     });
 
     expect(state).toEqual({
+      carrierEnabled: true,
+      carrierUsable: true,
       fastifyIntegrationConfigured: true,
       runtimeContextConfigured: true,
       sdkImported: true,

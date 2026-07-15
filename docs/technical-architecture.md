@@ -510,11 +510,22 @@ the original `500ms` fallback and performs no Sentry work.
 Typed helpers in `packages/shared`, `apps/web`, and `apps/server` implement
 request/note-operation correlation and form the extension seam for planned
 semantic diagnostics. They emit bounded list, load, save, API, and server-route
-lifecycles with exact IDs and outcome attributes. Runtime adapters are
-fail-open: SDK record, scope, capture, or span-carrier failure cannot alter a
-product callback's count, identity, result, throw, or rejection. Direct Sentry
-calls stay inside runtime adapter modules. Operational configuration and proof
-steps live in `docs/runbooks/sentry-debug.md`.
+lifecycles with exact IDs and outcome attributes. One stateless Sentry-free
+carrier in `packages/shared` owns record, capture, span selection, attribute
+filtering, event-local scope, caught-error normalization, and best-effort
+failure isolation. It receives only minimal SDK-shaped callbacks plus the
+current environment and release. SDK record, scope, capture, or span-carrier
+failure cannot alter a product callback's count, identity, result, throw, or
+rejection.
+
+Web and server retain independent runtime installation state and thin local
+caller facades. Configuration parsing, enabled-only SDK import and
+initialization, React Replay and browser tracing, Fastify integration, trace
+targets, server enablement query and flush, and shutdown sequencing remain in
+their surface-specific modules. Direct Sentry calls stay inside those runtime
+adapter and initialization modules; `packages/shared` and `packages/core`
+remain free of Sentry SDK imports. Operational configuration and proof steps
+live in `docs/runbooks/sentry-debug.md`.
 
 Explicit debug mode may capture complete Azurite product data needed to diagnose
 failures. Credential containment from

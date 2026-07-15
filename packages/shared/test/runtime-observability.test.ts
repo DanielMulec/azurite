@@ -142,6 +142,16 @@ describe("fail-open runtime span execution", () => {
 });
 
 describe("fail-open runtime span result preservation", () => {
+  it("preserves exact synchronous result identity", () => {
+    const productResult = { status: "product result" };
+    const callback = vi.fn(() => productResult);
+
+    expect(runFailOpenRuntimeSpan((guarded) => guarded(), callback)).toBe(
+      productResult,
+    );
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves the original product throw", () => {
     const error = new Error("product failure");
     const callback = vi.fn(() => {
@@ -180,6 +190,23 @@ describe("fail-open runtime span result preservation", () => {
 });
 
 describe("fail-open runtime span carrier settlement", () => {
+  it("ignores a hostile carrier thenable without replacing work", () => {
+    const hostileCarrier = Object.defineProperty({}, "then", {
+      get() {
+        throw new Error("hostile then accessor");
+      },
+    });
+    const callback = vi.fn(() => "product-result");
+
+    expect(
+      runFailOpenRuntimeSpan((guarded) => {
+        guarded();
+        return hostileCarrier;
+      }, callback),
+    ).toBe("product-result");
+    expect(callback).toHaveBeenCalledOnce();
+  });
+
   it("settles a distinct rejected carrier promise without replacing work", async () => {
     const productPromise = Promise.resolve("product-result");
     let rejectCarrier: ((error: unknown) => void) | undefined;

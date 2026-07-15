@@ -14,162 +14,51 @@ afterEach(() => {
   resetWebSentryRuntimeForTests();
 });
 
-describe("web runtime observability helpers", () => {
-  it("are no-op safe without an installed SDK", () => {
-    expect(
-      runWebRuntimeSpan(
-        { name: "future.7b.event", surface: "web" },
-        () => "completed",
-      ),
-    ).toBe("completed");
-  });
-});
+describe("web runtime observability facade", () => {
+  it("keeps direct record, capture, and span calls safe when disabled", () => {
+    const event = { name: "carrier.disabled", surface: "web" } as const;
+    const callback = vi.fn(() => "completed");
 
-describe("enabled web runtime observability", () => {
-  it("maps extensible events to structured carriers", () => {
+    expect(() => {
+      recordWebRuntimeEvent(event);
+      captureWebRuntimeError(new Error("product"), event);
+    }).not.toThrow();
+    expect(runWebRuntimeSpan(event, callback)).toBe("completed");
+    expect(callback).toHaveBeenCalledOnce();
+  });
+
+  it("forwards an installed SDK and current config to the shared carrier", () => {
     const fake = createFakeSdk();
     installWebSentryRuntime(
       fake.sdk,
       parseWebSentryConfig({
         VITE_SENTRY_DSN: "https://public@example.invalid/1",
         VITE_SENTRY_ENABLED: "true",
-        VITE_SENTRY_ENVIRONMENT: "test",
-        VITE_SENTRY_RELEASE: "azurite-test",
+        VITE_SENTRY_ENVIRONMENT: "web-test",
+        VITE_SENTRY_RELEASE: "azurite-web-test",
       }),
     );
-    const event = {
-      attributes: { "azurite.request_id": "future-7b" },
-      name: "future.7b.event",
-      spanName: "note.load",
-      spanOperation: "azurite.note.operation",
-      surface: "web",
-      tags: { "azurite.request_id": "future-7b" },
-    } as const;
+    const event = { name: "carrier.enabled", surface: "web" } as const;
+    const error = new Error("product");
 
     recordWebRuntimeEvent(event);
+    captureWebRuntimeError(error, event);
+    expect(runWebRuntimeSpan(event, () => 42)).toBe(42);
+
+    expect(fake.info).toHaveBeenCalledOnce();
     expect(fake.info).toHaveBeenCalledWith(
-      "future.7b.event",
+      event.name,
       expect.objectContaining({
-        "app.surface": "web",
-        "azurite.request_id": "future-7b",
+        "sentry.environment": "web-test",
+        "sentry.release": "azurite-web-test",
       }),
       expect.any(Object),
     );
-    expect(fake.addBreadcrumb).toHaveBeenCalled();
-    expect(runWebRuntimeSpan(event, () => 42)).toBe(42);
-    expect(fake.startSpan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "note.load",
-        op: "azurite.note.operation",
-      }),
-    );
-    expect(fake.scope.setTag).toHaveBeenCalledWith(
-      "azurite.request_id",
-      "future-7b",
-    );
-
-    const error = new Error("deliberate");
-    captureWebRuntimeError(error, event);
-    expect(fake.captureException).toHaveBeenCalledWith(error);
-    expect(fake.error).toHaveBeenCalled();
-    expect(fake.scope.setContext).toHaveBeenCalledWith(
-      "azurite.error",
-      expect.objectContaining({ message: "deliberate", name: "Error" }),
-    );
-  });
-});
-
-describe("web runtime observability failure isolation", () => {
-  it("suppresses enabled SDK carrier failures", () => {
-    const fake = createFakeSdk();
-    fake.sdk.withScope = () => {
-      throw new Error("scope failed");
-    };
-    fake.sdk.addBreadcrumb = () => {
-      throw new Error("breadcrumb failed");
-    };
-    fake.sdk.logger.info = () => {
-      throw new Error("log failed");
-    };
-    fake.sdk.logger.error = () => {
-      throw new Error("error log failed");
-    };
-    fake.sdk.captureException = () => {
-      throw new Error("capture failed");
-    };
-    installWebSentryRuntime(
-      fake.sdk,
-      parseWebSentryConfig({
-        VITE_SENTRY_DSN: "https://public@example.invalid/1",
-        VITE_SENTRY_ENABLED: "true",
-      }),
-    );
-    const event = { name: "carrier.failure", surface: "web" } as const;
-
-    expect(() => {
-      recordWebRuntimeEvent(event);
-    }).not.toThrow();
-    expect(() => {
-      captureWebRuntimeError(new Error("product"), event);
-    }).not.toThrow();
-  });
-});
-
-describe("web runtime scope carrier isolation", () => {
-  it("continues through throwing tag and context carriers", () => {
-    const fake = createFakeSdk();
-    fake.sdk.withScope = (callback) => {
-      callback({
-        setContext: () => {
-          throw new Error("context failed");
-        },
-        setTag: () => {
-          throw new Error("tag failed");
-        },
-      });
-    };
-    installWebSentryRuntime(
-      fake.sdk,
-      parseWebSentryConfig({
-        VITE_SENTRY_DSN: "https://public@example.invalid/1",
-        VITE_SENTRY_ENABLED: "true",
-      }),
-    );
-    const event = {
-      name: "scope.failure",
-      surface: "web",
-      tags: { "azurite.request_id": "request" },
-    } as const;
-
-    expect(() => {
-      recordWebRuntimeEvent(event);
-      captureWebRuntimeError(new Error("product"), event);
-    }).not.toThrow();
-    expect(fake.info).toHaveBeenCalledOnce();
+    expect(fake.addBreadcrumb).toHaveBeenCalledOnce();
+    expect(fake.error).toHaveBeenCalledOnce();
     expect(fake.captureException).toHaveBeenCalledOnce();
-  });
-});
-
-describe("web runtime span carrier isolation", () => {
-  it("executes span work once across enabled SDK failures", () => {
-    const fake = createFakeSdk();
-    const callback = vi.fn(() => "product-result");
-    fake.sdk.startSpan = (_options, guarded) => {
-      guarded();
-      throw new Error("span failed after callback");
-    };
-    installWebSentryRuntime(
-      fake.sdk,
-      parseWebSentryConfig({
-        VITE_SENTRY_DSN: "https://public@example.invalid/1",
-        VITE_SENTRY_ENABLED: "true",
-      }),
-    );
-
-    expect(
-      runWebRuntimeSpan({ name: "product.span", surface: "web" }, callback),
-    ).toBe("product-result");
-    expect(callback).toHaveBeenCalledTimes(1);
+    expect(fake.captureException).toHaveBeenCalledWith(error);
+    expect(fake.startSpan).toHaveBeenCalledOnce();
   });
 });
 
@@ -198,7 +87,6 @@ function createFakeSdk() {
     captureException,
     error,
     info,
-    scope,
     sdk,
     startSpan,
   };

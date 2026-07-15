@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseServerSentryConfig } from "../src/config/sentry-config.js";
 import {
   captureServerRuntimeError,
+  flushServerSentry,
   installServerSentryRuntime,
+  isServerSentryRuntimeEnabled,
   recordServerRuntimeEvent,
   resetServerSentryRuntimeForTests,
   runServerRuntimeSpan,
@@ -14,155 +16,58 @@ afterEach(() => {
   resetServerSentryRuntimeForTests();
 });
 
-describe("server runtime observability helpers", () => {
-  it("are no-op safe without an installed SDK", () => {
-    expect(
-      runServerRuntimeSpan(
-        { name: "future.7b.event", surface: "server" },
-        () => "completed",
-      ),
-    ).toBe("completed");
-    expect(() => {
-      recordServerRuntimeEvent({ name: "future.7b.event", surface: "server" });
-    }).not.toThrow();
-  });
-});
+describe("server runtime observability facade", () => {
+  it("keeps direct record, capture, span, enablement, and flush safe when disabled", async () => {
+    const event = { name: "carrier.disabled", surface: "server" } as const;
+    const callback = vi.fn(() => "completed");
 
-describe("enabled server runtime observability", () => {
-  it("maps extensible events to logs, breadcrumbs, spans, and errors", () => {
+    expect(() => {
+      recordServerRuntimeEvent(event);
+      captureServerRuntimeError(new Error("product"), event);
+    }).not.toThrow();
+    expect(runServerRuntimeSpan(event, callback)).toBe("completed");
+    expect(callback).toHaveBeenCalledOnce();
+    expect(isServerSentryRuntimeEnabled()).toBe(false);
+    await expect(flushServerSentry(500)).resolves.toBe(true);
+  });
+
+  it("forwards an installed SDK and current config to the shared carrier", () => {
     const fake = createFakeSdk();
     installServerSentryRuntime(
       fake.sdk,
       parseServerSentryConfig({
         SENTRY_DSN: "https://public@example.invalid/1",
         SENTRY_ENABLED: "true",
-        SENTRY_ENVIRONMENT: "test",
-        SENTRY_RELEASE: "azurite-test",
+        SENTRY_ENVIRONMENT: "server-test",
+        SENTRY_RELEASE: "azurite-server-test",
       }),
     );
-    const event = {
-      attributes: { "azurite.request_id": "future-7b" },
-      name: "future.7b.event",
-      spanName: "note.read",
-      spanOperation: "azurite.server.route",
-      surface: "server",
-      tags: { "azurite.request_id": "future-7b" },
-    } as const;
+    const event = { name: "carrier.enabled", surface: "server" } as const;
+    const error = new Error("product");
 
     recordServerRuntimeEvent(event);
+    captureServerRuntimeError(error, event);
+    expect(runServerRuntimeSpan(event, () => 42)).toBe(42);
+
+    expect(isServerSentryRuntimeEnabled()).toBe(true);
+    expect(fake.info).toHaveBeenCalledOnce();
     expect(fake.info).toHaveBeenCalledWith(
-      "future.7b.event",
+      event.name,
       expect.objectContaining({
-        "app.surface": "server",
-        "azurite.request_id": "future-7b",
-        "sentry.environment": "test",
-        "sentry.release": "azurite-test",
+        "sentry.environment": "server-test",
+        "sentry.release": "azurite-server-test",
       }),
       expect.any(Object),
     );
-    expect(fake.addBreadcrumb).toHaveBeenCalled();
-    expect(runServerRuntimeSpan(event, () => 42)).toBe(42);
-    expect(fake.startSpan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "note.read",
-        op: "azurite.server.route",
-      }),
-    );
-    expect(fake.scope.setTag).toHaveBeenCalledWith(
-      "azurite.request_id",
-      "future-7b",
-    );
-
-    const error = new Error("deliberate");
-    captureServerRuntimeError(error, event);
+    expect(fake.addBreadcrumb).toHaveBeenCalledOnce();
+    expect(fake.error).toHaveBeenCalledOnce();
     expect(fake.captureException).toHaveBeenCalledWith(error);
-    expect(fake.error).toHaveBeenCalled();
-    expect(fake.scope.setContext).toHaveBeenCalledWith(
-      "azurite.error",
-      expect.objectContaining({ message: "deliberate", name: "Error" }),
-    );
+    expect(fake.startSpan).toHaveBeenCalledOnce();
   });
-});
 
-describe("server runtime observability failure isolation", () => {
-  it("suppresses enabled SDK carrier failures", () => {
+  it("delegates flush to the installed SDK with the exact budget", async () => {
     const fake = createFakeSdk();
-    fake.sdk.withScope = () => {
-      throw new Error("scope failed");
-    };
-    fake.sdk.addBreadcrumb = () => {
-      throw new Error("breadcrumb failed");
-    };
-    fake.sdk.logger.info = () => {
-      throw new Error("log failed");
-    };
-    fake.sdk.logger.error = () => {
-      throw new Error("error log failed");
-    };
-    fake.sdk.captureException = () => {
-      throw new Error("capture failed");
-    };
-    installServerSentryRuntime(
-      fake.sdk,
-      parseServerSentryConfig({
-        SENTRY_DSN: "https://public@example.invalid/1",
-        SENTRY_ENABLED: "true",
-      }),
-    );
-    const event = { name: "carrier.failure", surface: "server" } as const;
-
-    expect(() => {
-      recordServerRuntimeEvent(event);
-    }).not.toThrow();
-    expect(() => {
-      captureServerRuntimeError(new Error("product"), event);
-    }).not.toThrow();
-  });
-});
-
-describe("server runtime scope carrier isolation", () => {
-  it("continues through throwing tag and context carriers", () => {
-    const fake = createFakeSdk();
-    fake.sdk.withScope = (callback) => {
-      callback({
-        setContext: () => {
-          throw new Error("context failed");
-        },
-        setTag: () => {
-          throw new Error("tag failed");
-        },
-      });
-    };
-    installServerSentryRuntime(
-      fake.sdk,
-      parseServerSentryConfig({
-        SENTRY_DSN: "https://public@example.invalid/1",
-        SENTRY_ENABLED: "true",
-      }),
-    );
-    const event = {
-      name: "scope.failure",
-      surface: "server",
-      tags: { "azurite.request_id": "request" },
-    } as const;
-
-    expect(() => {
-      recordServerRuntimeEvent(event);
-      captureServerRuntimeError(new Error("product"), event);
-    }).not.toThrow();
-    expect(fake.info).toHaveBeenCalledOnce();
-    expect(fake.captureException).toHaveBeenCalledOnce();
-  });
-});
-
-describe("server runtime span carrier isolation", () => {
-  it("executes span work once across enabled SDK failures", () => {
-    const fake = createFakeSdk();
-    const callback = vi.fn(() => "product-result");
-    fake.sdk.startSpan = (_options, guarded) => {
-      guarded();
-      throw new Error("span failed after callback");
-    };
+    fake.flush.mockResolvedValueOnce(false);
     installServerSentryRuntime(
       fake.sdk,
       parseServerSentryConfig({
@@ -171,13 +76,9 @@ describe("server runtime span carrier isolation", () => {
       }),
     );
 
-    expect(
-      runServerRuntimeSpan(
-        { name: "product.span", surface: "server" },
-        callback,
-      ),
-    ).toBe("product-result");
-    expect(callback).toHaveBeenCalledTimes(1);
+    await expect(flushServerSentry(731)).resolves.toBe(false);
+    expect(fake.flush).toHaveBeenCalledOnce();
+    expect(fake.flush).toHaveBeenCalledWith(731);
   });
 });
 
@@ -185,13 +86,14 @@ function createFakeSdk() {
   const addBreadcrumb = vi.fn();
   const captureException = vi.fn(() => "event-id");
   const error = vi.fn();
+  const flush = vi.fn(() => Promise.resolve(true));
   const info = vi.fn();
   const startSpan = vi.fn();
   const scope = { setContext: vi.fn(), setTag: vi.fn() };
   const sdk: ServerSentrySdk = {
     addBreadcrumb,
     captureException,
-    flush: vi.fn(() => Promise.resolve(true)),
+    flush,
     logger: { error, info },
     startSpan<Result>(options: unknown, callback: () => Result): Result {
       startSpan(options);
@@ -206,8 +108,8 @@ function createFakeSdk() {
     addBreadcrumb,
     captureException,
     error,
+    flush,
     info,
-    scope,
     sdk,
     startSpan,
   };

@@ -3,6 +3,7 @@ export * from "./api-routes.js";
 export * from "./cluster.js";
 export * from "./correlation.js";
 export * from "./development-observability.js";
+export * from "./fail-open-runtime-carrier.js";
 export * from "./health.js";
 export * from "./keyed-task-coordinator.js";
 export * from "./notes.js";

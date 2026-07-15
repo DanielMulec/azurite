@@ -7,8 +7,11 @@ is the active authoritative program document. Daniel accepted Task 3A at
 and 3C persistence-result simplification are complete. The post-Task-3C Task 3D
 store-workflow boundary is complete and accepted at
 `1cbdbe3f598ae71dfac07e29e9b46ad91f1a46f0`. Daniel approved the re-baselined
-Task 3E shared Sentry fail-open carrier for implementation on 2026-07-15. Slice
-7E remains planned, unrenumbered, unrefreshed, unpromoted, and unimplemented.
+Task 3E shared Sentry fail-open carrier on 2026-07-15. Task 3E is candidate
+complete with evidence in
+`../../qa/post-strictmode-sentry-fail-open-carrier.md` and awaits separate
+independent conformance review. Slice 7E remains planned, unrenumbered,
+unrefreshed, unpromoted, and unimplemented.
 
 The Route Failure Resilience outcomes from the Slice 7C adversarial review
 remain deliberately deferred until after Slice 7F and visible Cluster product
