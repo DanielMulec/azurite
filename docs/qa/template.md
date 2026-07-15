@@ -7,6 +7,7 @@
 - Repository commit: `<full SHA>`.
 - Scope: `<changed behavior and preserved guardrails>`.
 - Active plan or authoritative contract: `<relative link>`.
+- Sentry impact classification: `<classification from the Playwright runbook>`.
 
 Use one final decision:
 
@@ -175,6 +176,8 @@ Confirm:
 
 - [ ] Every selected matrix cell is `PASS`.
 - [ ] Every changed behavior and preserved guardrail has required evidence.
+- [ ] The declared Sentry impact classification is supported by the diff and
+      every required enabled or disabled cell passed.
 - [ ] Every finding has an explicit disposition and authoritative owner.
 - [ ] No `BLOCKED`, omitted, or inconclusive result is counted as passing.
 - [ ] Automated verification and build pass.

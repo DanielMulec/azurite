@@ -156,15 +156,45 @@ row with its changed behavior or guardrail, selected cells, evidence method, and
 reason for each unselected cell. `Relevant` is not a post-run judgment used to
 excuse missing evidence.
 
-Sentry is a conditional dimension, not an automatic doubling of every slice:
+Classify Sentry impact in the slice plan before browser QA starts. `Sentry
+disabled` describes a runtime mode; it does not establish whether a change can
+weaken implemented observability. Use exactly one of these classifications:
 
-- If a slice changes observability, request correlation, trace propagation,
-  Replay, or fail-open behavior, run every relevant cell with Sentry enabled and
-  disabled.
-- If a slice only needs Sentry as diagnostic evidence, use the configured debug
-  cell or cells and record that selection.
-- If a slice does not touch or rely on Sentry, the four-cell product matrix is
-  sufficient unless its plan says otherwise.
+1. **Direct observability change.** The slice changes SDK initialization,
+   runtime adapters, semantic event contracts, request correlation, trace
+   propagation, Replay, transport, fail-open behavior, or shutdown flush. Run
+   every relevant browser cell with Sentry enabled and disabled. Enabled cells
+   prove real SDK startup and delivery plus the affected event, log, trace,
+   Replay, correlation, and flush contracts. Disabled cells prove unchanged
+   product behavior without Sentry traffic or Sentry trace headers.
+2. **Instrumented-workflow preservation.** The slice refactors an existing
+   telemetry emitter, telemetry context source, correlated request path, or
+   lifecycle boundary while leaving the Sentry runtime contract unchanged.
+   Moving, renaming, wrapping, or changing ownership of that code counts. Run
+   the ordinary selected product matrix with Sentry disabled, then run at least
+   one cumulative built-preview Sentry-enabled natural-workflow cell that
+   exercises every affected contract. Prove real SDK startup and delivery,
+   natural semantic evidence, trace headers and browser/server joining where
+   applicable, Replay when the affected workflow is replay-observable, and
+   unchanged product outcomes. This preservation proof belongs to the current
+   slice and cannot be deferred to a later diagnostics slice.
+3. **Diagnostic-only use.** The slice leaves implemented observability and its
+   instrumented workflows unchanged, but Sentry helps investigate or explain
+   the product behavior. Select the useful enabled debug cell or cells and
+   record the evidence they add.
+4. **Unaffected.** No implemented Sentry contract or instrumented workflow
+   participates in the change. The four-cell product matrix is sufficient. The
+   slice plan and QA record must name the inspected evidence supporting this
+   classification.
+
+Implementation evidence can raise the planned classification within approved
+scope. When approved implementation reaches an existing instrumented boundary,
+update the plan and QA classification and add the required preservation cells.
+When implementation would add or change SDK setup, runtime adapters, semantic
+contracts, correlation, transport, Replay, fail-open behavior, or another
+observability capability outside the approved outcome, stop and apply Scope
+Re-selection under `docs/working-agreement.md`. Existing product-infrastructure
+preservation belongs inside the current slice and does not annex Slice 7E.
 
 Pixel 6 acceptance must record Android Chrome emulation, a `412` by `839` CSS
 viewport, `412` by `915` CSS screen, device scale factor `2.625`, touch support,

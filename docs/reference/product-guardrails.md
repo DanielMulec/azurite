@@ -66,6 +66,10 @@ proposal.
 - Browser or device QA is performed when behavior depends on real rendering,
   editor integration, browser lifecycle, history, storage, Tailscale, or mobile
   behavior.
+- Implemented Sentry delivery, semantic evidence, request correlation, tracing,
+  Replay, fail-open behavior, and instrumented workflows remain operational when
+  a change touches their emitters, context sources, correlated request paths,
+  runtime adapters, or lifecycle boundaries.
 - After successful delivery, the primary repository is clean on `main`, all
   temporary worker worktrees and branches are removed, and the complete state
   is synchronized with `origin/main`.

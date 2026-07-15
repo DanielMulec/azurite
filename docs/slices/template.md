@@ -69,6 +69,13 @@ proof:
 | ---------------- | ---------------------------------- |
 | Changed behavior | Focused automated or manual proof. |
 
+Declare one Sentry impact classification from
+`docs/runbooks/playwright-acceptance.md`: direct observability change,
+instrumented-workflow preservation, diagnostic-only use, or unaffected. Name
+the implemented Sentry contracts or instrumented workflows inspected, select
+the required enabled and disabled browser cells, or give the concrete evidence
+supporting an unaffected classification.
+
 Run the full repository validation:
 
 ```sh
