@@ -208,6 +208,22 @@ profile, `.env.local`, the four pre-existing `.playwright-mcp` entries, and the
 parked `QA_ROOT/preexisting-web-dist` directory were explicitly protected from
 cleanup.
 
+The direct shutdown listeners ran sequentially only after port 3000 was proven
+free. For each of the first three completed nested execs, the retained ownership
+identifier was the exact release-scoped probe label and termination timestamp
+below. The nested listener PID and PTY session were used to signal and await the
+process, then were omitted when the completed result was serialized. The fourth
+probe additionally retained PID 72708 and PTY session 49370. Each result
+retained `exit=0`, `clean=true`, and `started=true`, and port 3000 was proven
+free between probes and again during final cleanup.
+
+| Retained shutdown-probe ownership identifier                                                          | Termination time     | Additional retained runtime identity |
+| ----------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------ |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-desktop-enabled/shutdown-probe@2026-07-15T08:18:47Z`     | 2026-07-15T08:18:47Z | completed nested exec                |
+| `azurite-task3e-20260715T071105Z-3d98cc9-dev-pixel6-enabled/shutdown-probe@2026-07-15T08:18:48Z`      | 2026-07-15T08:18:48Z | completed nested exec                |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-desktop-enabled/shutdown-probe@2026-07-15T08:18:50Z` | 2026-07-15T08:18:50Z | completed nested exec                |
+| `azurite-task3e-20260715T071105Z-3d98cc9-preview-pixel6-enabled/shutdown-probe@2026-07-15T08:16:46Z`  | 2026-07-15T08:16:46Z | PID 72708, PTY 49370                 |
+
 The in-flight development Pixel Replay request was followed by a unique,
 release-filtered Replay in Sentry, so its delivery completed. All other listed
 envelopes returned a successful 2xx response before browser shutdown.
@@ -319,14 +335,15 @@ not change.
 
 ## Findings And Dispositions
 
-| Finding                                                                                             | Disposition                                                                                                                                             |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Protected ignored `apps/web/dist` caused the first validation setup to scan old generated bundles.  | Parked byte-for-byte, reran the complete validation successfully, then restored the exact original directory. No repository or policy change.           |
-| One initial disabled desktop Playwright listener attempt failed before writes.                      | Restarted with a unique owned listener. No product request or filesystem mutation occurred.                                                             |
-| One development desktop enabled strict locator was ambiguous after sidebar selection.               | Continued from the observed coherent state. No duplicate interaction or request occurred.                                                               |
-| Package-manager PTY shutdown did not expose Sentry shutdown records.                                | Reproduced graceful shutdown directly for all four enabled releases. Each exited zero and delivered one started/flushed pair. No code repair required.  |
-| Development Pixel observed one Replay envelope in flight at browser close.                          | Authenticated Sentry showed exactly one release-filtered Replay with the unique cell workflow. Delivery confirmed.                                      |
-| Internal conformance review found the run ownership and release-correlation evidence too aggregate. | Added the exact roots, cell paths, sessions, runtime identities, sentinels, releases, request/operation pairs, issue counts, and shutdown dispositions. |
+| Finding                                                                                             | Disposition                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protected ignored `apps/web/dist` caused the first validation setup to scan old generated bundles.  | Parked byte-for-byte, reran the complete validation successfully, then restored the exact original directory. No repository or policy change.                 |
+| One initial disabled desktop Playwright listener attempt failed before writes.                      | Restarted with a unique owned listener. No product request or filesystem mutation occurred.                                                                   |
+| One development desktop enabled strict locator was ambiguous after sidebar selection.               | Continued from the observed coherent state. No duplicate interaction or request occurred.                                                                     |
+| Package-manager PTY shutdown did not expose Sentry shutdown records.                                | Reproduced graceful shutdown directly for all four enabled releases. Each exited zero and delivered one started/flushed pair. No code repair required.        |
+| Development Pixel observed one Replay envelope in flight at browser close.                          | Authenticated Sentry showed exactly one release-filtered Replay with the unique cell workflow. Delivery confirmed.                                            |
+| Internal conformance review found the run ownership and release-correlation evidence too aggregate. | Added the exact roots, cell paths, sessions, runtime identities, sentinels, releases, request/operation pairs, issue counts, and shutdown dispositions.       |
+| The first three completed shutdown-probe results omitted their already-settled PID and PTY values.  | Recorded the exact retained release/timestamp ownership identifiers and clean results. The fourth retained PID/PTY; sequential port checks proved no residue. |
 
 No implementation finding required Scope Re-selection. No semantic, SDK,
 configuration, correlation, Replay, shutdown, storage, or product-workflow
@@ -335,7 +352,8 @@ behavior changed.
 ## Cleanup Ledger
 
 - All eight browser sessions, eight frontend/backend listener pairs, and four
-  direct shutdown probes were stopped by exact owned session or PID identity.
+  direct shutdown probes were stopped by exact owned session, PID, or retained
+  release-scoped probe identity.
 - All eight disposable clusters and their `.azurite` identities were removed
   after the byte/hash ledger above was recorded.
 - The Playwright inspection session detached before the cloned Chrome process
